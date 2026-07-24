@@ -1,0 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-nexa-dark: #0B0E14;
+  --color-nexa-card: #151A24;
+  --color-nexa-border: #222B3C;
+  --color-nexa-glow: #00E5FF;
+  --color-nexa-purple: #7C4DFF;
+  --color-nexa-blue: #2979FF;
+}
+
+/* Custom styles for high-fidelity animations and UI effects */
+body {
+  background-color: var(--color-nexa-dark);
+  color: #F3F4F6;
+  font-family: var(--font-sans);
+}
+
+.glow-orb {
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.6), 0 0 40px rgba(124, 77, 255, 0.4);
+}
+
+.glassmorphism {
+  background: rgba(21, 26, 36, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glassmorphism-light {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
