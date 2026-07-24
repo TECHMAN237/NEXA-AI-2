@@ -25,4 +25,12 @@ export class NotificationService {
   static async saveAlarmSettings(settings: AlarmSettings): Promise<void> {
     await StorageService.save('nexa_alarm_settings', settings);
   }
+
+  static async getNotificationHistory(): Promise<any[]> {
+    return StorageService.findAll('nexa_notification_history');
+  }
+
+  static async saveNotificationHistory(history: any[]): Promise<void> {
+    await StorageService.save('nexa_notification_history', history);
+  }
 }

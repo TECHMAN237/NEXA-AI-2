@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Reminder, Task, Exam, Event as NexaEvent } from '../types.js';
 import { ProfileService } from '../services/ProfileService.js';
+import { speakHumanVoice } from '../utils/voiceUtils.js';
 
 interface MyItemsViewProps {
   reminders: Reminder[];
@@ -127,18 +128,7 @@ export default function MyItemsView({
   };
 
   const handleTriggerMockVoice = () => {
-    try {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance("Hello! This is a manual voice reminder test triggered from NEXA Developer Mode.");
-        utterance.rate = 1.0;
-        window.speechSynthesis.speak(utterance);
-      } else {
-        alert("Speech synthesis is not supported in this browser.");
-      }
-    } catch (e) {
-      console.error(e);
-    }
+    speakHumanVoice("Hello! This is a voice reminder test triggered from NEXA Developer Mode.");
   };
 
   // Helper helper to format log entries

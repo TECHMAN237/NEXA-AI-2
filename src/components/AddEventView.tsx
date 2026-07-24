@@ -9,8 +9,9 @@ interface AddEventViewProps {
 }
 
 export default function AddEventView({ onBack, onEventSaved }: AddEventViewProps) {
+  const todayStr = new Date().toISOString().split('T')[0];
   const [title, setTitle] = useState('Team Meeting');
-  const [date, setDate] = useState('2025-05-22');
+  const [date, setDate] = useState(todayStr);
   const [time, setTime] = useState('15:00');
   const [location, setLocation] = useState('Tech Hub, Buea');
   const [participants, setParticipants] = useState<string[]>(['Sarah', 'Michael', 'Kevin']);

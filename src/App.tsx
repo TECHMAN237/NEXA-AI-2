@@ -28,6 +28,7 @@ import LanguageView from './components/LanguageView.js';
 import AboutView from './components/AboutView.js';
 import TeamView from './components/TeamView.js';
 import AuthLayout from './components/AuthLayout.js';
+import { speakHumanVoice } from './utils/voiceUtils.js';
 
 // Types
 import { Reminder, Task, Exam, Event as NexaEvent, Memory, Profile } from './types.js';
@@ -249,9 +250,8 @@ export default function App() {
             playAlertSound(r.sound_name || 'default');
           }
 
-          // Play Speech Synthesis if global setting is ON
-          const autoVoiceSetting = await ReminderService.isAutoVoiceReminderEnabled();
-          if (r.voice_notification && autoVoiceSetting) {
+          // Play Speech Synthesis if voice notification is enabled on the reminder
+          if (r.voice_notification !== false) {
             fetch('/api/reminders/reformulate', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -262,32 +262,13 @@ export default function App() {
               throw new Error("Failed to reformulate");
             })
             .then(data => {
-              const speechText = data.speechText;
-              if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                const utterance = new SpeechSynthesisUtterance(speechText);
-                utterance.rate = r.voice_speed !== undefined ? r.voice_speed : 1.0;
-                
-                if (r.voice_name && r.voice_name !== 'default') {
-                  const voices = window.speechSynthesis.getVoices();
-                  const matchedVoice = voices.find(v => v.name.toLowerCase().includes(r.voice_name!.toLowerCase()));
-                  if (matchedVoice) {
-                    utterance.voice = matchedVoice;
-                  }
-                }
-                window.speechSynthesis.speak(utterance);
-              }
+              speakHumanVoice(data.speechText, { voiceName: r.voice_name, rate: r.voice_speed });
             })
             .catch(err => {
               console.error('Speech synthesis error, using dynamic fallback:', err);
-              if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                const nameSalutation = profile?.full_name ? `Hello ${profile.full_name.trim().split(' ')[0]}.` : "Hello.";
-                const speechText = `${nameSalutation} This is NEXA AI. I'm reminding you that you have scheduled "${r.title}" now.`;
-                const utterance = new SpeechSynthesisUtterance(speechText);
-                utterance.rate = r.voice_speed !== undefined ? r.voice_speed : 1.0;
-                window.speechSynthesis.speak(utterance);
-              }
+              const nameSalutation = profile?.full_name ? `Hello ${profile.full_name.trim().split(' ')[0]}.` : "Hello.";
+              const speechText = `${nameSalutation} This is NEXA AI. I'm reminding you that you have scheduled "${r.title}" now.`;
+              speakHumanVoice(speechText, { voiceName: r.voice_name, rate: r.voice_speed });
             });
           }
 

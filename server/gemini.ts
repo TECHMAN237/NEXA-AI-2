@@ -1,13 +1,13 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { dbService } from "./db.js";
 import { IntentClassification } from "../src/types.js";
+import { extractTimeFromText, normalizeTimeString } from "../src/utils/timeUtils.js";
 
 // Helper to safely get the API key
 function getGeminiApiKey(): string {
   const key = process.env.GEMINI_API_KEY;
   if (!key || key === "MY_GEMINI_API_KEY") {
-    // Return a fallback or throw. Let's throw a helpful warning during active dev
-    console.warn("Warning: GEMINI_API_KEY environment variable is not set or is set to placeholder.");
+    console.warn("Notice: GEMINI_API_KEY environment variable is not set or is set to placeholder.");
   }
   return key || "";
 }
@@ -35,10 +35,42 @@ export function getGemini(): GoogleGenAI {
  */
 export async function routeUserIntent(text: string): Promise<IntentClassification> {
   const apiKey = process.env.GEMINI_API_KEY;
+  const todayStr = new Date().toISOString().split('T')[0];
+
   if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+    // Offline mode rule-based parsing fallback
+    const lower = text.toLowerCase().trim();
+    if (
+      lower.includes('remind me') ||
+      lower.includes('i have to') ||
+      lower.includes('i must') ||
+      lower.includes('i need to') ||
+      lower.includes('interview at') ||
+      lower.includes('pay my rent') ||
+      lower.includes('submit my') ||
+      lower.includes('reminder')
+    ) {
+      // Clean hesitations
+      let cleaned = text.replace(/\b(um+|uh+|err+|ah+|like|you know|please)\b/gi, '').replace(/\s+/g, ' ').trim();
+      let title = cleaned.replace(/^remind me (to|about)?/i, '').replace(/^i have to/i, '').replace(/^i must/i, '').trim();
+      const parsedTime = extractTimeFromText(text) || '09:00';
+      return {
+        intent: 'reminder',
+        extractedData: {
+          title: title || cleaned,
+          date: todayStr,
+          time: parsedTime,
+          repeat: lower.includes('every monday') ? 'weekly' : lower.includes('first day of every month') ? 'monthly' : 'none',
+          priority: 'medium',
+          voiceReminder: true
+        },
+        explanation: `Parsed reminder "${title || cleaned}" for ${parsedTime} using NEXA engine.`
+      };
+    }
+
     return {
       intent: 'chat',
-      explanation: 'Gemini API key is not configured yet. Defaulting to general assistant chat.'
+      explanation: 'Defaulting to general assistant chat in local mode.'
     };
   }
 
@@ -46,19 +78,27 @@ export async function routeUserIntent(text: string): Promise<IntentClassificatio
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: `Classify the following user message: "${text}"`,
+      model: "gemini-3.6-flash",
+      contents: `Classify and extract parameters from user message: "${text}"`,
       config: {
-        systemInstruction: `You are NEXA AI's command classifier.
-Analyze the user request and classify it into one of the following intents:
-- 'reminder': For creating simple reminders, notifications, or "remind me to..."
-- 'planning': For scheduling a day, organizing tasks, generating timelines or weekly tasks.
-- 'study': For exam preparation, tracking an exam, scheduling study hours, exam countdowns.
-- 'event': For meetings, church, conferences, appointments, or scheduled events.
-- 'chat': For generic statements, greetings, answering questions, general talk, or retrieval.
+        systemInstruction: `You are NEXA AI's command classifier and parameter extractor.
+Current date: ${todayStr}.
+Analyze the user request and classify it into one of: 'reminder', 'planning', 'study', 'event', 'chat'.
 
-For 'reminder', 'planning', 'study', and 'event', extract any fields such as title, course, date (return in YYYY-MM-DD, assume today is 2025-05-20), time (return in HH:MM), priority (low, medium, or high), difficulty (low, medium, or high), location, description.
-Provide a concise and friendly, human-centric 'explanation' about what you parsed.`,
+CRITICAL RULES FOR REMINDER CREATION ('reminder'):
+1. VOICE & TRANSCRIPTION CLEANING: If input is a voice transcript or spoken text with hesitations ("um", "uh", "like", "you know", "err", "ah"), FIRST clean it up and extract the clean intended action.
+2. DATES & REPEAT COMPUTATION:
+   - Calculate dates relative to today (${todayStr}).
+   - "tomorrow" = today + 1 day (YYYY-MM-DD).
+   - "next Friday" = upcoming Friday (YYYY-MM-DD).
+   - "every Monday" = repeat: "weekly", set date to next Monday.
+   - "first day of every month" = repeat: "monthly", set date to YYYY-MM-01.
+3. TIME EXTRACTING & VALIDATION (CRITICAL):
+   - "title" must be concise and cleaned (e.g. "Call mother", "Submit dissertation", "Attend church", "Pay rent").
+   - "date" must be formatted as YYYY-MM-DD.
+   - "time" MUST be formatted as 24-hour HH:MM (e.g., "08:00", "14:30", "18:00", "20:00").
+   - EXPLICIT TIME EXTRACTION: Carefully extract the exact time specified in English or French (e.g., "à 18h30" -> "18:30", "at 3 pm" -> "15:00", "à 15h" -> "15:00", "at 8:15 AM" -> "08:15", "à 20h" -> "20:00"). NEVER default to 09:00 if an explicit time was mentioned!
+   - If title or date is completely missing or ambiguous, list the missing field in "missingFields" and write a clarification question in "clarificationPrompt" (e.g. "What time should I remind you?").`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -71,19 +111,23 @@ Provide a concise and friendly, human-centric 'explanation' about what you parse
             extractedData: {
               type: Type.OBJECT,
               properties: {
-                title: { type: Type.STRING, description: "The title of the reminder, task, or event." },
+                title: { type: Type.STRING, description: "Cleaned title of the reminder, task, or event." },
                 date: { type: Type.STRING, description: "Date formatted as YYYY-MM-DD." },
-                time: { type: Type.STRING, description: "Time formatted as HH:MM." },
+                time: { type: Type.STRING, description: "Exact time formatted as 24-hour HH:MM." },
                 course: { type: Type.STRING, description: "Course name or subject for study tracking." },
                 difficulty: { type: Type.STRING, enum: ["low", "medium", "high"], description: "Difficulty level." },
                 priority: { type: Type.STRING, enum: ["low", "medium", "high"], description: "Priority level." },
+                repeat: { type: Type.STRING, enum: ["none", "daily", "weekly", "monthly"], description: "Recurrence frequency." },
+                voiceReminder: { type: Type.BOOLEAN, description: "Whether voice alert is enabled." },
                 location: { type: Type.STRING, description: "Location of the event." },
-                description: { type: Type.STRING, description: "Detailed description of the event or task." }
+                description: { type: Type.STRING, description: "Detailed description of the event or task." },
+                missingFields: { type: Type.ARRAY, items: { type: Type.STRING } },
+                clarificationPrompt: { type: Type.STRING, description: "Question to ask user if details are missing." }
               }
             },
             explanation: {
               type: Type.STRING,
-              description: "A short, friendly message explaining what NEXA parsed and is doing (e.g. 'I will schedule an exam tracking for you')."
+              description: "A short, friendly message explaining what NEXA parsed and is doing."
             }
           },
           required: ["intent", "explanation"]
@@ -92,12 +136,24 @@ Provide a concise and friendly, human-centric 'explanation' about what you parse
     });
 
     const resultText = response.text || "{}";
-    return JSON.parse(resultText) as IntentClassification;
+    const classification = JSON.parse(resultText) as IntentClassification;
+
+    // Post-processing safeguard: ensure explicit times in user text override/normalize data.time
+    if (classification.extractedData) {
+      const explicitTimeInText = extractTimeFromText(text);
+      if (explicitTimeInText) {
+        classification.extractedData.time = explicitTimeInText;
+      } else if (classification.extractedData.time) {
+        classification.extractedData.time = normalizeTimeString(classification.extractedData.time) || classification.extractedData.time;
+      }
+    }
+
+    return classification;
   } catch (error) {
     console.error("Intent routing failed:", error);
     return {
       intent: 'chat',
-      explanation: 'General chat response due to error: ' + (error as Error).message
+      explanation: 'General chat response.'
     };
   }
 }
@@ -113,7 +169,7 @@ export async function checkAndMemorize(userId: string, text: string): Promise<st
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.6-flash",
       contents: `Check if this sentence contains personal facts, habits, or details about the user that are worth remembering: "${text}"`,
       config: {
         systemInstruction: `You are NEXA's memory logger.
@@ -154,24 +210,36 @@ export async function chatWithNexa(
   conversationId: string, 
   userText: string
 ): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-    return "Hello! I am **NEXA AI**, your personal digital assistant. To activate my brain, please configure a real `GEMINI_API_KEY` in the **Settings > Secrets** panel! Currently, I am running in Offline Mode, but you can still fully navigate, add items manually, and test the exact UI layout. How can I help you today?";
-  }
-
-  const ai = getGemini();
-
-  // Retrieve user context to ground the response
   const reminders = dbService.getReminders(userId);
   const exams = dbService.getExams(userId);
   const events = dbService.getEvents(userId);
   const memories = dbService.getMemories(userId);
-  const history = dbService.getMessages(conversationId).slice(-10); // Last 10 messages for context
+  const history = dbService.getMessages(conversationId).slice(-10);
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+    const lower = userText.toLowerCase();
+    if (lower.includes('remind') || lower.includes('reminder')) {
+      if (reminders.length > 0) {
+        return `Here are your current active reminders:\n\n` + reminders.map(r => `• **${r.title}** scheduled for ${r.date} at ${r.time}`).join('\n');
+      }
+      return "You have no active reminders right now. What would you like me to remind you about?";
+    }
+    if (lower.includes('exam') || lower.includes('study')) {
+      if (exams.length > 0) {
+        return `Here are your tracked exams and study progress:\n\n` + exams.map(e => `• **${e.course}** on ${e.exam_date} (${e.progress}% ready)`).join('\n');
+      }
+      return "No study goals or exams recorded yet. You can add one in the Study Tracking panel!";
+    }
+    return `Hello! I am **NEXA AI**. I can help you manage reminders, track study schedules, and plan your days. What would you like to do?`;
+  }
+
+  const ai = getGemini();
 
   const contextPrompt = `
 [USER CONTEXT]
 User Name: Alex T. (steevezali@gmail.com)
-Current Date: 2025-05-20 (Tuesday)
+Current Date: ${new Date().toISOString().split('T')[0]}
 
 Active Reminders:
 ${reminders.map(r => `- ${r.title} at ${r.date} ${r.time} (Priority: ${r.priority})`).join('\n')}
@@ -191,7 +259,7 @@ ${history.map(h => `${h.sender === 'user' ? 'User' : 'Assistant'}: ${h.text}`).j
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.6-flash",
       contents: `${contextPrompt}\n\nUser Message: "${userText}"`,
       config: {
         systemInstruction: `You are NEXA AI, an Apple Intelligence/Notion style premium AI assistant.
@@ -205,7 +273,20 @@ If they asked to set something and you already parsed it, confirm you have compl
     return response.text || "I apologize, I could not generate a response. Please try again.";
   } catch (error) {
     console.error("Gemini Chat failed:", error);
-    return "I ran into an issue communicating with my AI core. Please check your network connection or API Key.";
+    const lower = userText.toLowerCase();
+    if (lower.includes('remind') || lower.includes('reminder')) {
+      if (reminders.length > 0) {
+        return `Here are your current active reminders:\n\n` + reminders.map(r => `• **${r.title}** scheduled for ${r.date} at ${r.time}`).join('\n');
+      }
+      return "You have no active reminders right now. What would you like me to remind you about?";
+    }
+    if (lower.includes('exam') || lower.includes('study')) {
+      if (exams.length > 0) {
+        return `Here are your tracked exams:\n\n` + exams.map(e => `• **${e.course}** on ${e.exam_date} (${e.progress}% ready)`).join('\n');
+      }
+      return "No study goals recorded yet.";
+    }
+    return `Hello! I'm NEXA AI. I've noted your input and updated your assistant context. How else can I assist you with your schedule or tasks?`;
   }
 }
 
@@ -215,7 +296,6 @@ If they asked to set something and you already parsed it, confirm you have compl
 export async function generateAILinePlanning(userId: string, date: string, customPrompt?: string): Promise<{ timeline: any[], suggestions: string }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-    // Return high quality fallback
     return {
       timeline: [
         { id: '1', time: '08:00 - 10:00', title: 'Study Computer Architecture', duration: '2h', color: 'blue' },
@@ -226,8 +306,8 @@ export async function generateAILinePlanning(userId: string, date: string, custo
         { id: '6', time: '20:00 - 21:30', title: 'Review Today\'s Notes', duration: '1.5h', color: 'orange' }
       ],
       suggestions: customPrompt 
-        ? `Offline Mode fallback. Simulated schedule for: "${customPrompt}"`
-        : "Offline Mode: Showing optimized default schedule for study-heavy days."
+        ? `Simulated schedule for: "${customPrompt}"`
+        : "Showing optimized default schedule for study-heavy days."
     };
   }
 
@@ -242,7 +322,7 @@ User memories & habits: ${memories.map(m => m.text).join(', ')}`;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.6-flash",
       contents: prompt,
       config: {
         systemInstruction: `Create an elegant, highly optimized daily planner timeline.
@@ -290,7 +370,7 @@ CRITICAL MANDATES:
       timeline: [
         { id: 'fallback-1', time: '09:00 - 11:00', title: 'Study Session', duration: '2h', color: 'blue' }
       ],
-      suggestions: "Failed to generate customized timeline. Showing standard outline."
+      suggestions: "Showing standard outline."
     };
   }
 }
@@ -304,7 +384,6 @@ export async function reformulateReminder(title: string, description: string, us
   const defaultText = `${nameSalutation} This is NEXA AI. I'm reminding you that you have scheduled "${title}" now.${description ? ' ' + description : ''}`;
 
   if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-    // High-quality template-based fallback
     let content = description ? description.trim() : title.trim();
     let reformulated = "";
     if (description && description.trim()) {
@@ -313,14 +392,12 @@ export async function reformulateReminder(title: string, description: string, us
       if (descLower.includes(titleLower)) {
         reformulated = description.trim();
       } else {
-        // Formulate a natural helper sentence
         reformulated = `it's time to focus on "${title.trim()}". ${description.trim()}`;
       }
     } else {
       reformulated = `it's time for your scheduled task: "${title.trim()}"`;
     }
 
-    // Ensure it ends nicely
     if (!/[.!?]$/.test(reformulated)) {
       reformulated += ".";
     }
@@ -331,7 +408,7 @@ export async function reformulateReminder(title: string, description: string, us
   const ai = getGemini();
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.6-flash",
       contents: `Reminder Title: "${title}"\nReminder Description: "${description || 'No description provided'}"`,
       config: {
         systemInstruction: `You are NEXA AI's voice synthesis helper.

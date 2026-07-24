@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ChevronLeft, Calendar, Clock, RotateCcw, AlertTriangle, Sparkles, 
-  Volume2, Bell, AppWindow, FileText, CheckCircle2, Trash2, Play 
+  Volume2, Bell, AppWindow, FileText, CheckCircle2, Trash2, Play, Mic, Wand2, Loader2, MessageSquare
 } from 'lucide-react';
 import { Reminder } from '../types.js';
 import { ProfileService } from '../services/ProfileService.js';
+import { nexaOrchestrator } from '../ai/NexaOrchestrator.js';
+import { normalizeTimeString, extractTimeFromText } from '../utils/timeUtils.js';
+import { speakHumanVoice } from '../utils/voiceUtils.js';
 
 interface CreateReminderViewProps {
   onBack: () => void;
@@ -34,9 +37,10 @@ export default function CreateReminderView({
     loadSettings();
   }, []);
 
+  const todayStr = new Date().toISOString().split('T')[0];
   const [title, setTitle] = useState(reminderToEdit?.title || '');
   const [description, setDescription] = useState(reminderToEdit?.description || '');
-  const [date, setDate] = useState(reminderToEdit?.date || '2025-05-21');
+  const [date, setDate] = useState(reminderToEdit?.date || todayStr);
   const [time, setTime] = useState(reminderToEdit?.time || '18:00');
   const [repeat, setRepeat] = useState<'none' | 'daily' | 'weekly' | 'monthly'>(reminderToEdit?.repeat || 'none');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>(reminderToEdit?.priority || 'medium');
@@ -58,6 +62,111 @@ export default function CreateReminderView({
   const [actionOpenDoc, setActionOpenDoc] = useState(false);
   const [selectedApp, setSelectedApp] = useState('PDF Reader');
   const [selectedDoc, setSelectedDoc] = useState('CSC301 Study Syllabus.pdf');
+
+  // Natural Language & Voice AI Core State
+  const [nlInput, setNlInput] = useState('');
+  const [isNexaParsing, setIsNexaParsing] = useState(false);
+  const [nexaFeedback, setNexaFeedback] = useState('');
+  const [isListening, setIsListening] = useState(false);
+
+  const handleNexaAiParse = async (queryToParse?: string) => {
+    const text = (queryToParse || nlInput).trim();
+    if (!text) return;
+
+    setIsNexaParsing(true);
+    setNexaFeedback('');
+    setError('');
+
+    try {
+      const result = await nexaOrchestrator.processRequest({
+        query: text,
+        isVoiceInput: true,
+        intentOverride: 'CREATE_REMINDER'
+      });
+
+      const data = result.response.structuredData || {};
+      const actionResult = result.actionResult;
+
+      if (actionResult.action === 'CLARIFICATION_REQUIRED' || data.clarificationPrompt) {
+        setNexaFeedback(data.clarificationPrompt || actionResult.message || 'What time should I set for your reminder?');
+      } else {
+        if (data.title || data.cleanedText) {
+          setTitle(data.title || data.cleanedText);
+        }
+        if (data.description) {
+          setDescription(data.description);
+        }
+        if (data.date && /^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
+          setDate(data.date);
+        }
+        const parsedTime = normalizeTimeString(data.time) || extractTimeFromText(text);
+        if (parsedTime) {
+          setTime(parsedTime);
+        }
+        if (data.repeat && ['none', 'daily', 'weekly', 'monthly'].includes(data.repeat)) {
+          setRepeat(data.repeat);
+        }
+        if (data.priority && ['low', 'medium', 'high'].includes(data.priority)) {
+          setPriority(data.priority);
+        }
+
+        const finalTime = parsedTime || time;
+        setNexaFeedback(`✨ NEXA AI parsed: "${data.title || text}" set for ${data.date || date} at ${finalTime}.`);
+      }
+    } catch (e: any) {
+      console.error('NEXA AI Reminder parsing error:', e);
+      setNexaFeedback('Fallback parser activated.');
+    } finally {
+      setIsNexaParsing(false);
+    }
+  };
+
+  const handleVoiceToggle = () => {
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      try {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => setIsListening(true);
+        recognition.onresult = (e: any) => {
+          const transcript = e.results[0][0].transcript;
+          setNlInput(transcript);
+          setIsListening(false);
+          handleNexaAiParse(transcript);
+        };
+        recognition.onerror = () => setIsListening(false);
+        recognition.onend = () => setIsListening(false);
+        recognition.start();
+        return;
+      } catch (err) {
+        console.warn('Web Speech API error:', err);
+      }
+    }
+
+    // Interactive Voice Simulation Prompt for quick testing
+    setIsListening(true);
+    const samplePhrases = [
+      "Remind me tomorrow at 8 AM to call my mother.",
+      "I have to submit my dissertation next Friday.",
+      "Please remind me every Monday to attend church.",
+      "I must pay my rent on the first day of every month.",
+      "I have an interview at 2 PM."
+    ];
+    const picked = samplePhrases[Math.floor(Math.random() * samplePhrases.length)];
+    setNlInput(picked);
+    setTimeout(() => {
+      setIsListening(false);
+      handleNexaAiParse(picked);
+    }, 1200);
+  };
 
   // Effect to load edit mode configurations
   React.useEffect(() => {
@@ -178,6 +287,28 @@ export default function CreateReminderView({
       });
 
       if (res.ok) {
+        if (voiceNotification || actionPlayVoice) {
+          try {
+            const reformulateRes = await fetch('/api/reminders/reformulate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                title: title.trim() || 'Scheduled task',
+                description: description.trim() || ''
+              })
+            });
+            let speechText = '';
+            if (reformulateRes.ok) {
+              const data = await reformulateRes.json();
+              speechText = data.speechText;
+            } else {
+              speechText = `Reminder saved. I will remind you about ${title.trim() || 'your task'} on ${date} at ${time}.`;
+            }
+            speakHumanVoice(speechText, { voiceName, rate: voiceSpeed });
+          } catch (err) {
+            speakHumanVoice(`Reminder saved for ${title.trim() || 'your task'} on ${date} at ${time}.`, { voiceName, rate: voiceSpeed });
+          }
+        }
         onReminderSaved(); // triggers reload and redirects back or showing success toast
         onBack();
       } else {
@@ -222,6 +353,73 @@ export default function CreateReminderView({
           <h1 className="text-xl font-semibold text-white font-display">Create Reminder</h1>
           <p className="text-[10px] text-gray-500">Plan ahead with proactive voice alerts</p>
         </div>
+      </div>
+
+      {/* Natural Language & Voice AI Core Input Card */}
+      <div className="mb-5 p-4 bg-gradient-to-r from-nexa-blue/10 via-nexa-purple/10 to-indigo-900/10 border border-nexa-blue/30 rounded-2xl shadow-lg relative overflow-hidden">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-2">
+            <div className="p-1.5 bg-nexa-blue/20 text-nexa-blue rounded-lg">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider">Natural Language & Voice Assistant</h3>
+              <p className="text-[10px] text-gray-400">Speak or type naturally — NEXA AI Core will auto-fill every field</p>
+            </div>
+          </div>
+          <span className="text-[9px] font-mono bg-nexa-blue/20 text-nexa-blue px-2 py-0.5 rounded-full border border-nexa-blue/30">NEXA AI Core</span>
+        </div>
+
+        <div className="relative flex items-center mt-2">
+          <input
+            type="text"
+            value={nlInput}
+            onChange={(e) => setNlInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleNexaAiParse())}
+            placeholder="e.g. 'Remind me tomorrow at 8 AM to call my mother'"
+            className="w-full bg-[#111622] text-xs text-white placeholder-gray-500 border border-nexa-border rounded-xl pl-3 pr-24 py-3 focus:outline-none focus:border-nexa-blue transition shadow-inner"
+          />
+
+          <div className="absolute right-1.5 flex items-center space-x-1">
+            <button
+              type="button"
+              onClick={handleVoiceToggle}
+              title="Voice Input"
+              className={`p-2 rounded-lg text-xs font-medium transition cursor-pointer flex items-center justify-center ${
+                isListening 
+                  ? 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30' 
+                  : 'bg-[#1C2333] text-gray-300 hover:text-white hover:bg-gray-700'
+              }`}
+            >
+              <Mic className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleNexaAiParse()}
+              disabled={isNexaParsing || !nlInput.trim()}
+              className="p-2 bg-gradient-to-r from-nexa-blue to-nexa-purple text-white rounded-lg text-xs font-semibold hover:opacity-90 disabled:opacity-50 transition cursor-pointer flex items-center space-x-1 shadow-md"
+            >
+              {isNexaParsing ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Wand2 className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Dynamic AI Feedback / Clarification Banner */}
+        {nexaFeedback && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-3 bg-[#111827] border border-nexa-purple/40 rounded-xl p-2.5 text-[11px] text-nexa-purple flex items-start space-x-2"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-nexa-purple flex-shrink-0 mt-0.5" />
+            <span className="leading-snug">{nexaFeedback}</span>
+          </motion.div>
+        )}
       </div>
 
       {error && (
@@ -689,19 +887,7 @@ export default function CreateReminderView({
                     speechText = `Hello. This is NEXA AI. I'm reminding you that you scheduled: ${title.trim() || 'your study task'}.`;
                   }
 
-                  if ('speechSynthesis' in window) {
-                    window.speechSynthesis.cancel();
-                    const utterance = new SpeechSynthesisUtterance(speechText);
-                    utterance.rate = voiceSpeed;
-                    if (voiceName && voiceName !== 'default') {
-                      const voices = window.speechSynthesis.getVoices();
-                      const matchedVoice = voices.find(v => v.name.toLowerCase().includes(voiceName.toLowerCase()));
-                      if (matchedVoice) utterance.voice = matchedVoice;
-                    }
-                    window.speechSynthesis.speak(utterance);
-                  } else {
-                    alert("Speech synthesis is not supported in this browser.");
-                  }
+                  speakHumanVoice(speechText, { voiceName, rate: voiceSpeed });
                 } catch (e) {
                   console.error(e);
                 }
@@ -760,17 +946,7 @@ export default function CreateReminderView({
                       speechText = `Hello. This is NEXA AI. I'm reminding you that you scheduled: ${title.trim() || 'your study task'}.`;
                     }
 
-                    if ('speechSynthesis' in window) {
-                      window.speechSynthesis.cancel();
-                      const utterance = new SpeechSynthesisUtterance(speechText);
-                      utterance.rate = voiceSpeed;
-                      if (voiceName && voiceName !== 'default') {
-                        const voices = window.speechSynthesis.getVoices();
-                        const matchedVoice = voices.find(v => v.name.toLowerCase().includes(voiceName.toLowerCase()));
-                        if (matchedVoice) utterance.voice = matchedVoice;
-                      }
-                      window.speechSynthesis.speak(utterance);
-                    }
+                    speakHumanVoice(speechText, { voiceName, rate: voiceSpeed });
                   } catch (e) {
                     console.error(e);
                   }

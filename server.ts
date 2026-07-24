@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { dbService } from "./server/db.js";
 import { routeUserIntent, checkAndMemorize, chatWithNexa, generateAILinePlanning, reformulateReminder } from "./server/gemini.js";
+import { normalizeTimeString, extractTimeFromText } from "./src/utils/timeUtils.js";
 import {
   reminderController,
   planningController,
@@ -337,16 +338,26 @@ async function startServer() {
     // Perform real actions based on classified intent
     if (intentClassification.intent === 'reminder' && intentClassification.extractedData) {
       const data = intentClassification.extractedData;
-      if (data.title) {
-        dbService.createReminder(currentUserId, {
+      if (data.clarificationPrompt) {
+        // Send clarification message as AI response
+        dbService.createMessage(conversation.id, {
+          sender: 'assistant',
+          text: data.clarificationPrompt,
+          type: 'text'
+        });
+        return res.json({ success: true, clarification: true, prompt: data.clarificationPrompt });
+      } else if (data.title) {
+        const timeToSet = normalizeTimeString(data.time) || extractTimeFromText(text) || "09:00";
+        const createdRem = dbService.createReminder(currentUserId, {
           title: data.title,
           date: data.date || new Date().toISOString().split('T')[0],
-          time: data.time || "12:00",
-          repeat: 'none',
-          priority: data.priority || 'medium',
-          voice_notification: true,
+          time: timeToSet,
+          repeat: (data.repeat as 'none' | 'daily' | 'weekly' | 'monthly') || 'none',
+          priority: (data.priority as 'low' | 'medium' | 'high') || 'medium',
+          voice_notification: data.voiceReminder !== false,
           active: true
         });
+        console.log(`[NEXA Reminder Manager] Scheduled reminder ID: ${createdRem.id} - ${createdRem.title} at ${timeToSet}`);
       }
     } else if (intentClassification.intent === 'study' && intentClassification.extractedData) {
       const data = intentClassification.extractedData;

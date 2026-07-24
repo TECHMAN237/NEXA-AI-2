@@ -13,8 +13,9 @@ export default function StudyTrackingView({ onBack, exams, onExamSaved }: StudyT
   const activeExam = exams[0] || null;
 
   // Form states
+  const todayStr = new Date().toISOString().split('T')[0];
   const [course, setCourse] = useState(activeExam?.course || 'Computer Architecture');
-  const [examDate, setExamDate] = useState(activeExam?.exam_date || '2025-08-20');
+  const [examDate, setExamDate] = useState(activeExam?.exam_date || todayStr);
   const [difficulty, setDifficulty] = useState<'low' | 'medium' | 'high'>(activeExam?.difficulty || 'high');
   const [hoursPerDay, setHoursPerDay] = useState(activeExam?.study_hours_per_day || 3);
   const [prefTime, setPrefTime] = useState(activeExam?.preferred_study_time || '20:00 - 23:00');

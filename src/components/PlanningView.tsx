@@ -23,9 +23,10 @@ export default function PlanningView({ onBack, tasks, onTaskSaved }: PlanningVie
 
   // Manual Schedule Block State
   const [showAddManualBlockModal, setShowAddManualBlockModal] = useState(false);
+  const todayStr = new Date().toISOString().split('T')[0];
   const [manualTitle, setManualTitle] = useState('');
   const [manualDescription, setManualDescription] = useState('');
-  const [manualDate, setManualDate] = useState(`2025-05-21`);
+  const [manualDate, setManualDate] = useState(todayStr);
   const [manualStartTime, setManualStartTime] = useState('09:00');
   const [manualEndTime, setManualEndTime] = useState('10:00');
   const [manualPriority, setManualPriority] = useState<'low' | 'medium' | 'high'>('medium');
