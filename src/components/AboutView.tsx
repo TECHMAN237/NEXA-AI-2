@@ -17,7 +17,7 @@ export default function AboutView({ onBack }: AboutViewProps) {
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div>
-          <h1 className="text-xl font-bold font-display tracking-tight text-white">About NEXA AI</h1>
+          <h1 className="text-xl font-bold font-display tracking-tight text-white">About Xena AI</h1>
           <p className="text-[10px] text-gray-400">Our core vision, platform values, technology stack & telemetry</p>
         </div>
       </div>
@@ -29,16 +29,16 @@ export default function AboutView({ onBack }: AboutViewProps) {
         <div className="absolute w-40 h-40 bg-nexa-purple/10 rounded-full blur-3xl -bottom-10 -left-10"></div>
 
         <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-nexa-blue to-nexa-purple flex items-center justify-center shadow-lg shadow-nexa-blue/20 mb-4 z-10">
-          <span className="text-2xl font-black text-white font-display tracking-widest">N</span>
+          <span className="text-2xl font-black text-white font-display tracking-widest">X</span>
         </div>
 
-        <h2 className="text-lg font-extrabold font-display text-white z-10">NEXA Intelligent Core</h2>
+        <h2 className="text-lg font-extrabold font-display text-white z-10">Xena Intelligent Core</h2>
         <span className="text-[9px] font-mono tracking-widest text-nexa-glow bg-nexa-blue/10 border border-nexa-glow/20 px-2.5 py-0.5 rounded-full uppercase mt-1.5 z-10">
           BUILD v1.0.4 • DEPLOYED
         </span>
 
         <p className="text-[11px] text-gray-400 mt-4 leading-relaxed max-w-sm z-10">
-          NEXA is a highly secure, private-first micro-assistant designed to streamline university workflows, automated study scheduling, and timeline management.
+          Xena AI is a highly secure, private-first micro-assistant designed to streamline university workflows, automated study scheduling, and timeline management.
         </p>
       </div>
 
@@ -54,7 +54,7 @@ export default function AboutView({ onBack }: AboutViewProps) {
             <div>
               <div className="text-xs font-bold text-white">Cryptographic Isolation</div>
               <p className="text-[10px] text-gray-400 mt-0.5 leading-relaxed">
-                We believe your schedules and notes belong solely to you. NEXA runs locally-cached sandboxed interactions.
+                We believe your schedules and notes belong solely to you. Xena AI runs locally-cached sandboxed interactions.
               </p>
             </div>
           </div>
@@ -78,7 +78,7 @@ export default function AboutView({ onBack }: AboutViewProps) {
             <div>
               <div className="text-xs font-bold text-white">Absolute Zero Ad-Tracking</div>
               <p className="text-[10px] text-gray-400 mt-0.5 leading-relaxed">
-                NEXA contains zero tracking pixels, diagnostic cookies or telemetry monitors. All analytics are completely anonymous.
+                Xena AI contains zero tracking pixels, diagnostic cookies or telemetry monitors. All analytics are completely anonymous.
               </p>
             </div>
           </div>

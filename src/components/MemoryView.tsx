@@ -83,7 +83,7 @@ export default function MemoryView({ onBack, memories, onMemorySaved }: MemoryVi
         </button>
         <div>
           <h1 className="text-xl font-semibold text-white font-display">AI Memory</h1>
-          <p className="text-[10px] text-gray-500">View & refine what NEXA knows about you</p>
+          <p className="text-[10px] text-gray-500">View & refine what Xena AI knows about you</p>
         </div>
       </div>
 
@@ -93,7 +93,7 @@ export default function MemoryView({ onBack, memories, onMemorySaved }: MemoryVi
         <div>
           <h4 className="text-[10px] font-bold text-nexa-glow uppercase tracking-wider">Dynamic Memory Synapse</h4>
           <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">
-            Facts are added automatically when you chat. (e.g. telling NEXA <em>"I prefer coffee in the morning"</em> logs it as a Preference for future planning).
+            Facts are added automatically when you chat. (e.g. telling Xena AI <em>"I prefer coffee in the morning"</em> logs it as a Preference for future planning).
           </p>
         </div>
       </div>
@@ -170,7 +170,7 @@ export default function MemoryView({ onBack, memories, onMemorySaved }: MemoryVi
       {/* Memories list */}
       <div className="space-y-3">
         {filteredMemories.length === 0 ? (
-          <div className="text-center py-10 text-gray-500 text-xs">No memories found. Chat with NEXA to auto-generate memories.</div>
+          <div className="text-center py-10 text-gray-500 text-xs">No memories found. Chat with Xena AI to auto-generate memories.</div>
         ) : (
           filteredMemories.map((m) => (
             <div key={m.id} className="bg-nexa-card border border-nexa-border rounded-xl p-4 flex flex-col justify-between">

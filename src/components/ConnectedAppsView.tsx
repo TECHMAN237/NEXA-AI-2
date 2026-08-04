@@ -53,7 +53,7 @@ export default function ConnectedAppsView({ onBack }: ConnectedAppsViewProps) {
     const isConnected = connections[id];
     const appName = apps.find(a => a.id === id)?.name || id;
     if (isConnected) {
-      if (confirm(`Are you sure you want to disconnect ${appName}? NEXA will immediately lose orchestrating permissions.`)) {
+      if (confirm(`Are you sure you want to disconnect ${appName}? Xena AI will immediately lose orchestrating permissions.`)) {
         await updateConnection(id, false);
         setMessage(`Successfully disconnected and revoked access for ${appName}!`);
         setTimeout(() => setMessage(''), 3000);
@@ -92,7 +92,7 @@ export default function ConnectedAppsView({ onBack }: ConnectedAppsViewProps) {
       id: 'googleCalendar',
       name: 'Google Calendar',
       category: 'Calendar & Schedules',
-      description: 'Allows NEXA to write events, look up schedule gaps, and sync planned study slots automatically.',
+      description: 'Allows Xena AI to write events, look up schedule gaps, and sync planned study slots automatically.',
       icon: Calendar,
       color: 'text-blue-400 bg-blue-500/10',
       permissionsNeeded: ['read', 'write']
@@ -101,7 +101,7 @@ export default function ConnectedAppsView({ onBack }: ConnectedAppsViewProps) {
       id: 'googleDrive',
       name: 'Google Drive',
       category: 'Cloud Storage',
-      description: 'Used by NEXA to query PDFs, scan lecture notes, and backup private user summaries.',
+      description: 'Used by Xena AI to query PDFs, scan lecture notes, and backup private user summaries.',
       icon: HardDrive,
       color: 'text-amber-500 bg-amber-500/10',
       permissionsNeeded: ['read', 'write']
@@ -110,7 +110,7 @@ export default function ConnectedAppsView({ onBack }: ConnectedAppsViewProps) {
       id: 'notion',
       name: 'Notion Workspace',
       category: 'Productivity & Notes',
-      description: 'Allows NEXA to read study track lists, append summaries, and organize user ideas.',
+      description: 'Allows Xena AI to read study track lists, append summaries, and organize user ideas.',
       icon: Edit3,
       color: 'text-gray-200 bg-gray-500/10',
       permissionsNeeded: ['read', 'write']
@@ -126,7 +126,7 @@ export default function ConnectedAppsView({ onBack }: ConnectedAppsViewProps) {
     },
     {
       id: 'pdfReader',
-      name: 'NEXA PDF Reader',
+      name: 'Xena PDF Reader',
       category: 'Documents',
       description: 'Our built-in intelligent PDF summarizer that parses lecture slides and highlights exam scopes.',
       icon: FileText,
@@ -137,7 +137,7 @@ export default function ConnectedAppsView({ onBack }: ConnectedAppsViewProps) {
       id: 'maps',
       name: 'Google Maps platform',
       category: 'Location & Routing',
-      description: 'Allows NEXA to calculate travel times, display study venues, and check commute details.',
+      description: 'Allows Xena AI to calculate travel times, display study venues, and check commute details.',
       icon: Map,
       color: 'text-teal-400 bg-teal-500/10',
       permissionsNeeded: ['read']

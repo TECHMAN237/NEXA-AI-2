@@ -1,4 +1,4 @@
-// NEXA AI Voice Utility for Human-sounding Text-to-Speech
+// Xena AI Voice Utility for Human-sounding Text-to-Speech
 
 export function detectLanguage(text: string): string {
   if (!text) return 'en-US';

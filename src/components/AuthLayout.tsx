@@ -71,7 +71,7 @@ export default function AuthLayout({ onSuccess }: AuthLayoutProps) {
     // Simulate decrypted safe login
     setTimeout(() => {
       setIsLoading(false);
-      setSuccessMessage('NEXA security signature decrypted. Opening secure connection...');
+      setSuccessMessage('Xena AI security signature decrypted. Opening secure connection...');
       setTimeout(() => {
         onSuccess({
           name: loginEmail.split('@')[0].toUpperCase(),
@@ -169,9 +169,9 @@ export default function AuthLayout({ onSuccess }: AuthLayoutProps) {
       <header className="w-full max-w-md flex flex-col items-center justify-center space-y-2 mb-4 relative z-10">
         <div className="flex items-center space-x-2.5">
           <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-nexa-blue via-cyan-400 to-nexa-purple flex items-center justify-center shadow-lg shadow-cyan-400/20">
-            <span className="text-white font-black text-base tracking-widest font-display">N</span>
+            <span className="text-white font-black text-base tracking-widest font-display">X</span>
           </div>
-          <span className="text-lg font-black tracking-widest font-display bg-gradient-to-r from-white via-gray-300 to-gray-500 bg-clip-text text-transparent">NEXA AI</span>
+          <span className="text-lg font-black tracking-widest font-display bg-gradient-to-r from-white via-gray-300 to-gray-500 bg-clip-text text-transparent">Xena AI</span>
         </div>
         <p className="text-[10px] font-mono tracking-widest text-gray-500 uppercase">Secure Intelligence Matrix</p>
       </header>
@@ -195,7 +195,7 @@ export default function AuthLayout({ onSuccess }: AuthLayoutProps) {
 
                 <div className="space-y-2">
                   <h2 className="text-2xl font-extrabold font-display tracking-tight text-white flex items-center justify-center space-x-2">
-                    <span>NEXA Companion</span>
+                    <span>Xena Companion</span>
                     <Sparkles className="w-4 h-4 text-nexa-glow animate-pulse" />
                   </h2>
                   <p className="text-xs text-gray-400 max-w-[280px] mx-auto leading-relaxed">
@@ -304,7 +304,7 @@ export default function AuthLayout({ onSuccess }: AuthLayoutProps) {
                         className="mt-0.5 rounded border-nexa-border bg-[#080B10] text-nexa-blue focus:ring-0 focus:ring-offset-0 cursor-pointer"
                       />
                       <label htmlFor="regTerms" className="text-[10px] text-gray-400 leading-normal cursor-pointer">
-                        I authorize NEXA AI to encrypt my study schedules and planner items securely.
+                        I authorize Xena AI to encrypt my study schedules and planner items securely.
                       </label>
                     </div>
                     {regErrors.terms && (

@@ -66,7 +66,7 @@ export default function InteractiveWidget() {
           >
             {/* Widget Header with profile */}
             <div className="flex justify-between items-center mb-3">
-              <span className="text-[10px] font-extrabold text-white font-display tracking-widest uppercase">NEXA AI</span>
+              <span className="text-[10px] font-extrabold text-white font-display tracking-widest uppercase">XENA AI</span>
               <div className="w-5 h-5 rounded-full bg-nexa-blue flex items-center justify-center text-[8px] font-bold text-white">AT</div>
             </div>
 
@@ -78,7 +78,7 @@ export default function InteractiveWidget() {
                 </div>
                 <div>
                   <span className="text-[8px] text-gray-500 font-bold uppercase block">Hold to Speak</span>
-                  <span className="text-[10px] text-gray-200 block font-semibold mt-0.5">Start NEXA AI Session</span>
+                  <span className="text-[10px] text-gray-200 block font-semibold mt-0.5">Start Xena AI Session</span>
                 </div>
               </div>
               <span className="text-[10px] text-nexa-blue">→</span>
@@ -106,7 +106,7 @@ export default function InteractiveWidget() {
               </div>
             </div>
             
-            <p className="text-[8px] text-center text-gray-600 mt-3 font-mono">NEXA COMPACT HOME WIDGET</p>
+            <p className="text-[8px] text-center text-gray-600 mt-3 font-mono">XENA COMPACT HOME WIDGET</p>
           </motion.div>
         )}
 
@@ -118,7 +118,7 @@ export default function InteractiveWidget() {
           >
             {/* Clock */}
             <div className="text-center mt-4">
-              <span className="text-xs text-gray-400 font-semibold uppercase tracking-widest font-mono">NEXA Mobile OS</span>
+              <span className="text-xs text-gray-400 font-semibold uppercase tracking-widest font-mono">Xena Mobile OS</span>
               <h1 className="text-5xl font-light text-white tracking-wide font-display mt-2">9:30</h1>
               <p className="text-xs text-gray-400 mt-1 font-semibold">Tuesday, May 20</p>
             </div>
@@ -161,8 +161,8 @@ export default function InteractiveWidget() {
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2">
-                <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-nexa-blue to-nexa-purple flex items-center justify-center text-[10px] font-extrabold text-white">N</div>
-                <span className="text-[9px] text-gray-400 font-semibold uppercase tracking-wider">NEXA ASSISTANT • NOW</span>
+                <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-nexa-blue to-nexa-purple flex items-center justify-center text-[10px] font-extrabold text-white">X</div>
+                <span className="text-[9px] text-gray-400 font-semibold uppercase tracking-wider">XENA ASSISTANT • NOW</span>
               </div>
               <span className="w-1.5 h-1.5 rounded-full bg-nexa-blue animate-ping"></span>
             </div>

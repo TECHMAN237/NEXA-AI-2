@@ -32,6 +32,7 @@ import { speakHumanVoice } from './utils/voiceUtils.js';
 
 // Types
 import { Reminder, Task, Exam, Event as NexaEvent, Memory, Profile } from './types.js';
+import { actionExecutionEngine } from './ai/ActionExecutionEngine.js';
 
 // Clean Layered Services
 import { UserService } from './services/UserService.js';
@@ -91,6 +92,12 @@ export default function App() {
 
   useEffect(() => {
     fetchData();
+    const unregister = actionExecutionEngine.registerRefreshCallback(() => {
+      fetchData();
+    });
+    return () => {
+      unregister();
+    };
   }, []);
 
   const fetchData = async () => {
@@ -267,7 +274,7 @@ export default function App() {
             .catch(err => {
               console.error('Speech synthesis error, using dynamic fallback:', err);
               const nameSalutation = profile?.full_name ? `Hello ${profile.full_name.trim().split(' ')[0]}.` : "Hello.";
-              const speechText = `${nameSalutation} This is NEXA AI. I'm reminding you that you have scheduled "${r.title}" now.`;
+              const speechText = `${nameSalutation} This is Xena AI. I'm reminding you that you have scheduled "${r.title}" now.`;
               speakHumanVoice(speechText, { voiceName: r.voice_name, rate: r.voice_speed });
             });
           }
@@ -507,7 +514,7 @@ export default function App() {
     const text = textToRun || quickInput;
     if (!text.trim()) return;
 
-    setQuickPanelFeedback('NEXA is executing requested command...');
+    setQuickPanelFeedback('Xena AI is executing requested command...');
     setOrbState('thinking');
 
     try {
@@ -577,12 +584,12 @@ export default function App() {
       <header className="w-full bg-[#0B0E14] border-b border-nexa-border py-4 px-6 md:px-8 flex justify-between items-center relative z-30">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-nexa-blue to-nexa-purple flex items-center justify-center shadow-md">
-            <span className="text-white font-black text-sm tracking-widest font-display">N</span>
+            <span className="text-white font-black text-sm tracking-widest font-display">X</span>
           </div>
           <div>
             <h1 className="text-base font-bold font-display tracking-tight text-white flex items-center space-x-1.5">
-              <span>NEXA AI</span>
-              <span className="text-[8px] bg-nexa-blue/20 text-nexa-glow border border-nexa-glow/20 px-1.5 py-0.5 rounded font-mono">MVP</span>
+              <span>Xena AI</span>
+              <span className="text-[8px] bg-nexa-blue/20 text-nexa-glow border border-nexa-glow/20 px-1.5 py-0.5 rounded font-mono">v1.0</span>
             </h1>
           </div>
         </div>
@@ -685,12 +692,12 @@ export default function App() {
               )}
 
               {/* Central logo with high contrast depth shadow */}
-              <span className="text-2xl font-black text-white font-display tracking-widest select-none z-20 drop-shadow-[0_2px_8px_rgba(0,229,255,0.8)]">N</span>
+              <span className="text-2xl font-black text-white font-display tracking-widest select-none z-20 drop-shadow-[0_2px_8px_rgba(0,229,255,0.8)]">X</span>
             </motion.button>
             <div className="text-[8px] text-gray-500 mt-1.5 text-center font-mono tracking-wider uppercase font-semibold select-none">
               {orbState === 'listening' ? "Speak Now" : 
                orbState === 'thinking' ? "Thinking" : 
-               orbState === 'completed' ? "Completed" : "NEXA Orb"}
+               orbState === 'completed' ? "Completed" : "Xena Orb"}
             </div>
           </div>
 
@@ -732,8 +739,8 @@ export default function App() {
             >
               <Mic className="w-12 h-12 text-nexa-glow animate-bounce" />
               <div className="text-center">
-                <h4 className="text-sm font-bold uppercase tracking-wider text-white">NEXA Voice Capturing</h4>
-                <p className="text-xs text-gray-400 mt-1">Release physical hold on the NEXA Orb to process speaking context</p>
+                <h4 className="text-sm font-bold uppercase tracking-wider text-white">Xena Voice Capturing</h4>
+                <p className="text-xs text-gray-400 mt-1">Release physical hold on the Xena Orb to process speaking context</p>
               </div>
 
               {/* sound wave visualizer */}
@@ -777,7 +784,7 @@ export default function App() {
                     <Mic className="w-6 h-6 text-red-500 animate-pulse" />
                   </div>
                   <div className="text-center">
-                    <p className="text-xs font-bold text-red-400">NEXA Voice Live Capturing...</p>
+                    <p className="text-xs font-bold text-red-400">Xena Voice Live Capturing...</p>
                     <p className="text-[10px] text-gray-500 mt-0.5 font-mono">Capturing raw audio spectrum analysis</p>
                   </div>
 
@@ -803,7 +810,7 @@ export default function App() {
                     <div className="w-8 h-8 rounded-full bg-nexa-blue/20 animate-pulse"></div>
                   </div>
                   <div className="text-center">
-                    <p className="text-xs font-bold text-nexa-glow animate-pulse">NEXA Decrypting Audio Matrix...</p>
+                    <p className="text-xs font-bold text-nexa-glow animate-pulse">Xena Decrypting Audio Matrix...</p>
                     <p className="text-[9px] text-gray-500 mt-0.5 font-mono">Building natural language parsing trees</p>
                   </div>
                 </div>
@@ -826,7 +833,7 @@ export default function App() {
                     </div>
                     
                     <div className="text-sm font-extrabold text-white font-display uppercase tracking-widest flex items-center space-x-1.5">
-                      <span>Talk to NEXA</span>
+                      <span>Talk to Xena AI</span>
                       <span className="w-1.5 h-1.5 rounded-full bg-nexa-glow animate-ping"></span>
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1 max-w-[280px]">
@@ -883,7 +890,7 @@ export default function App() {
               )}
 
               <div className="text-[9px] text-center text-gray-500 font-mono tracking-wider">
-                NEXA AGENT DIRECT TUNNEL • ENCRYPTED
+                XENA AGENT DIRECT TUNNEL • ENCRYPTED
               </div>
             </motion.div>
           </div>
@@ -892,7 +899,7 @@ export default function App() {
 
       {/* Footer System protocols active */}
       <footer className="w-full py-4 text-center text-[10px] text-gray-600 font-mono">
-        <p>STEEVEZALI INC • NEXA AI SECURITY PROTOCOLS ENCRYPTED</p>
+        <p>STEEVEZALI INC • XENA AI SECURITY PROTOCOLS ENCRYPTED</p>
       </footer>
 
       {/* Global Real-time Reminder Trigger Notification Modal Overlay */}
@@ -914,7 +921,7 @@ export default function App() {
                     <Bell className="w-5 h-5 text-white animate-bounce" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-bold font-mono tracking-widest text-cyan-400 uppercase">NEXA Broadcast Alert</h2>
+                    <h2 className="text-sm font-bold font-mono tracking-widest text-cyan-400 uppercase">Xena Broadcast Alert</h2>
                     <p className="text-[10px] text-gray-500 font-mono">BROADCASTING AT CH-{activeTriggeredReminder.id.slice(0,4).toUpperCase()}</p>
                   </div>
                 </div>
@@ -1082,7 +1089,7 @@ export default function App() {
               </div>
 
               <div className="text-[9px] text-center text-cyan-500/50 font-mono tracking-widest uppercase relative z-10 pt-2 border-t border-cyan-500/10">
-                NEXA AUTOMATION PLATFORM • END-TO-END VERIFIED
+                XENA AUTOMATION PLATFORM • END-TO-END VERIFIED
               </div>
             </motion.div>
           </div>

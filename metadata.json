@@ -1,5 +1,5 @@
 {
-  "name": "NEXA AI",
+  "name": "Xena AI",
   "description": "An elegant, premium full-stack AI personal assistant designed to organize reminders, planning, study tracking, events, and memories.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

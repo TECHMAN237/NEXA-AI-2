@@ -1,15 +1,18 @@
-import { IResponseParser, UserIntent } from './types.js';
+import { IResponseParser, UserIntent, AIToolCall } from './types.js';
 
+/**
+ * Parses, sanitizes, and structures raw output from AI providers.
+ * Enforces Markdown outputs, strips raw HTML, parses embedded JSON, and extracts tool calls.
+ */
 export class ResponseParser implements IResponseParser {
-  /**
-   * Validates and parses raw text responses from Gemini or fallback engines.
-   */
-  parseResponse(
+  public parseResponse(
     rawResponse: string,
     intent: UserIntent
   ): {
     isValid: boolean;
     structuredData: any;
+    markdownText: string;
+    toolCalls?: AIToolCall[];
     rawText: string;
     error?: string;
   } {
@@ -17,45 +20,72 @@ export class ResponseParser implements IResponseParser {
       return {
         isValid: false,
         structuredData: null,
+        markdownText: 'I am here to assist you.',
         rawText: '',
-        error: 'Empty or invalid response string'
+        error: 'Empty response string'
       };
     }
 
     const trimmed = rawResponse.trim();
 
-    // 1. Check if response is enclosed in JSON markdown blocks
-    let jsonContent: string | null = null;
-    const markdownMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-    if (markdownMatch && markdownMatch[1]) {
-      jsonContent = markdownMatch[1].trim();
-    } else if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-      jsonContent = trimmed;
-    }
+    // 1. Sanitize raw HTML tags to prevent HTML injection while preserving Markdown
+    const sanitizedText = this.sanitizeHtmlTags(trimmed);
 
-    // 2. Attempt JSON parse if candidate exists
-    if (jsonContent) {
+    // 2. Extract potential JSON markdown block or raw JSON object
+    let structuredData: any = null;
+    let jsonMatch = sanitizedText.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+
+    if (jsonMatch && jsonMatch[1]) {
       try {
-        const parsed = JSON.parse(jsonContent);
-        return {
-          isValid: true,
-          structuredData: parsed,
-          rawText: trimmed
-        };
-      } catch (err) {
-        console.warn('[NEXA AI Core ResponseParser] JSON parsing attempt failed, converting to wrapped fallback:', err);
+        structuredData = JSON.parse(jsonMatch[1].trim());
+      } catch (e) {
+        // Soft catch if JSON in code block was malformed
+      }
+    } else if (sanitizedText.startsWith('{') || sanitizedText.startsWith('[')) {
+      try {
+        structuredData = JSON.parse(sanitizedText);
+      } catch (e) {
+        // Soft catch
       }
     }
 
-    // 3. Fallback: Wrap raw text into standard response structure
+    // 3. Extract future tool calls if present in structuredData
+    let toolCalls: AIToolCall[] | undefined = undefined;
+    if (structuredData && Array.isArray(structuredData.toolCalls)) {
+      toolCalls = structuredData.toolCalls;
+    } else if (structuredData && structuredData.toolName && structuredData.toolArgs) {
+      toolCalls = [{ name: structuredData.toolName, args: structuredData.toolArgs }];
+    }
+
+    // 4. Generate clean Markdown text response
+    let markdownText = sanitizedText;
+
+    if (structuredData) {
+      if (typeof structuredData.message === 'string' && structuredData.message.trim().length > 0) {
+        markdownText = structuredData.message.trim();
+      } else if (typeof structuredData.response === 'string' && structuredData.response.trim().length > 0) {
+        markdownText = structuredData.response.trim();
+      } else if (typeof structuredData.summary === 'string' && structuredData.summary.trim().length > 0) {
+        markdownText = structuredData.summary.trim();
+      }
+    }
+
     return {
       isValid: true,
-      structuredData: {
-        intent,
-        message: trimmed,
-        rawText: trimmed
-      },
-      rawText: trimmed
+      structuredData: structuredData || { intent, rawText: sanitizedText },
+      markdownText,
+      toolCalls,
+      rawText: sanitizedText
     };
+  }
+
+  /**
+   * Replaces raw unsafe HTML tags while keeping standard text & Markdown intact.
+   */
+  private sanitizeHtmlTags(str: string): string {
+    return str
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .replace(/<(?:\/)?[a-z1-6]+[^>]*>/gi, '');
   }
 }

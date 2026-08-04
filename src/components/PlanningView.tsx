@@ -413,7 +413,7 @@ export default function PlanningView({ onBack, tasks, onTaskSaved }: PlanningVie
               </div>
             ))}
             <div className="text-center text-xs text-nexa-glow font-semibold mt-2 animate-bounce">
-              NEXA AI is building your optimized timeline blocks...
+              Xena AI is building your optimized timeline blocks...
             </div>
           </div>
         ) : currentPlan ? (
@@ -535,7 +535,7 @@ export default function PlanningView({ onBack, tasks, onTaskSaved }: PlanningVie
           <div className="text-center py-10 bg-nexa-card/30 border border-nexa-border border-dashed rounded-2xl p-6 text-gray-500">
             <Calendar className="w-8 h-8 text-gray-600 mx-auto mb-2" />
             <p className="text-xs">No schedule generated for this day.</p>
-            <p className="text-[10px] text-gray-600 mt-1">Tap the Generate button below for customized NEXA AI scheduling blocks.</p>
+            <p className="text-[10px] text-gray-600 mt-1">Tap the Generate button below for customized Xena AI scheduling blocks.</p>
           </div>
         )}
       </div>

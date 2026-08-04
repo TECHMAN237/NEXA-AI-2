@@ -145,7 +145,7 @@ export default function LanguageView({ onBack, onRefreshData }: LanguageViewProp
       <div className="p-3.5 rounded-xl bg-nexa-card/40 border border-nexa-border/50 text-[10px] text-gray-500 flex items-start space-x-2">
         <AlertCircle className="w-4 h-4 text-gray-600 flex-shrink-0 mt-0.5" />
         <span className="leading-relaxed">
-          NEXA AI leverages direct device text-to-speech APIs. Custom audio playback loops may require physical verification under standard media permission rules.
+          Xena AI leverages direct device text-to-speech APIs. Custom audio playback loops may require physical verification under standard media permission rules.
         </span>
       </div>
     </div>

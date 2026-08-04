@@ -140,6 +140,17 @@ export interface Memory {
   created_at: string;
 }
 
+export interface MemoryVaultItem {
+  id: string;
+  user_id: string;
+  title: string;
+  content: string;
+  category?: 'Personal' | 'Location' | 'Ideas' | 'Work' | 'Credentials' | 'General';
+  tags?: string[];
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface Notification {
   id: string;
   user_id: string;
@@ -150,9 +161,32 @@ export interface Notification {
   created_at: string;
 }
 
-// AI Intent output format
+export type SupportedIntentType = 
+  | 'NORMAL_CHAT'
+  | 'REMINDER'
+  | 'PLANNING'
+  | 'EVENT'
+  | 'VIEW_UPCOMING_EVENTS'
+  | 'QUERY_EVENTS'
+  | 'STUDY_TRACKING'
+  | 'MEMORY_VAULT'
+  | 'PROFILE'
+  | 'SETTINGS'
+  | 'GENERAL_HELP'
+  | 'AMBIGUOUS';
+
+export interface SingleActionPayload {
+  intent: SupportedIntentType;
+  action: 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'SEARCH' | 'NO_OP';
+  payload: Record<string, any>;
+  confidence?: number;
+}
+
+// AI Intent output format with multi-intent detection & ambiguity support
 export interface IntentClassification {
-  intent: 'reminder' | 'planning' | 'study' | 'event' | 'chat';
+  intent: SupportedIntentType;
+  intents?: SupportedIntentType[];
+  actions?: SingleActionPayload[];
   extractedData?: {
     title?: string;
     date?: string;
@@ -162,9 +196,13 @@ export interface IntentClassification {
     priority?: 'low' | 'medium' | 'high';
     location?: string;
     description?: string;
+    content?: string;
+    category?: string;
     [key: string]: any;
   };
   explanation: string;
+  clarificationPrompt?: string;
+  missingFields?: string[];
 }
 
 export interface SmartAction {

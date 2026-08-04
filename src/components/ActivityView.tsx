@@ -50,7 +50,7 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
 
   const handleDeleteActivity = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Are you sure you want to delete this activity record from NEXA memory?')) return;
+    if (!confirm('Are you sure you want to delete this activity record from Xena AI memory?')) return;
 
     try {
       const res = await fetch(`/api/notification-history/${id}`, {
@@ -73,7 +73,7 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
       {
         type: 'REMINDER',
         title: 'Study Advanced Microcontrollers',
-        description: 'NEXA reminded you to start your study session.',
+        description: 'Xena AI reminded you to start your study session.',
         status: 'completed',
         metadata: { priority: 'high', notes: 'Exam upcoming in 5 days' }
       },
@@ -87,21 +87,21 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
       {
         type: 'STUDY',
         title: 'Advanced Microcontrollers Chapters 4-5',
-        description: 'NEXA created a revision reminder because your exam is in 5 days.',
+        description: 'Xena AI created a revision reminder because your exam is in 5 days.',
         status: 'completed',
         metadata: { countdown_days: 5, remaining_chapters: 3, suggested_action: 'Practice past paper Q4' }
       },
       {
         type: 'EVENT',
         title: 'CSC301 Group Meeting',
-        description: 'NEXA reminded you 30 minutes before your event.',
+        description: 'Xena AI reminded you 30 minutes before your event.',
         status: 'completed',
         metadata: { location: 'Tech Hub Library', participants: ['Sarah', 'Michael'] }
       },
       {
         type: 'PLANNING',
         title: 'Review & Notes Planning Block',
-        description: 'NEXA marked planning block as finished on schedule.',
+        description: 'Xena AI marked planning block as finished on schedule.',
         status: 'completed',
         metadata: { time_slot: '20:00 - 21:30' }
       }
@@ -212,7 +212,7 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
               Core Ledger
             </span>
             <h1 className="text-sm font-extrabold text-white uppercase tracking-wider font-display mt-0.5">
-              NEXA Activity
+              Xena Activity
             </h1>
           </div>
         </div>
@@ -222,7 +222,7 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
           <button
             onClick={handleSimulateActivity}
             className="p-1.5 px-3 rounded-lg bg-gradient-to-r from-nexa-blue/20 to-nexa-purple/20 hover:from-nexa-blue/35 hover:to-nexa-purple/35 border border-nexa-blue/30 text-xs font-bold font-mono tracking-wider text-nexa-glow flex items-center space-x-1.5 transition cursor-pointer"
-            title="Simulate a new background AI Action performed by NEXA"
+            title="Simulate a new background AI Action performed by Xena AI"
           >
             <Sparkles className="w-3.5 h-3.5 animate-pulse" />
             <span>Simulate AI Action</span>
@@ -232,7 +232,7 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
 
       <div className="mb-4">
         <p className="text-[11px] text-gray-400 leading-normal">
-          Everything your AI assistant did for you. NEXA monitors schedules, manages focus loops, opens learning resources, and records all activities safely in your local matrix.
+          Everything your AI assistant did for you. Xena AI monitors schedules, manages focus loops, opens learning resources, and records all activities safely in your local matrix.
         </p>
       </div>
 
@@ -321,7 +321,7 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
             <div className="absolute inset-0.5 rounded-full bg-slate-900/90 -z-10"></div>
             <img 
               src="/src/assets/images/nexa_robot_avatar_1784050933373.jpg" 
-              alt="NEXA AI Companion" 
+              alt="Xena AI Companion" 
               className="w-full h-full object-cover rounded-full select-none opacity-40 mix-blend-screen"
               referrerPolicy="no-referrer"
             />
@@ -330,12 +330,12 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
           </div>
 
           <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1">
-            {searchQuery ? "No matching records" : "NEXA has not performed any action yet."}
+            {searchQuery ? "No matching records" : "Xena AI has not performed any action yet."}
           </h3>
           <p className="text-[10px] text-gray-500 max-w-xs leading-normal">
             {searchQuery 
               ? "Refine your search parameters or check another categories tab to locate specific activities."
-              : "Once you create exam calendars, map routes, planning blocks, and trigger automations, NEXA's persistent memory builds up here."
+              : "Once you create exam calendars, map routes, planning blocks, and trigger automations, Xena AI's persistent memory builds up here."
             }
           </p>
 

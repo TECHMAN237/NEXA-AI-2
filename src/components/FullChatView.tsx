@@ -63,15 +63,70 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
     setChatMessages(prev => [...prev, tempUserMsg]);
 
     try {
-      const res = await fetch('/api/chat/message', {
+      const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, type: 'text' })
       });
 
-      if (res.ok) {
+      if (response.ok && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let streamingText = '';
+        const tempAssistantId = `temp-a-${Date.now()}`;
+        let addedTempMessage = false;
+
+        let doneReading = false;
+        while (!doneReading) {
+          const { value, done } = await reader.read();
+          if (done) {
+            doneReading = true;
+            break;
+          }
+          const chunkStr = decoder.decode(value, { stream: true });
+          const lines = chunkStr.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.chunk) {
+                  streamingText += data.chunk;
+                  if (!addedTempMessage) {
+                    addedTempMessage = true;
+                    setChatMessages(prev => [
+                      ...prev,
+                      {
+                        id: tempAssistantId,
+                        conversation_id: 'conv-1',
+                        sender: 'assistant',
+                        text: streamingText,
+                        created_at: new Date().toISOString(),
+                        type: 'text'
+                      }
+                    ]);
+                  } else {
+                    setChatMessages(prev =>
+                      prev.map(m => (m.id === tempAssistantId ? { ...m, text: streamingText } : m))
+                    );
+                  }
+                }
+              } catch (parseErr) {}
+            }
+          }
+        }
         await fetchMessages();
         onRefreshData();
+      } else {
+        const res = await fetch('/api/chat/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, type: 'text' })
+        });
+
+        if (res.ok) {
+          await fetchMessages();
+          onRefreshData();
+        }
       }
     } catch (e) {
       console.error('Error sending message:', e);
@@ -153,7 +208,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
           </button>
           <div>
             <h1 className="text-base font-bold font-display tracking-tight text-white flex items-center space-x-2">
-              <span>NEXA AI Agent</span>
+              <span>Xena AI Agent</span>
               <span className="w-1.5 h-1.5 rounded-full bg-nexa-glow animate-ping"></span>
             </h1>
             <p className="text-[9px] text-gray-400 font-mono">SECURE AGENT DIRECT ENVELOPE</p>
@@ -220,7 +275,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wider text-white font-display">Begin Interactive Dialogue</h3>
               <p className="text-[10.5px] text-gray-400 mt-1 max-w-xs leading-relaxed">
-                NEXA listens, schedules, and categorizes goals using standard schema definitions. Try typing a direct instruction:
+                Xena AI listens, schedules, and categorizes goals using standard schema definitions. Try typing a direct instruction:
               </p>
             </div>
 
@@ -242,7 +297,9 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
             </div>
           </div>
         ) : (
-          chatMessages.map((msg) => (
+          chatMessages
+            .filter(msg => msg.text && msg.text.trim().length > 0)
+            .map((msg) => (
             <div 
               key={msg.id} 
               className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -263,7 +320,8 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-[#151A24] border border-nexa-border rounded-2xl rounded-tl-none px-4 py-3 flex items-center space-x-1.5 shadow-sm">
+            <div className="bg-[#151A24] border border-nexa-border text-nexa-glow rounded-2xl rounded-tl-none px-4 py-3 flex items-center space-x-2 shadow-sm">
+              <span className="text-xs font-semibold animate-pulse">Xena AI is thinking...</span>
               <span className="w-1.5 h-1.5 bg-nexa-glow rounded-full animate-bounce"></span>
               <span className="w-1.5 h-1.5 bg-nexa-purple rounded-full animate-bounce [animation-delay:0.2s]"></span>
               <span className="w-1.5 h-1.5 bg-nexa-glow rounded-full animate-bounce [animation-delay:0.4s]"></span>

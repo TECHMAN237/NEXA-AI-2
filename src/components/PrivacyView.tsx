@@ -82,7 +82,7 @@ export default function PrivacyView({ onBack, onNavigate }: PrivacyViewProps) {
   };
 
   const handleDeleteAccount = () => {
-    setMessage('Your account deletion request has been submitted. All profile data is being securely scrubbed from NEXA servers.');
+    setMessage('Your account deletion request has been submitted. All profile data is being securely scrubbed from Xena AI servers.');
     setTimeout(() => setMessage(''), 5000);
   };
 
@@ -139,7 +139,7 @@ export default function PrivacyView({ onBack, onNavigate }: PrivacyViewProps) {
           <div className="space-y-1 pr-4">
             <span className="text-xs font-bold text-white font-display">Personal AI Memory Control</span>
             <p className="text-[10px] text-gray-400 leading-relaxed">
-              Allows the NEXA Assistant to automatically capture permanent context (e.g. your major, course deadlines, and exam times) to improve smart alerts.
+              Allows the Xena AI Assistant to automatically capture permanent context (e.g. your major, course deadlines, and exam times) to improve smart alerts.
             </p>
           </div>
           <button 
@@ -187,7 +187,7 @@ export default function PrivacyView({ onBack, onNavigate }: PrivacyViewProps) {
           <div className="space-y-1 pr-4">
             <span className="text-xs font-bold text-white font-display">Data Collection & Diagnostics</span>
             <p className="text-[10px] text-gray-400 leading-relaxed">
-              Send anonymous UI feedback, click counts, and response latency details to help optimize the NEXA Agent client performance.
+              Send anonymous UI feedback, click counts, and response latency details to help optimize the Xena AI Agent client performance.
             </p>
           </div>
           <button 
@@ -256,7 +256,7 @@ export default function PrivacyView({ onBack, onNavigate }: PrivacyViewProps) {
               <ShieldAlert className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-red-400 font-display">Delete NEXA Profile</div>
+              <div className="text-xs font-semibold text-red-400 font-display">Delete Xena AI Profile</div>
               <div className="text-[10px] text-gray-500">Scrub credentials and deauthorize model links</div>
             </div>
           </div>
@@ -267,7 +267,7 @@ export default function PrivacyView({ onBack, onNavigate }: PrivacyViewProps) {
       <div className="mt-4 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-[10px] text-amber-500/80 flex items-start space-x-2">
         <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
         <span className="leading-relaxed">
-          Clearing stored memories or disconnecting scopes will impact the NEXA assistant’s ability to proactively warn you of schedule conflicts. Proceed with caution.
+          Clearing stored memories or disconnecting scopes will impact the Xena AI assistant’s ability to proactively warn you of schedule conflicts. Proceed with caution.
         </span>
       </div>
     </div>

@@ -30,7 +30,7 @@ export default function TeamView({ onBack }: TeamViewProps) {
     {
       name: 'Niko Tanaka',
       role: 'Lead UI/UX Architect',
-      desc: 'Designed the NEXA interactive glass core visual identity, typography, and motion paths.',
+      desc: 'Designed the Xena AI interactive glass core visual identity, typography, and motion paths.',
       avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', // Professional Black male
     },
     {
@@ -52,8 +52,8 @@ export default function TeamView({ onBack }: TeamViewProps) {
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div>
-          <h1 className="text-xl font-bold font-display tracking-tight text-white">NEXA Team</h1>
-          <p className="text-[10px] text-gray-400">The startup founders, engineers, and designers crafting NEXA</p>
+          <h1 className="text-xl font-bold font-display tracking-tight text-white">Xena AI Team</h1>
+          <p className="text-[10px] text-gray-400">The startup founders, engineers, and designers crafting Xena AI</p>
         </div>
       </div>
 
@@ -157,7 +157,7 @@ export default function TeamView({ onBack }: TeamViewProps) {
         </div>
 
         <p className="text-[11px] text-gray-300 leading-relaxed">
-          NEXA AI is built to evolve with a community of innovators. Our long-term mission focuses on collaborative integrations, community-built workflow blocks, and highly granular localization presets.
+          Xena AI is built to evolve with a community of innovators. Our long-term mission focuses on collaborative integrations, community-built workflow blocks, and highly granular localization presets.
         </p>
 
         <div className="pt-1.5">

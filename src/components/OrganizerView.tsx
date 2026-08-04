@@ -115,7 +115,7 @@ export default function OrganizerView({ onNavigate }: OrganizerViewProps) {
           </span>
           <span className="text-[10px] text-gray-400 font-medium">All systems online</span>
         </div>
-        <span className="text-[9px] text-gray-500 font-mono tracking-widest uppercase">NEXA CLOUD BASE</span>
+        <span className="text-[9px] text-gray-500 font-mono tracking-widest uppercase">XENA CLOUD BASE</span>
       </div>
 
     </div>

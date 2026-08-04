@@ -63,7 +63,7 @@ export default function AccountView({ onBack, profile, onRefreshData, onLogout }
   };
 
   const handleDeleteAccount = () => {
-    setSuccessMsg('Account deletion request submitted. All personal profile data is being securely scrubbed from NEXA servers.');
+    setSuccessMsg('Account deletion request submitted. All personal profile data is being securely scrubbed from Xena AI servers.');
     setTimeout(() => setSuccessMsg(''), 5000);
   };
 
@@ -86,7 +86,7 @@ export default function AccountView({ onBack, profile, onRefreshData, onLogout }
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div>
-          <h1 className="text-xl font-bold font-display tracking-tight text-white">NEXA Account</h1>
+          <h1 className="text-xl font-bold font-display tracking-tight text-white">Xena Account</h1>
           <p className="text-[10px] text-gray-400">Manage identity, security configurations & core keys</p>
         </div>
       </div>
@@ -142,7 +142,7 @@ export default function AccountView({ onBack, profile, onRefreshData, onLogout }
         <h2 className="text-base font-semibold mt-3 font-display">{fullName}</h2>
         <p className="text-xs text-gray-400 mt-0.5">{email}</p>
         <span className="mt-2 text-[9px] font-mono tracking-widest text-nexa-glow bg-nexa-blue/10 border border-nexa-glow/30 px-2 py-0.5 rounded-full uppercase">
-          NEXA PREMIUM AGENT
+          XENA PREMIUM AGENT
         </span>
       </div>
 

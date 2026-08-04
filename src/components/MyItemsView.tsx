@@ -4,10 +4,12 @@ import {
   Bell, Clock, BookOpen, Calendar, Trash2, Edit2, CheckCircle2, 
   ToggleLeft, ToggleRight, AlertTriangle, Sparkles, AlertCircle,
   Eye, Activity, FileText, Check, X, Play, Volume2, RefreshCw,
-  SlidersHorizontal, Search, Settings, ChevronRight, CornerDownRight
+  SlidersHorizontal, Search, Settings, ChevronRight, CornerDownRight,
+  Database, Tag, Plus, ArrowRight
 } from 'lucide-react';
-import { Reminder, Task, Exam, Event as NexaEvent } from '../types.js';
+import { Reminder, Task, Exam, Event as NexaEvent, MemoryVaultItem, Plan } from '../types.js';
 import { ProfileService } from '../services/ProfileService.js';
+import { MemoryVaultService } from '../services/MemoryVaultService.js';
 import { speakHumanVoice } from '../utils/voiceUtils.js';
 
 interface MyItemsViewProps {
@@ -21,7 +23,7 @@ interface MyItemsViewProps {
   setActiveTriggeredReminder?: (reminder: Reminder) => void;
 }
 
-type TabType = 'reminders' | 'planning' | 'study' | 'events';
+type TabType = 'reminders' | 'planning' | 'study' | 'events' | 'vault';
 
 export default function MyItemsView({ 
   reminders = [], 
@@ -38,6 +40,38 @@ export default function MyItemsView({
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ type: TabType; id: string; title: string } | null>(null);
+  const [vaultItems, setVaultItems] = useState<MemoryVaultItem[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [isCreatingVaultNote, setIsCreatingVaultNote] = useState(false);
+  const [newVaultTitle, setNewVaultTitle] = useState('');
+  const [newVaultContent, setNewVaultContent] = useState('');
+  const [newVaultCategory, setNewVaultCategory] = useState<'Personal' | 'Location' | 'Ideas' | 'Work' | 'Credentials' | 'General'>('General');
+
+  const loadVaultItems = async () => {
+    try {
+      const items = await MemoryVaultService.getVaultItems();
+      setVaultItems(items);
+    } catch (e) {
+      console.error('Error loading vault items:', e);
+    }
+  };
+
+  const loadPlans = async () => {
+    try {
+      const res = await fetch('/api/plans');
+      if (res.ok) {
+        const data = await res.json();
+        setPlans(data);
+      }
+    } catch (e) {
+      console.error('Error loading plans:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadVaultItems();
+    loadPlans();
+  }, [reminders, tasks, exams, events, activeTab]);
 
   useEffect(() => {
     if (feedback) {
@@ -128,7 +162,7 @@ export default function MyItemsView({
   };
 
   const handleTriggerMockVoice = () => {
-    speakHumanVoice("Hello! This is a voice reminder test triggered from NEXA Developer Mode.");
+    speakHumanVoice("Hello! This is a voice reminder test triggered from Xena AI Developer Mode.");
   };
 
   // Helper helper to format log entries
@@ -165,6 +199,7 @@ export default function MyItemsView({
     else if (type === 'planning') endpoint = `/api/tasks/${id}`;
     else if (type === 'study') endpoint = `/api/exams/${id}`;
     else if (type === 'events') endpoint = `/api/events/${id}`;
+    else if (type === 'vault') endpoint = `/api/memory-vault/${id}`;
 
     try {
       const res = await fetch(endpoint, { method: 'DELETE' });
@@ -182,6 +217,9 @@ export default function MyItemsView({
         }
         setEditingId(null);
         setFeedback({ type: 'success', message: `Successfully deleted "${title}"` });
+        if (type === 'vault') {
+          loadVaultItems();
+        }
         onRefreshData();
       } else {
         setFeedback({ type: 'error', message: 'Failed to delete item. Please try again.' });
@@ -574,12 +612,14 @@ export default function MyItemsView({
   const processedTasks = getSortedItems('planning', tasks.filter(t => matchesFilters('planning', t)));
   const processedExams = getSortedItems('study', exams.filter(ex => matchesFilters('study', ex)));
   const processedEvents = getSortedItems('events', events.filter(ev => matchesFilters('events', ev)));
+  const processedVaultItems = getSortedItems('vault', vaultItems.filter(v => matchesFilters('vault', v)));
 
   const tabs: { id: TabType; label: string; icon: any }[] = [
     { id: 'reminders', label: 'Reminders', icon: Bell },
     { id: 'planning', label: 'Planning', icon: Clock },
     { id: 'study', label: 'Study Tracking', icon: BookOpen },
-    { id: 'events', label: 'Events', icon: Calendar }
+    { id: 'events', label: 'Events', icon: Calendar },
+    { id: 'vault', label: 'Memory Vault', icon: Database }
   ];
 
   return (
@@ -944,15 +984,105 @@ export default function MyItemsView({
               exit={{ opacity: 0, y: -10 }}
               className="space-y-3"
             >
-              {tasks.length === 0 ? (
+              {plans.length === 0 && tasks.length === 0 ? (
                 <div className="text-center py-12 bg-nexa-card/20 border border-dashed border-nexa-border rounded-2xl p-6">
                   <Clock className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-                  <p className="text-xs text-gray-400 font-medium">No planning tasks. Generate a timeline in Planning!</p>
+                  <p className="text-xs text-gray-400 font-medium">No plans or tasks. Ask Xena AI "organize my day" to generate a timeline schedule!</p>
                 </div>
-              ) : processedTasks.length === 0 ? (
-                <div className="text-center py-10 text-gray-500 text-xs">No tasks match your filter selections.</div>
               ) : (
-                processedTasks.map((t) => (
+                <>
+                  {/* Generated Daily Schedule Plans */}
+                  {plans.length > 0 && (
+                    <div className="space-y-3 mb-6">
+                      <div className="flex items-center space-x-2 text-xs font-bold font-mono tracking-wider uppercase text-amber-400">
+                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        <span>Xena AI Daily Schedules ({plans.length})</span>
+                      </div>
+
+                      {plans.map((plan) => (
+                        <div 
+                          key={plan.id}
+                          className="bg-nexa-card border border-amber-500/30 rounded-2xl p-4 shadow-lg space-y-3 hover:border-amber-500/50 transition"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-[8px] font-bold px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-300 font-mono uppercase">
+                                  Daily Schedule
+                                </span>
+                                <span className="text-[8px] font-bold px-2 py-0.5 rounded border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 font-mono">
+                                  {plan.timeline?.length || 0} Time Blocks
+                                </span>
+                              </div>
+                              <h3 className="text-xs font-bold text-white mt-1 flex items-center space-x-2">
+                                <span>Schedule for {plan.date}</span>
+                              </h3>
+                            </div>
+
+                            <div className="flex items-center space-x-1.5">
+                              <button
+                                onClick={() => openDetails('planning', plan)}
+                                className="p-1.5 rounded-lg bg-[#141C26] text-amber-400 hover:bg-[#1A2534] hover:text-white transition cursor-pointer"
+                                title="View Details"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => startDelete('planning', plan.id, `Schedule for ${plan.date}`)}
+                                className="p-1.5 rounded-lg bg-red-950/20 text-red-400 hover:bg-red-950 hover:text-white transition cursor-pointer"
+                                title="Delete Plan"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Chronological Schedule Time Blocks */}
+                          {plan.timeline && plan.timeline.length > 0 && (
+                            <div className="space-y-1.5 bg-[#080B10] rounded-xl p-2.5 border border-white/5">
+                              <div className="text-[9px] font-mono font-semibold uppercase text-gray-400 tracking-wider mb-1.5">
+                                Chronological Time Blocks:
+                              </div>
+                              {plan.timeline.map((block: any, idx: number) => (
+                                <div 
+                                  key={block.id || idx}
+                                  className="flex items-center justify-between text-xs bg-[#0F141F] p-2 rounded-lg border border-white/5 hover:border-amber-500/20 transition"
+                                >
+                                  <div className="flex items-center space-x-2.5">
+                                    <span className="text-[9px] font-mono font-bold text-cyan-400 bg-cyan-950/50 px-2 py-0.5 rounded border border-cyan-500/20 whitespace-nowrap">
+                                      {block.time}
+                                    </span>
+                                    <span className="font-medium text-white text-xs">{block.title}</span>
+                                  </div>
+                                  {block.duration && (
+                                    <span className="text-[9px] font-mono text-gray-400 bg-white/5 px-1.5 py-0.5 rounded">
+                                      {block.duration}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Strategy Suggestions */}
+                          {plan.suggestions && (
+                            <div className="text-[10px] text-amber-200/80 bg-amber-950/20 border border-amber-500/20 rounded-lg p-2 flex items-start space-x-2">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                              <p className="leading-relaxed"><strong>Xena Strategy:</strong> {plan.suggestions}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Individual Tasks */}
+                  {processedTasks.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-[10px] font-bold font-mono tracking-wider uppercase text-gray-400">
+                        Individual Action Tasks ({processedTasks.length})
+                      </div>
+                      {processedTasks.map((t) => (
                   <div 
                     key={t.id} 
                     className={`bg-nexa-card border border-nexa-border/85 rounded-2xl p-4 flex flex-col justify-between hover:border-nexa-blue/35 transition ${
@@ -1078,10 +1208,13 @@ export default function MyItemsView({
                       </div>
                     )}
                   </div>
-                ))
-              )}
-            </motion.div>
-          )}
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </motion.div>
+    )}
 
           {/* 3. STUDY TRACKING MODULE */}
           {activeTab === 'study' && (
@@ -1426,6 +1559,196 @@ export default function MyItemsView({
                     )}
                   </div>
                 ))
+              )}
+            </motion.div>
+          )}
+
+          {/* 5. MEMORY VAULT MODULE */}
+          {activeTab === 'vault' && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-3"
+            >
+              {/* Header and Manual Creation Toggle */}
+              <div className="bg-nexa-card/40 border border-nexa-border/60 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <Database className="w-4 h-4 text-cyan-400" />
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider font-display">Memory Vault Storage</h3>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Intentionally preserved user facts & reference notes (passport info, parking spots, preferences).
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsCreatingVaultNote(!isCreatingVaultNote)}
+                  className="px-3 py-2 bg-nexa-blue hover:bg-nexa-blue/80 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition flex items-center space-x-1.5 cursor-pointer shadow-lg"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>New Vault Note</span>
+                </button>
+              </div>
+
+              {/* Manual Creation Form */}
+              <AnimatePresence>
+                {isCreatingVaultNote && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="bg-[#121824] border border-cyan-500/30 rounded-xl p-4 space-y-3 shadow-xl"
+                  >
+                    <div className="flex items-center justify-between border-b border-nexa-border/40 pb-2">
+                      <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono">Create Memory Vault Note</span>
+                      <button onClick={() => setIsCreatingVaultNote(false)} className="text-gray-400 hover:text-white text-xs">✕</button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-gray-400 font-bold uppercase block mb-1">Title</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Passport Location, Car Parking Spot"
+                          value={newVaultTitle}
+                          onChange={(e) => setNewVaultTitle(e.target.value)}
+                          className="w-full bg-[#1A2333] text-xs text-white border border-nexa-border rounded-lg p-2 focus:border-cyan-400 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-400 font-bold uppercase block mb-1">Category</label>
+                        <select
+                          value={newVaultCategory}
+                          onChange={(e) => setNewVaultCategory(e.target.value as any)}
+                          className="w-full bg-[#1A2333] text-xs text-white border border-nexa-border rounded-lg p-2 focus:border-cyan-400 focus:outline-none"
+                        >
+                          <option value="Personal">Personal</option>
+                          <option value="Location">Location</option>
+                          <option value="Ideas">Ideas</option>
+                          <option value="Work">Work</option>
+                          <option value="Credentials">Credentials</option>
+                          <option value="General">General</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-gray-400 font-bold uppercase block mb-1">Content / Details</label>
+                      <textarea
+                        rows={3}
+                        placeholder="Write details you want Xena to preserve intentionally..."
+                        value={newVaultContent}
+                        onChange={(e) => setNewVaultContent(e.target.value)}
+                        className="w-full bg-[#1A2333] text-xs text-white border border-nexa-border rounded-lg p-2 focus:border-cyan-400 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="flex justify-end space-x-2 pt-1">
+                      <button
+                        onClick={() => setIsCreatingVaultNote(false)}
+                        className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-bold uppercase rounded-lg cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!newVaultTitle && !newVaultContent) return;
+                          setIsSaving(true);
+                          await MemoryVaultService.addVaultItem(
+                            newVaultTitle || 'Saved Note',
+                            newVaultContent || newVaultTitle,
+                            newVaultCategory
+                          );
+                          setNewVaultTitle('');
+                          setNewVaultContent('');
+                          setIsCreatingVaultNote(false);
+                          setIsSaving(false);
+                          setFeedback({ type: 'success', message: 'Memory Vault note saved!' });
+                          loadVaultItems();
+                        }}
+                        disabled={isSaving}
+                        className="px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold uppercase rounded-lg cursor-pointer flex items-center space-x-1"
+                      >
+                        {isSaving ? <RefreshCw className="w-3 h-3 animate-spin" /> : <span>Save Note</span>}
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Memory Vault Items Grid */}
+              {processedVaultItems.length === 0 ? (
+                <div className="bg-nexa-card/20 border border-nexa-border/40 rounded-xl p-8 text-center text-gray-400 space-y-2">
+                  <Database className="w-8 h-8 text-cyan-400/40 mx-auto" />
+                  <p className="text-xs font-semibold">No Memory Vault notes found matching filters.</p>
+                  <p className="text-[10px] text-gray-500">
+                    Tell Xena "Remember that my passport is in the blue drawer" or click "New Vault Note" above.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {processedVaultItems.map((item) => (
+                    <motion.div
+                      key={item.id}
+                      layout
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="bg-[#121722] hover:bg-[#161D2C] border border-nexa-border/60 hover:border-cyan-500/40 rounded-xl p-4 transition-all duration-200 flex flex-col justify-between group shadow-md relative overflow-hidden"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-bold font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 uppercase tracking-wider">
+                            {item.category || 'General'}
+                          </span>
+                          <span className="text-[9px] text-gray-500 font-mono">
+                            {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Preserved'}
+                          </span>
+                        </div>
+
+                        <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
+                          {item.title}
+                        </h4>
+
+                        <p className="text-xs text-gray-300 leading-relaxed font-sans line-clamp-3">
+                          {item.content}
+                        </p>
+
+                        {item.tags && item.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {item.tags.map((t, idx) => (
+                              <span key={idx} className="text-[8px] font-mono text-gray-400 bg-gray-800/60 px-1.5 py-0.5 rounded">
+                                #{t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 mt-3 border-t border-nexa-border/30">
+                        <div className="flex items-center space-x-1.5">
+                          <button
+                            onClick={() => openDetails('vault', item)}
+                            className="px-2.5 py-1 bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 border border-cyan-800/50 rounded-lg text-[10px] font-bold uppercase tracking-wider transition cursor-pointer flex items-center space-x-1"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>View / Edit</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => startDelete('vault', item.id, item.title)}
+                            className="p-1.5 text-gray-500 hover:text-red-400 transition cursor-pointer rounded-lg hover:bg-red-950/30"
+                            title="Delete Vault Note"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
               )}
             </motion.div>
           )}

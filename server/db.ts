@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { 
   User, Profile, Reminder, Task, Plan, Exam, 
-  StudySession, Event, Memory, Message, Conversation, Notification 
+  StudySession, Event, Memory, MemoryVaultItem, Message, Conversation, Notification 
 } from '../src/types.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -20,6 +20,7 @@ interface Schema {
   study_sessions: StudySession[];
   events: Event[];
   memories: Memory[];
+  memory_vault: MemoryVaultItem[];
   notifications: Notification[];
   notification_history: any[];
   smart_actions: any[];
@@ -258,6 +259,35 @@ const DEFAULT_DB: Schema = {
       created_at: '2025-04-20T10:00:00Z'
     }
   ],
+  memory_vault: [
+    {
+      id: 'vault-1',
+      user_id: 'user-1',
+      title: 'Passport Location',
+      content: 'My passport is inside the blue drawer in the study desk.',
+      category: 'Location',
+      tags: ['important', 'documents'],
+      created_at: '2026-07-25T10:00:00Z'
+    },
+    {
+      id: 'vault-2',
+      user_id: 'user-1',
+      title: 'Parking Spot Level',
+      content: 'I parked at level B2, spot #44.',
+      category: 'Location',
+      tags: ['car', 'parking'],
+      created_at: '2026-07-28T14:15:00Z'
+    },
+    {
+      id: 'vault-3',
+      user_id: 'user-1',
+      title: 'Supervisor Preferences',
+      content: 'My supervisor Dr. Vance prefers afternoon meetings after 2 PM.',
+      category: 'Work',
+      tags: ['university', 'meeting'],
+      created_at: '2026-07-29T11:00:00Z'
+    }
+  ],
   notifications: [
     {
       id: 'notif-1',
@@ -275,7 +305,7 @@ const DEFAULT_DB: Schema = {
       user_id: 'user-1',
       type: 'REMINDER',
       title: 'Study CSC301',
-      description: 'NEXA reminded you to start your study session.',
+      description: 'Xena AI reminded you to start your study session.',
       status: 'completed',
       created_at: '2026-07-14T18:00:00-07:00',
       metadata: {}
@@ -285,7 +315,7 @@ const DEFAULT_DB: Schema = {
       user_id: 'user-1',
       type: 'STUDY',
       title: 'Computer Architecture Revision',
-      description: 'NEXA created a revision reminder because your exam is in 14 days.',
+      description: 'Xena AI created a revision reminder because your exam is in 14 days.',
       status: 'completed',
       created_at: '2026-07-14T14:30:00-07:00',
       metadata: { countdown_days: 14, progress: 35, action_label: 'Revise Chapters 1-3' }
@@ -295,7 +325,7 @@ const DEFAULT_DB: Schema = {
       user_id: 'user-1',
       type: 'EVENT',
       title: 'Tech Conference',
-      description: 'NEXA reminded you 30 minutes before your event.',
+      description: 'Xena AI reminded you 30 minutes before your event.',
       status: 'completed',
       created_at: '2026-07-14T15:00:00-07:00',
       metadata: { location: 'Tech Hub, Buea', action_label: 'View Location' }
@@ -304,7 +334,7 @@ const DEFAULT_DB: Schema = {
       id: 'act-4',
       user_id: 'user-1',
       type: 'AI_ACTION',
-      title: 'NEXA opened your study document',
+      title: 'Xena AI opened your study document',
       description: 'Action executed: OPEN_DOCUMENT',
       status: 'completed',
       created_at: '2026-07-14T20:00:00-07:00',
@@ -315,7 +345,7 @@ const DEFAULT_DB: Schema = {
       user_id: 'user-1',
       type: 'PLANNING',
       title: 'Review & Notes Schedule Block',
-      description: 'NEXA marked planning block as finished on schedule.',
+      description: 'Xena AI marked planning block as finished on schedule.',
       status: 'completed',
       created_at: '2026-07-14T17:00:00-07:00',
       metadata: { time_slot: '17:00 - 18:00' }
@@ -655,6 +685,68 @@ export const dbService = {
     const initialLen = db.memories.length;
     db.memories = db.memories.filter(m => !(m.id === id && m.user_id === userId));
     if (db.memories.length !== initialLen) {
+      writeDb(db);
+      return true;
+    }
+    return false;
+  },
+
+  // Memory Vault
+  getMemoryVaultItems: (userId: string): MemoryVaultItem[] => {
+    const db = readDb();
+    if (!db.memory_vault) db.memory_vault = [];
+    return db.memory_vault.filter(mv => mv.user_id === userId);
+  },
+
+  createMemoryVaultItem: (userId: string, mv: Omit<MemoryVaultItem, 'id' | 'user_id' | 'created_at'>): MemoryVaultItem => {
+    const db = readDb();
+    if (!db.memory_vault) db.memory_vault = [];
+    const newItem: MemoryVaultItem = {
+      ...mv,
+      id: `vault-${Date.now()}`,
+      user_id: userId,
+      created_at: new Date().toISOString()
+    };
+    db.memory_vault.push(newItem);
+    writeDb(db);
+    return newItem;
+  },
+
+  createVaultItem: (userId: string, mv: Omit<MemoryVaultItem, 'id' | 'user_id' | 'created_at'>): MemoryVaultItem => {
+    const db = readDb();
+    if (!db.memory_vault) db.memory_vault = [];
+    const newItem: MemoryVaultItem = {
+      ...mv,
+      id: `vault-${Date.now()}`,
+      user_id: userId,
+      created_at: new Date().toISOString()
+    };
+    db.memory_vault.push(newItem);
+    writeDb(db);
+    return newItem;
+  },
+
+  updateMemoryVaultItem: (userId: string, id: string, updates: Partial<MemoryVaultItem>): MemoryVaultItem | undefined => {
+    const db = readDb();
+    if (!db.memory_vault) db.memory_vault = [];
+    const idx = db.memory_vault.findIndex(mv => mv.id === id && mv.user_id === userId);
+    if (idx === -1) return undefined;
+
+    db.memory_vault[idx] = { 
+      ...db.memory_vault[idx], 
+      ...updates,
+      updated_at: new Date().toISOString()
+    };
+    writeDb(db);
+    return db.memory_vault[idx];
+  },
+
+  deleteMemoryVaultItem: (userId: string, id: string): boolean => {
+    const db = readDb();
+    if (!db.memory_vault) return false;
+    const initialLen = db.memory_vault.length;
+    db.memory_vault = db.memory_vault.filter(mv => !(mv.id === id && mv.user_id === userId));
+    if (db.memory_vault.length !== initialLen) {
       writeDb(db);
       return true;
     }

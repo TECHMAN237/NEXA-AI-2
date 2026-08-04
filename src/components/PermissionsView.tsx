@@ -52,14 +52,14 @@ export default function PermissionsView({ onBack }: PermissionsViewProps) {
     {
       id: 'microphone',
       name: 'Microphone Access',
-      description: 'Used by the NEXA Voice Assistant and Orb voice commands to hear and understand instructions.',
+      description: 'Used by the Xena Voice Assistant and Orb voice commands to hear and understand instructions.',
       icon: Mic,
       color: 'text-blue-500 bg-blue-500/10'
     },
     {
       id: 'notifications',
       name: 'Push Notifications & Alarms',
-      description: 'Allows NEXA to alert you about system alarms, calendar clashes, and countdown reminders.',
+      description: 'Allows Xena AI to alert you about system alarms, calendar clashes, and countdown reminders.',
       icon: Bell,
       color: 'text-amber-500 bg-amber-500/10'
     },
@@ -80,7 +80,7 @@ export default function PermissionsView({ onBack }: PermissionsViewProps) {
     {
       id: 'connectedApps',
       name: 'Connected Apps Orchestration',
-      description: 'Allows NEXA to write tasks, control media playback and read workspace folders.',
+      description: 'Allows Xena AI to write tasks, control media playback and read workspace folders.',
       icon: Layers,
       color: 'text-purple-500 bg-purple-500/10'
     },
@@ -105,7 +105,7 @@ export default function PermissionsView({ onBack }: PermissionsViewProps) {
         </button>
         <div>
           <h1 className="text-xl font-bold font-display tracking-tight text-white">System Permissions</h1>
-          <p className="text-[10px] text-gray-400">Configure NEXA hardware, media & browser integrations</p>
+          <p className="text-[10px] text-gray-400">Configure Xena AI hardware, media & browser integrations</p>
         </div>
       </div>
 
@@ -184,7 +184,7 @@ export default function PermissionsView({ onBack }: PermissionsViewProps) {
       <div className="mt-5 p-3 rounded-xl bg-nexa-card/30 border border-nexa-border/40 text-[10px] text-gray-500 flex items-start space-x-2">
         <AlertCircle className="w-4 h-4 flex-shrink-0 text-gray-600 mt-0.5" />
         <span className="leading-relaxed">
-          Certain background triggers might require physical focus verification. Tap individual prompts or speak to NEXA if alarms fail to complete.
+          Certain background triggers might require physical focus verification. Tap individual prompts or speak to Xena AI if alarms fail to complete.
         </span>
       </div>
     </div>

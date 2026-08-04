@@ -137,13 +137,29 @@ export class IntentDetector implements IIntentDetector {
       };
     }
 
-    // 5. Memory intents
+    // 5. Memory Vault vs AI Memory intents
+    if (
+      lower.includes('vault') ||
+      lower.includes('my car is') ||
+      lower.includes('parked') ||
+      lower.includes('store in vault') ||
+      lower.includes('vault note') ||
+      lower.includes('safe note')
+    ) {
+      return {
+        intent: 'MEMORY_VAULT',
+        confidence: 0.9,
+        extractedData: this.extractKeywordParams(query)
+      };
+    }
+
     if (
       lower.includes('remember') ||
       lower.includes('memory') ||
       lower.includes('keep in mind') ||
       lower.includes('forget that') ||
-      lower.includes('what do you know about me')
+      lower.includes('what do you know about me') ||
+      lower.includes('my preference')
     ) {
       return {
         intent: 'AI_MEMORY',
@@ -181,16 +197,29 @@ export class IntentDetector implements IIntentDetector {
       };
     }
 
-    // 8. General Chat / Assistant
+    // 8. General Help
+    if (
+      lower.includes('how do i use') ||
+      lower.includes('what can you do') ||
+      lower.includes('help me with xena') ||
+      lower.includes('capabilities')
+    ) {
+      return {
+        intent: 'GENERAL_HELP',
+        confidence: 0.85,
+        extractedData: { query }
+      };
+    }
+
+    // 9. Normal Chat / Assistant
     if (
       lower.startsWith('hi') ||
       lower.startsWith('hello') ||
       lower.includes('help') ||
-      lower.includes('what can you do') ||
       lower.length > 0
     ) {
       return {
-        intent: 'CHAT',
+        intent: 'NORMAL_CHAT',
         confidence: 0.7,
         extractedData: { query }
       };

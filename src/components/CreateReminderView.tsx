@@ -111,10 +111,10 @@ export default function CreateReminderView({
         }
 
         const finalTime = parsedTime || time;
-        setNexaFeedback(`✨ NEXA AI parsed: "${data.title || text}" set for ${data.date || date} at ${finalTime}.`);
+        setNexaFeedback(`✨ Xena AI parsed: "${data.title || text}" set for ${data.date || date} at ${finalTime}.`);
       }
     } catch (e: any) {
-      console.error('NEXA AI Reminder parsing error:', e);
+      console.error('Xena AI Reminder parsing error:', e);
       setNexaFeedback('Fallback parser activated.');
     } finally {
       setIsNexaParsing(false);
@@ -223,7 +223,7 @@ export default function CreateReminderView({
       selectedActionsList.push({
         id: `action-notif-${Date.now()}`,
         type: "SEND_NOTIFICATION",
-        targetApp: "NEXA Alerts",
+        targetApp: "Xena Alerts",
         executionTime: time,
         payload: { title, text: "Time to start your scheduled activity." },
         status: "active"
@@ -233,9 +233,9 @@ export default function CreateReminderView({
       selectedActionsList.push({
         id: `action-voice-${Date.now()}`,
         type: "VOICE_ALERT",
-        targetApp: "NEXA Voice Synth",
+        targetApp: "Xena Voice Synth",
         executionTime: time,
-        payload: { text: `Hello! This is NEXA reminding you to: ${title}` },
+        payload: { text: `Hello! This is Xena AI reminding you to: ${title}` },
         status: "active"
       });
     }
@@ -325,7 +325,7 @@ export default function CreateReminderView({
 
   // Generate responsive preview sentence
   const getPreviewText = () => {
-    if (!title) return "Enter a title above to preview your NEXA notification.";
+    if (!title) return "Enter a title above to preview your Xena AI notification.";
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const dParts = date.split('-');
     let dateStr = date;
@@ -335,7 +335,7 @@ export default function CreateReminderView({
       const day = dParts[2];
       dateStr = `${months[monthIdx]} ${day}, ${year}`;
     }
-    return `NEXA will remind you to "${title}" on ${dateStr} at ${time}${repeat !== 'none' ? ` (repeating ${repeat})` : ''}.`;
+    return `Xena AI will remind you to "${title}" on ${dateStr} at ${time}${repeat !== 'none' ? ` (repeating ${repeat})` : ''}.`;
   };
 
   return (
@@ -364,10 +364,10 @@ export default function CreateReminderView({
             </div>
             <div>
               <h3 className="text-xs font-bold text-white uppercase tracking-wider">Natural Language & Voice Assistant</h3>
-              <p className="text-[10px] text-gray-400">Speak or type naturally — NEXA AI Core will auto-fill every field</p>
+              <p className="text-[10px] text-gray-400">Speak or type naturally — Xena AI Core will auto-fill every field</p>
             </div>
           </div>
-          <span className="text-[9px] font-mono bg-nexa-blue/20 text-nexa-blue px-2 py-0.5 rounded-full border border-nexa-blue/30">NEXA AI Core</span>
+          <span className="text-[9px] font-mono bg-nexa-blue/20 text-nexa-blue px-2 py-0.5 rounded-full border border-nexa-blue/30">Xena AI Core</span>
         </div>
 
         <div className="relative flex items-center mt-2">
@@ -660,11 +660,11 @@ export default function CreateReminderView({
               <Sparkles className="w-4 h-4 text-nexa-glow" />
               <span className="text-xs font-bold text-white uppercase tracking-wider">AI Device Automation Actions</span>
             </div>
-            <span className="text-[9px] font-bold text-nexa-glow bg-nexa-blue/10 px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">NEXA Core Link</span>
+            <span className="text-[9px] font-bold text-nexa-glow bg-nexa-blue/10 px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">Xena Core Link</span>
           </div>
 
           <p className="text-[10px] text-gray-400 leading-normal">
-            Define automatic tasks NEXA will trigger across your hardware matrix at the scheduled timestamp. Stored securely for future device execution.
+            Define automatic tasks Xena AI will trigger across your hardware matrix at the scheduled timestamp. Stored securely for future device execution.
           </p>
 
           {/* Toggle Buttons */}
@@ -773,7 +773,7 @@ export default function CreateReminderView({
                   <option value="CSC301 Study Syllabus.pdf">CSC301 Study Syllabus.pdf</option>
                   <option value="Computer Architecture Notes.pdf">Computer Architecture Notes.pdf</option>
                   <option value="Daily Routine Schedule.docx">Daily Routine Schedule.docx</option>
-                  <option value="NEXA AI Integration Manual.epub">NEXA AI Integration Manual.epub</option>
+                  <option value="Xena AI Integration Manual.epub">Xena AI Integration Manual.epub</option>
                 </select>
               </motion.div>
             )}
@@ -884,7 +884,7 @@ export default function CreateReminderView({
                     const data = await res.json();
                     speechText = data.speechText;
                   } else {
-                    speechText = `Hello. This is NEXA AI. I'm reminding you that you scheduled: ${title.trim() || 'your study task'}.`;
+                    speechText = `Hello. This is Xena AI. I'm reminding you that you scheduled: ${title.trim() || 'your study task'}.`;
                   }
 
                   speakHumanVoice(speechText, { voiceName, rate: voiceSpeed });
@@ -943,7 +943,7 @@ export default function CreateReminderView({
                       const data = await res.json();
                       speechText = data.speechText;
                     } else {
-                      speechText = `Hello. This is NEXA AI. I'm reminding you that you scheduled: ${title.trim() || 'your study task'}.`;
+                      speechText = `Hello. This is Xena AI. I'm reminding you that you scheduled: ${title.trim() || 'your study task'}.`;
                     }
 
                     speakHumanVoice(speechText, { voiceName, rate: voiceSpeed });

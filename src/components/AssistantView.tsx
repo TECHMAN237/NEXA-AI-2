@@ -77,17 +77,70 @@ export default function AssistantView({
     setChatMessages(prev => [...prev, tempUserMsg]);
 
     try {
-      const res = await fetch('/api/chat/message', {
+      const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, type: 'text' })
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        // Refresh messages from server to get accurate ids and real assistant response
+      if (response.ok && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let streamingText = '';
+        const tempAssistantId = `temp-a-${Date.now()}`;
+        let addedTempMessage = false;
+
+        let doneReading = false;
+        while (!doneReading) {
+          const { value, done } = await reader.read();
+          if (done) {
+            doneReading = true;
+            break;
+          }
+          const chunkStr = decoder.decode(value, { stream: true });
+          const lines = chunkStr.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.chunk) {
+                  streamingText += data.chunk;
+                  if (!addedTempMessage) {
+                    addedTempMessage = true;
+                    setChatMessages(prev => [
+                      ...prev,
+                      {
+                        id: tempAssistantId,
+                        conversation_id: 'conv-1',
+                        sender: 'assistant',
+                        text: streamingText,
+                        created_at: new Date().toISOString(),
+                        type: 'text'
+                      }
+                    ]);
+                  } else {
+                    setChatMessages(prev =>
+                      prev.map(m => (m.id === tempAssistantId ? { ...m, text: streamingText } : m))
+                    );
+                  }
+                }
+              } catch (parseErr) {}
+            }
+          }
+        }
         await fetchMessages();
-        onRefreshData(); // Reload reminders/exams/events in parent as they may have been modified by AI!
+        onRefreshData();
+      } else {
+        // Fallback to non-streaming endpoint
+        const res = await fetch('/api/chat/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, type: 'text' })
+        });
+        if (res.ok) {
+          await fetchMessages();
+          onRefreshData();
+        }
       }
     } catch (e) {
       console.error('Error sending message:', e);
@@ -200,7 +253,7 @@ export default function AssistantView({
           <div className="w-34 h-34 rounded-full bg-slate-900 overflow-hidden border-2 border-nexa-blue/80 relative z-10 flex items-center justify-center">
             <img 
               src="/src/assets/images/nexa_robot_avatar_1784050933373.jpg" 
-              alt="NEXA AI Companion" 
+              alt="Xena AI Companion" 
               referrerPolicy="no-referrer"
               className="w-full h-full object-cover select-none"
             />
@@ -214,7 +267,7 @@ export default function AssistantView({
 
         <span className="text-[10px] text-gray-400 mt-2 tracking-widest uppercase font-mono flex items-center space-x-1.5 bg-nexa-card/30 px-3 py-1 rounded-full border border-nexa-border/40 select-none">
           <span className="w-1.5 h-1.5 rounded-full bg-nexa-glow animate-ping"></span>
-          <span>NEXA AI CORE v1.0 • ONLINE</span>
+          <span>XENA AI CORE v1.0 • ONLINE</span>
         </span>
       </div>
 
@@ -230,7 +283,7 @@ export default function AssistantView({
             <div className="flex items-center space-x-3">
               <Volume2 className="w-5 h-5 text-nexa-glow animate-bounce" />
               <div>
-                <p className="text-xs font-semibold text-nexa-glow">NEXA Voice Enabled</p>
+                <p className="text-xs font-semibold text-nexa-glow">Xena Voice Enabled</p>
                 <p className="text-[10px] text-gray-400">Capturing audio... Tap orb to submit</p>
               </div>
             </div>
@@ -283,7 +336,9 @@ export default function AssistantView({
               </div>
             </div>
           ) : (
-            chatMessages.map((msg) => (
+            chatMessages
+              .filter(msg => msg.text && msg.text.trim().length > 0)
+              .map((msg) => (
               <div 
                 key={msg.id} 
                 className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -300,10 +355,11 @@ export default function AssistantView({
           )}
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-[#1D2533] text-gray-400 border border-nexa-border rounded-xl rounded-tl-none px-3 py-2 flex items-center space-x-1.5">
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></span>
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+              <div className="bg-[#1D2533] text-nexa-glow border border-nexa-border rounded-xl rounded-tl-none px-3 py-2 flex items-center space-x-2">
+                <span className="text-xs font-semibold animate-pulse">Xena AI is thinking...</span>
+                <span className="w-1.5 h-1.5 bg-nexa-glow rounded-full animate-bounce"></span>
+                <span className="w-1.5 h-1.5 bg-nexa-purple rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                <span className="w-1.5 h-1.5 bg-nexa-glow rounded-full animate-bounce [animation-delay:0.4s]"></span>
               </div>
             </div>
           )}
@@ -314,7 +370,7 @@ export default function AssistantView({
         <div className="mt-2 flex items-center space-x-1.5 pt-2 border-t border-nexa-border">
           <input 
             type="text" 
-            placeholder="Ask NEXA anything..."
+            placeholder="Ask Xena AI anything..."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}

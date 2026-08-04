@@ -88,9 +88,9 @@ export default function ProfileView({ profile, onNavigate, onLogout, onRefreshDa
     { id: 'ai-memory', label: 'AI Memory', icon: Brain, extra: 'Manage Brain', action: () => onNavigate('memory'), highlight: true },
     { id: 'privacy', label: 'Privacy', icon: Lock, extra: 'Encrypted', action: () => onNavigate('privacy') },
     { id: 'language', label: 'Language', icon: Globe, extra: profile?.language ?? 'English', action: () => onNavigate('language') },
-    { id: 'theme', label: 'Theme', icon: Eye, extra: profile?.theme ?? 'Dark', action: () => showToast('Theme selections are automatically optimized for Dark/Partly Cloudy conditions.') },
-    { id: 'about', label: 'About NEXA AI', icon: Info, extra: 'v1.0.0', action: () => onNavigate('about') },
-    { id: 'team', label: 'NEXA Core Team', icon: Users, extra: 'View Team', action: () => onNavigate('team') },
+    {id: 'theme', label: 'Theme', icon: Eye, extra: profile?.theme ?? 'Dark', action: () => showToast('Theme selections are automatically optimized for Dark/Partly Cloudy conditions.') },
+    { id: 'about', label: 'About Xena AI', icon: Info, extra: 'v1.0.0', action: () => onNavigate('about') },
+    { id: 'team', label: 'Xena Core Team', icon: Users, extra: 'View Team', action: () => onNavigate('team') },
   ];
 
   return (

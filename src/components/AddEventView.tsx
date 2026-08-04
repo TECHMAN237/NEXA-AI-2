@@ -239,7 +239,7 @@ export default function AddEventView({ onBack, onEventSaved }: AddEventViewProps
             <Sparkles className="w-4 h-4 text-nexa-glow animate-pulse" />
             <span className="text-xs font-bold text-white uppercase tracking-wider font-display">Event Automation Actions</span>
           </div>
-          <span className="text-[9px] font-bold text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">NEXA Core Link</span>
+          <span className="text-[9px] font-bold text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">Xena Core Link</span>
         </div>
 
         <p className="text-[10px] text-gray-400 leading-normal">

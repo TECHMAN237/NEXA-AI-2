@@ -17,10 +17,10 @@ export default function RobotHero() {
         {/* Transparent glass reflection overlay */}
         <div className="absolute inset-0.5 rounded-full bg-gradient-to-b from-white/20 to-transparent backdrop-blur-[1px] z-10 pointer-events-none"></div>
 
-        {/* The actual premium generated NEXA AI Robot avatar */}
+        {/* The actual premium generated Xena AI Robot avatar */}
         <img 
           src="/src/assets/images/nexa_robot_avatar_1784050933373.jpg" 
-          alt="NEXA AI Companion" 
+          alt="Xena AI Companion" 
           className="w-full h-full object-cover rounded-full select-none"
           referrerPolicy="no-referrer"
         />
@@ -29,7 +29,7 @@ export default function RobotHero() {
       {/* Pulse Status Glow */}
       <div className="mt-4 flex items-center space-x-1.5 bg-nexa-blue/10 border border-nexa-blue/20 rounded-full px-3.5 py-1">
         <span className="w-1.5 h-1.5 rounded-full bg-nexa-glow animate-pulse"></span>
-        <span className="text-[9px] font-bold text-nexa-glow uppercase tracking-widest font-mono">NEXA Companion Core Online</span>
+        <span className="text-[9px] font-bold text-nexa-glow uppercase tracking-widest font-mono">Xena Companion Core Online</span>
       </div>
     </div>
   );
