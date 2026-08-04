@@ -372,7 +372,7 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
                       </span>
                       <span className="text-[9px] text-gray-500 font-mono flex items-center">
                         <Clock className="w-2.5 h-2.5 text-gray-600 mr-1" />
-                        {formatTime(act.timestamp || act.created_at || '')}
+                        {formatTime(act.timestamp || (act as any).created_at || '')}
                       </span>
                     </div>
 
@@ -524,7 +524,7 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
                     <div>
                       <span className="text-[8px] font-bold font-mono tracking-widest text-gray-500 uppercase">LEDGER TIMESTAMP</span>
                       <span className="text-[10px] font-mono text-gray-400 mt-1.5 block">
-                        {formatTime(selectedActivity.timestamp || selectedActivity.created_at || '')}
+                        {formatTime(selectedActivity.timestamp || (selectedActivity as any).created_at || '')}
                       </span>
                     </div>
                   </div>

@@ -617,9 +617,11 @@ Details:        ${details || 'N/A'}
       if (!updatedEvent.time || updatedEvent.time === 'Not specified') missingFields.push('Time');
       if (!updatedEvent.location || updatedEvent.location === 'Not specified') missingFields.push('Location');
 
-      let followUpText = `Updated **${updatedEvent.title}**: Date: ${updatedEvent.date}, Time: ${updatedEvent.time}, Location: ${updatedEvent.location}.`;
-      if (missingFields.length > 0) {
-        followUpText += `\n\nI still need:\n${missingFields.map(f => `• ${f}?`).join('\n')}`;
+      let followUpText = '';
+      if (payload.location) {
+        followUpText = `Done — Updated **${updatedEvent.title}** location to **${updatedEvent.location}**.`;
+      } else {
+        followUpText = `Done — Updated **${updatedEvent.title}**.`;
       }
 
       return {
@@ -759,18 +761,40 @@ Details:        ${details || 'N/A'}
       if (time === 'Not specified') missingFields.push('Time');
       if (location === 'Not specified') missingFields.push('Location');
 
+      let timeDisplay = time;
+      if (time && time.includes(':')) {
+        const [hStr, mStr] = time.split(':');
+        const h = parseInt(hStr, 10);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const displayH = h % 12 === 0 ? 12 : h % 12;
+        const displayM = mStr ? `:${mStr}` : ':00';
+        timeDisplay = `${displayH}${displayM === ':00' ? '' : displayM} ${ampm}`;
+      }
+
+      let dateDisplay = date;
+      const todayDateStr = new Date().toISOString().split('T')[0];
+      const tomorrowDate = new Date();
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      const tomorrowDateStr = tomorrowDate.toISOString().split('T')[0];
+
+      if (date === todayDateStr) dateDisplay = 'today';
+      else if (date === tomorrowDateStr) dateDisplay = 'tomorrow';
+
       let followUpText = '';
       if (missingFields.length === 0) {
-        followUpText = `Done — I've saved **${newEvent.title}** for ${date} at ${time}${location !== 'Not specified' ? ` (${location})` : ''} to your events.`;
+        followUpText = `Done — I've saved **${newEvent.title}** for ${dateDisplay} at ${timeDisplay}${location !== 'Not specified' ? ` at ${location}` : ''}.`;
+      } else if (missingFields.length === 1 && missingFields[0] === 'Location') {
+        followUpText = `Done — I've saved **${newEvent.title}** for ${dateDisplay} at ${timeDisplay}.\n\nWhere will it take place?`;
+      } else if (missingFields.length === 1 && missingFields[0] === 'Time') {
+        followUpText = `Done — I've saved **${newEvent.title}** for ${dateDisplay}.\n\nWhat time will it start?`;
       } else {
-        const knownParts: string[] = [];
-        if (date !== 'Not specified') knownParts.push(`Date: ${date}`);
-        if (time !== 'Not specified') knownParts.push(`Time: ${time}`);
-        if (location !== 'Not specified') knownParts.push(`Location: ${location}`);
-
-        const knownStr = knownParts.length > 0 ? ` (${knownParts.join(', ')})` : '';
-
-        followUpText = `Done — I saved **${newEvent.title}**${knownStr} to your events.\n\nI still need:\n${missingFields.map(f => `• ${f}?`).join('\n')}`;
+        const questions = missingFields.map(f => {
+          if (f === 'Location') return 'Where will it take place?';
+          if (f === 'Time') return 'What time will it start?';
+          if (f === 'Date') return 'What date will it happen?';
+          return `What is the ${f.toLowerCase()}?`;
+        }).join(' ');
+        followUpText = `Done — I've saved **${newEvent.title}** to your events.\n\n${questions}`;
       }
 
       dbService.createNotificationHistory(userId, {

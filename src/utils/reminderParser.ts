@@ -330,27 +330,9 @@ export function detectReminderFields(
   }
 
   // Build confirmation line
-  const confirmation = `Done — I've set your reminder to ${newRem.title.toLowerCase()} ${dateDesc} at ${timeDesc}, with notifications and voice enabled.`;
+  const confirmation = `Done — I've set a reminder for **${newRem.title}** ${dateDesc} at **${timeDesc}**.`;
 
-  // Build follow-up question
-  let followUpQuestion = '';
-  if (missing.length > 0) {
-    if (missing.length === 1) {
-      followUpQuestion = `Would you like to add a ${missing[0]}?`;
-    } else if (missing.length === 2) {
-      followUpQuestion = `Would you like to add a ${missing[0]} or ${missing[1]}?`;
-    } else {
-      const lastField = missing[missing.length - 1];
-      const otherFields = missing.slice(0, missing.length - 1).join(', ');
-      followUpQuestion = `Would you like to add a ${otherFields}, or ${lastField}?`;
-    }
-  } else {
-    followUpQuestion = `Would you like to update anything else for this reminder?`;
-  }
-
-  const followUpText = `${confirmation} ${followUpQuestion}`;
-
-  return { provided, missing, followUpText };
+  return { provided, missing, followUpText: confirmation };
 }
 
 /**

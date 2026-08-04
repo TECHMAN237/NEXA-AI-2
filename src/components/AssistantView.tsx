@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import ReactMarkdown from 'react-markdown';
 import { 
   Mic, Send, Bell, CloudSun, Calendar, BookOpen, Clock, AlertCircle, Sparkles, Trash2, Volume2
 } from 'lucide-react';
@@ -348,7 +349,13 @@ export default function AssistantView({
                     ? 'bg-nexa-blue text-white rounded-tr-none' 
                     : 'bg-[#1D2533] text-gray-200 border border-nexa-border rounded-tl-none'
                 }`}>
-                  {msg.text}
+                  {msg.sender === 'user' ? (
+                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                  ) : (
+                    <div className="markdown-content">
+                      <ReactMarkdown>{msg.text}</ReactMarkdown>
+                    </div>
+                  )}
                 </div>
               </div>
             ))

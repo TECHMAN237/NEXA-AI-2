@@ -84,6 +84,26 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
   const lower = cleanText.toLowerCase().trim();
   const todayStr = new Date().toISOString().split('T')[0];
 
+  // 0. Conversational Explanatory Questions check (MUST NOT trigger actions)
+  if (
+    lower.includes('difference between') ||
+    lower.includes('what is the difference') ||
+    lower.includes("what's the difference") ||
+    lower.includes('how do reminders work') ||
+    lower.includes('how do events work') ||
+    lower.includes('what can you do') ||
+    lower.includes('who are you') ||
+    (lower.startsWith('what is') && (lower.includes('reminder') || lower.includes('event') || lower.includes('plan'))) ||
+    (lower.startsWith("what's") && (lower.includes('reminder') || lower.includes('event') || lower.includes('plan')))
+  ) {
+    return {
+      intent: 'NORMAL_CHAT',
+      intents: ['NORMAL_CHAT'],
+      actions: [{ intent: 'NORMAL_CHAT', action: 'NO_OP', payload: {} }],
+      explanation: 'Conversational question — routing to normal chat response.'
+    };
+  }
+
   // 1. Memory Vault check
   if (
     lower.includes('passport') ||

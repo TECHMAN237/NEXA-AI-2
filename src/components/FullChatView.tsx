@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import ReactMarkdown from 'react-markdown';
 import { 
   ArrowLeft, Send, Mic, Sparkles, Trash2, Volume2, ShieldAlert, Check, Cpu 
 } from 'lucide-react';
@@ -309,7 +310,13 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
                   ? 'bg-gradient-to-tr from-nexa-blue to-blue-600 text-white rounded-tr-none border border-blue-400/20' 
                   : 'bg-[#151A24] text-gray-200 border border-nexa-border rounded-tl-none'
               }`}>
-                {msg.text}
+                {msg.sender === 'user' ? (
+                  <p className="whitespace-pre-wrap">{msg.text}</p>
+                ) : (
+                  <div className="markdown-content">
+                    <ReactMarkdown>{msg.text}</ReactMarkdown>
+                  </div>
+                )}
                 <div className={`text-[8px] mt-1 text-right font-mono ${msg.sender === 'user' ? 'text-blue-200/60' : 'text-gray-500'}`}>
                   {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>

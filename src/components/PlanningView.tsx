@@ -443,9 +443,9 @@ export default function PlanningView({ onBack, tasks, onTaskSaved }: PlanningVie
                     {item.description && (
                       <p className="text-[10px] text-gray-400 mt-1 font-medium">{item.description}</p>
                     )}
-                    {item.category && (
+                    {(item as any).category && (
                       <span className="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[8px] font-bold uppercase tracking-wider text-gray-300">
-                        {item.category}
+                        {(item as any).category}
                       </span>
                     )}
                   </div>
