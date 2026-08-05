@@ -95,61 +95,104 @@ export function resolveRelativeDate(dateInput: string | undefined | null, queryT
 export function cleanReminderTitle(rawTitle: string, fullQuery: string): string {
   let source = (rawTitle || fullQuery || '').trim();
 
-  // Handle specific pattern: "Remind me that I have a meeting..." -> "Meeting..."
-  if (/remind me that i have a/i.test(source)) {
-    source = source.replace(/remind me that i have a/i, 'A');
-  } else if (/remind me that i have/i.test(source)) {
-    source = source.replace(/remind me that i have/i, '');
-  }
-
-  // Remove command prefixes (case insensitive)
-  const commandPrefixes = [
-    /^(please\s+)?(can\s+you\s+)?create\s+a\s+reminder\s+(to|for)?\s*/i,
-    /^(please\s+)?(can\s+you\s+)?set\s+a\s+reminder\s+(to|for)?\s*/i,
-    /^(please\s+)?(can\s+you\s+)?add\s+a\s+reminder\s+(to|for)?\s*/i,
-    /^(please\s+)?(can\s+you\s+)?remind\s+me\s+(to|about|that)?\s*/i,
-    /^i\s+(have\s+to|must|need\s+to)\s*/i,
-    /^please\s+remind\s+me\s*/i,
+  // 1. Remove greetings and conversational wrappers anywhere in the query
+  const conversationalWrappers = [
+    /\b(hello|hey|hi|dear)\s+(xena|nexa|assistant)\b[,]?.?/gi,
+    /\b(hope\s+you\s+(are|'re)\s+(doing\s+)?(fine|well|good|ok|great))\b[,]?.?/gi,
+    /\b(how\s+are\s+you|how's\s+it\s+going|how\s+are\s+you\s+doing)\b[,]?.?/gi,
+    /\b(xena|nexa)\s+please\b[,]?.?/gi,
+    /\bplease\b[,]?.?/gi,
+    /\b(i\s+need\s+you\s+to|i\s+would\s+like\s+you\s+to|i'd\s+like\s+you\s+to|i\s+want\s+you\s+to|could\s+you\s+please|can\s+you\s+please|can\s+you|could\s+you)\b/gi,
   ];
 
-  for (const prefix of commandPrefixes) {
-    source = source.replace(prefix, '');
+  let cleanedText = source;
+  for (const cw of conversationalWrappers) {
+    cleanedText = cleanedText.replace(cw, ' ');
+  }
+  cleanedText = cleanedText.replace(/\s+/g, ' ').trim();
+
+  // 2. Look for explicit action phrase after command words:
+  const actionRegexes = [
+    /\b(?:create|set|add|make|schedule)(?:\s+me)?(?:\s+a)?\s+reminder\s+(?:for\s+me\s+)?(?:to|for|about)\s+(.+)/i,
+    /\bremind\s+me\s+that\s+i\s+(?:have\s+to|need\s+to|must)\s+(.+)/i,
+    /\bremind\s+me\s+that\s+i\s+have\s+a\s+(.+)/i,
+    /\bremind\s+me\s+that\s+(.+)/i,
+    /\bremind\s+me\s+(?:to|for|about)\s+(.+)/i,
+    /\b(?:i\s+have\s+to|i\s+need\s+to|i\s+must)\s+(.+)/i,
+  ];
+
+  let extractedAction = '';
+  for (const rx of actionRegexes) {
+    const match = cleanedText.match(rx);
+    if (match && match[1] && match[1].trim()) {
+      extractedAction = match[1].trim();
+      break;
+    }
   }
 
-  // Strip dates from title
+  // If no action regex matched, fallback to cleanedText or stripping prefixes
+  if (!extractedAction) {
+    extractedAction = cleanedText;
+    const commandPrefixes = [
+      /^(please\s+)?(can\s+you\s+)?create\s+(me\s+)?a\s+reminder\s+(to|for)?\s*/i,
+      /^(please\s+)?(can\s+you\s+)?set\s+(me\s+)?a\s+reminder\s+(to|for)?\s*/i,
+      /^(please\s+)?(can\s+you\s+)?add\s+(me\s+)?a\s+reminder\s+(to|for)?\s*/i,
+      /^(please\s+)?(can\s+you\s+)?remind\s+me\s+(to|about|that|for)?\s*/i,
+      /^i\s+(have\s+to|must|need\s+to)\s*/i,
+      /^please\s+remind\s+me\s*/i,
+      /^xena\s*/i,
+    ];
+    for (const prefix of commandPrefixes) {
+      extractedAction = extractedAction.replace(prefix, '');
+    }
+  }
+
+  // 3. Handle complex case: "I have an important CSC305 class tomorrow and I don't want to forget to revise for it" -> "Revise for CSC305"
+  const forgetMatch = extractedAction.match(/(?:don't\s+want\s+to\s+forget\s+to|forget\s+to)\s+(.+)/i);
+  if (forgetMatch && forgetMatch[1]) {
+    let subTask = forgetMatch[1].trim();
+    if (/\bfor\s+it\b/i.test(subTask)) {
+      const courseMatch = fullQuery.match(/\b([A-Z]{2,4}[- ]?\d{3,4})\b/i);
+      if (courseMatch) {
+        subTask = subTask.replace(/\bfor\s+it\b/i, `for ${courseMatch[1].toUpperCase()}`);
+      }
+    }
+    extractedAction = subTask;
+  }
+
+  // 4. Strip date expressions from title
   const datePatterns = [
     /\bthe day after tomorrow\b/gi,
-    /\btomorrow\b/gi,
+    /\btomorrow(\s+(morning|afternoon|evening|night))?\b/gi,
     /\btoday\b/gi,
-    /\bnext (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
-    /\bevery (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
-    /\bnext week\b/gi,
-    /\bon (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
+    /\btonight\b/gi,
+    /\bnext\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
+    /\bevery\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
+    /\bnext\s+week\b/gi,
+    /\bon\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
+    /\bthis\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
   ];
 
   for (const pattern of datePatterns) {
-    source = source.replace(pattern, '');
+    extractedAction = extractedAction.replace(pattern, '');
   }
 
-  // Strip time expressions from title
+  // 5. Strip time expressions from title
   const timePatterns = [
-    /\bat\s+\d{1,2}(:\d{2})?\s*(am|pm)?\b/gi,
-    /\b\d{1,2}(:\d{2})?\s*(am|pm)\b/gi,
+    /\bat\s+\d{1,2}(:\d{2})?\s*(a\.?m\.?|p\.?m\.?)?\b/gi,
+    /\b\d{1,2}(:\d{2})?\s*(a\.?m\.?|p\.?m\.?)\b/gi,
     /\b\d{1,2}\s+in the (morning|evening|afternoon)\b/gi,
-    /\btomorrow morning\b/gi,
-    /\bin the morning\b/gi,
-    /\bin the evening\b/gi,
-    /\bin the afternoon\b/gi,
+    /\bin the (morning|evening|afternoon)\b/gi,
     /\bat noon\b/gi,
     /\bat midnight\b/gi,
     /\bat\s+\d{1,2}\b/gi,
   ];
 
   for (const pattern of timePatterns) {
-    source = source.replace(pattern, '');
+    extractedAction = extractedAction.replace(pattern, '');
   }
 
-  // Strip settings & recurrence flags
+  // 6. Strip settings & recurrence flags
   const settingPatterns = [
     /\bwithout voice\b/gi,
     /\bwith voice\b/gi,
@@ -166,19 +209,19 @@ export function cleanReminderTitle(rawTitle: string, fullQuery: string): string 
   ];
 
   for (const pattern of settingPatterns) {
-    source = source.replace(pattern, '');
+    extractedAction = extractedAction.replace(pattern, '');
   }
 
-  // Clean trailing/leading punctuation or extra spaces
-  source = source
-    .replace(/^[\s,.:;-]+|[\s,.:;-]+$/g, '')
+  // 7. Clean trailing/leading punctuation or extra spaces
+  extractedAction = extractedAction
+    .replace(/^[\s,.:;?!-]+|[\s,.:;?!-]+$/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
-  if (!source) return '';
+  if (!extractedAction) return '';
 
   // Capitalize first letter
-  return source.charAt(0).toUpperCase() + source.slice(1);
+  return extractedAction.charAt(0).toUpperCase() + extractedAction.slice(1);
 }
 
 /**
@@ -433,31 +476,51 @@ export function parseFollowUpUpdate(
 export function parseEventFollowUpUpdate(queryText: string, lastEvent: any) {
   if (!lastEvent) return null;
 
+  const lower = queryText.toLowerCase().trim();
+
+  // STRICT RULE: Requests containing creation/addition/save/schedule keywords MUST NEVER update an existing event.
+  const hasCreationIntent = /\b(save|add|create|register|schedule|remind|put\s+this|put\s+it|another|new)\b/i.test(lower) ||
+    lower.includes('in my events') ||
+    lower.includes('to my events') ||
+    lower.includes('as an event');
+
+  if (hasCreationIntent) {
+    return null;
+  }
+
+  // Check for explicit update intent
+  const hasExplicitUpdateIntent = /\b(update|change|modify|edit|move|reschedule|change\s+the\s+time|change\s+the\s+date|change\s+the\s+location|make\s+it)\b/i.test(lower);
+
+  // If NOT an explicit update command, it MUST be a short direct response (e.g., "At the university chapel") answering a missing field prompt.
+  if (!hasExplicitUpdateIntent) {
+    if (queryText.length > 60) return null;
+  }
+
   const isMissingDate = !lastEvent.date || lastEvent.date === 'Not specified';
   const isMissingTime = !lastEvent.time || lastEvent.time === 'Not specified';
   const isMissingLoc = !lastEvent.location || lastEvent.location === 'Not specified';
 
-  if (!isMissingDate && !isMissingTime && !isMissingLoc) {
+  if (!isMissingDate && !isMissingTime && !isMissingLoc && !hasExplicitUpdateIntent) {
     return null;
   }
 
   const updates: Record<string, any> = {};
 
-  if (isMissingDate) {
+  if (isMissingDate || hasExplicitUpdateIntent) {
     const hasDateMention = /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2}\/\d{1,2}|\d{4}-\d{2}-\d{2})\b/i.test(queryText);
     if (hasDateMention) {
       updates.date = resolveRelativeDate(null, queryText);
     }
   }
 
-  if (isMissingTime) {
+  if (isMissingTime || hasExplicitUpdateIntent) {
     const timeMatch = extractTimeFromText(queryText);
     if (timeMatch) {
       updates.time = timeMatch;
     }
   }
 
-  if (isMissingLoc) {
+  if (isMissingLoc || hasExplicitUpdateIntent) {
     const locMatch = queryText.match(/\b(at|in)\s+([A-Z0-9][a-zA-Z0-9\s,]{2,30})/i) || queryText.match(/\b(university|hall|room|office|church|center|centre|hub|building|campus|park|stadium|hotel|house)\b/i);
     if (locMatch) {
       let locStr = locMatch[0].replace(/^(at|in)\s+/i, '').trim();
@@ -466,7 +529,7 @@ export function parseEventFollowUpUpdate(queryText: string, lastEvent: any) {
       }
     } else if (!isMissingDate || !isMissingTime) {
       const cleaned = queryText.replace(/(saturday|sunday|monday|tuesday|wednesday|thursday|friday|today|tomorrow|\d{1,2}(:\d{2})?\s*(am|pm)?|at|in|on|,)/gi, '').trim();
-      if (cleaned.length > 2) {
+      if (cleaned.length > 2 && !/\b(event|meeting|bootcamp|conference|workshop)\b/i.test(cleaned)) {
         updates.location = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
       }
     }

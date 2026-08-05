@@ -1,6 +1,8 @@
 import { dbService } from './db.js';
 import { normalizeTimeString, extractTimeFromText } from '../src/utils/timeUtils.js';
 import { extractReminderParams, parseFollowUpUpdate, cleanReminderTitle, resolveRelativeDate, detectReminderFields } from '../src/utils/reminderParser.js';
+import { generateStudyPlan, generateExamReminders } from '../src/utils/studyPlanGenerator.js';
+import { StudyTrackingData } from '../src/types.js';
 
 export interface ServerActionPayload {
   intent: string;
@@ -449,72 +451,189 @@ Details:        ${details || 'N/A'}
     const date = resolveRelativeDate(payload.date, rawQuery);
     const lowerQuery = rawQuery.toLowerCase();
 
-    // 1. Extract actual user tasks mentioned in query
-    let extracted = payload.tasks || [];
-    if (!Array.isArray(extracted) || extracted.length === 0) {
-      let clean = rawQuery
-        .replace(/^(I\s+(need|have|want)\s+to\s+)?(create\s+my\s+plan|create\s+a\s+plan|plan\s+my\s+day|plan\s+for\s+tomorrow|schedule\s+my\s+day|daily\s+plan|daily\s+schedule)\b/gi, '')
-        .replace(/create\s+my\s+plan.*$/gi, '')
-        .replace(/create\s+a\s+plan.*$/gi, '')
-        .replace(/plan\s+my\s+day.*$/gi, '')
-        .replace(/please\s+plan.*$/gi, '')
-        .replace(/^(I\s+need\s+to|I\s+have\s+to|I\s+want\s+to|I\s+should)\s+/gi, '')
+    // Helper: Stage 1 - Task Extraction
+    const parseAndExtractTasks = (query: string) => {
+      let cleaned = query
+        .replace(/^(help\s+me|please|can\s+you|i\s+want\s+to|i\s+need\s+to)\s+/gi, '')
+        .replace(/\b(help\s+me\s+plan\s+my\s+day|plan\s+my\s+day|plan\s+for\s+tomorrow|organize\s+my\s+day|daily\s+plan|daily\s+schedule)\b/gi, '')
+        .replace(/\b(create|make|generate|build|organize|structure|schedule)\s+(a\s+|my\s+)?(daily\s+)?(plan|schedule|day|timeline)\b/gi, '')
+        .replace(/\b(for\s+)?(tomorrow|today|this\s+weekend|next\s+week)\b/gi, '')
         .trim();
 
-      const chunks = clean
-        .split(/,|;|\band\b|\n|\r/)
-        .map(p => p.replace(/\b(tomorrow|today|this weekend|next week|for tomorrow|for today)\b/gi, '').trim())
-        .filter(p => p.length > 2 && !/^(create|plan|schedule|tomorrow|today|my plan)$/i.test(p));
+      cleaned = cleaned.replace(/^[^a-zA-Z0-9]+/, '').trim();
 
-      extracted = chunks.map(c => {
-        let t = c.replace(/^(i\s+need\s+to|i\s+have\s+to|i\s+want\s+to|need\s+to|have\s+to|go\s+to)\s+/i, '').trim();
-        return t.split(' ').map(w => w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : '').join(' ');
-      }).filter(Boolean);
+      const rawChunks = cleaned
+        .split(/\.|\n|\r|;|\band\s+then\b|\band\s+after\s+that\b|\bafter\s+that\b|\bthen\b/i)
+        .flatMap(chunk => chunk.split(/,|\band\b/i))
+        .map(c => c.trim())
+        .filter(c => c.length > 2);
+
+      const results: Array<{ title: string; durationHours: number; fixedTime: string | null }> = [];
+
+      for (const chunk of rawChunks) {
+        const lowerChunk = chunk.toLowerCase();
+
+        if (
+          /^(help me|plan my day|organize my schedule|tomorrow|today|for tomorrow|my plan|daily plan)$/i.test(lowerChunk) ||
+          lowerChunk.includes('help me plan') ||
+          lowerChunk.includes('plan my day') ||
+          lowerChunk.includes('organize my day') ||
+          lowerChunk.includes('create my plan')
+        ) {
+          continue;
+        }
+
+        let durationHours = 1.5;
+        const durationMatch = chunk.match(/(\d+(\.\d+)?)\s*(hours?|hrs?|h)\b/i);
+        if (durationMatch) {
+          durationHours = parseFloat(durationMatch[1]);
+        }
+
+        let fixedTime: string | null = null;
+        const timeMatch = extractTimeFromText(chunk);
+        if (timeMatch && (/\b(at|from|starts?\s+at)\b/i.test(chunk) || /\b(am|pm)\b/i.test(chunk))) {
+          fixedTime = timeMatch;
+        }
+
+        let title = chunk
+          .replace(/\b(for\s+)?(\d+(\.\d+)?)\s*(hours?|hrs?|h)\b/gi, '')
+          .replace(/\b(at|from|starts?\s+at)\s+\d{1,2}(:\d{2})?\s*(am|pm)?\b/gi, '')
+          .replace(/\b\d{1,2}(:\d{2})?\s*(am|pm)\b/gi, '')
+          .replace(/^(i\s+need\s+to|i\s+have\s+to|i\s+want\s+to|need\s+to|have\s+to|i\s+must|attend|do)\s+/i, '')
+          .replace(/^(tomorrow|today|for\s+tomorrow|for\s+today)\s+/i, '')
+          .replace(/[^a-zA-Z0-9\s-]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        if (title) {
+          title = title.split(' ').map(w => w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : '').join(' ');
+        }
+
+        if (!title || /^(Help Me|Plan My Day|Organize My Day|Plan|Tomorrow|Today)$/i.test(title)) {
+          continue;
+        }
+
+        results.push({
+          title,
+          durationHours,
+          fixedTime
+        });
+      }
+
+      return results;
+    };
+
+    // STAGE 1: Extract real user tasks
+    let taskSpecs = parseAndExtractTasks(rawQuery);
+
+    if (taskSpecs.length === 0 && Array.isArray(payload.tasks) && payload.tasks.length > 0) {
+      taskSpecs = payload.tasks.map((t: any) => ({
+        title: typeof t === 'string' ? t : t.title || 'Task',
+        durationHours: t.durationHours || 1.5,
+        fixedTime: t.fixedTime || null
+      }));
     }
 
-    // 2. Fetch existing DB items for user
-    const existingDbTasks = dbService.getTasks(userId).filter(t => t.date === date);
-    const existingDbEvents = dbService.getEvents(userId).filter(e => e.date === date);
-    const existingDbReminders = dbService.getReminders(userId).filter(r => r.date === date);
-
-    const allTaskList: string[] = [...extracted];
-    existingDbTasks.forEach(t => { if (!allTaskList.includes(t.title)) allTaskList.push(t.title); });
-    existingDbEvents.forEach(e => { if (!allTaskList.includes(e.title)) allTaskList.push(e.title); });
-    existingDbReminders.forEach(r => { if (!allTaskList.includes(r.title)) allTaskList.push(r.title); });
-
-    if (allTaskList.length === 0) {
-      allTaskList.push('Morning Preparation & Setup', 'Core Work / Study Session', 'Project Assignments', 'Review & Reflection');
+    // If still empty, check existing items for the date or fallback
+    if (taskSpecs.length === 0) {
+      const existingDbTasks = dbService.getTasks(userId).filter(t => t.date === date);
+      const existingDbEvents = dbService.getEvents(userId).filter(e => e.date === date);
+      existingDbTasks.forEach(t => taskSpecs.push({ title: t.title, durationHours: 1.5, fixedTime: t.time || null }));
+      existingDbEvents.forEach(e => taskSpecs.push({ title: e.title, durationHours: 1.5, fixedTime: e.time || null }));
     }
 
-    const standardTimeSlots = [
-      '08:00 – 10:00',
-      '10:30 – 12:00',
-      '14:00 – 16:00',
-      '18:00 – 20:00',
-      '20:30 – 22:00'
-    ];
+    if (taskSpecs.length === 0) {
+      taskSpecs = [
+        { title: 'Core Focus Session', durationHours: 2, fixedTime: null },
+        { title: 'Project Assignments', durationHours: 1.5, fixedTime: null },
+        { title: 'Review & Reflection', durationHours: 1, fixedTime: null }
+      ];
+    }
+
+    // STAGE 2: Generate Chronological Daily Schedule
+    const helperFormatTime = (decimalHours: number): string => {
+      const totalMins = Math.round(decimalHours * 60);
+      const h = Math.floor(totalMins / 60) % 24;
+      const m = totalMins % 60;
+      const hStr = h < 10 ? `0${h}` : `${h}`;
+      const mStr = m < 10 ? `0${m}` : `${m}`;
+      return `${hStr}:${mStr}`;
+    };
+
+    const parseTimeToDecimal = (timeStr: string): number => {
+      if (!timeStr) return 9;
+      const [hStr, mStr] = timeStr.split(':');
+      const h = parseInt(hStr, 10) || 9;
+      const m = parseInt(mStr, 10) || 0;
+      return h + m / 60;
+    };
+
+    let clock = 8.0; // Start at 8:00 AM
+    const blocks: Array<{ startTimeDec: number; endTimeDec: number; timeLabel: string; title: string; durationLabel: string }> = [];
+
+    const fixedTasks = taskSpecs.filter(t => t.fixedTime !== null);
+    const flexibleTasks = taskSpecs.filter(t => t.fixedTime === null);
+
+    // Schedule flexible tasks
+    for (let i = 0; i < flexibleTasks.length; i++) {
+      const task = flexibleTasks[i];
+
+      const startDec = clock;
+      const endDec = startDec + task.durationHours;
+      const startStr = helperFormatTime(startDec);
+      const endStr = helperFormatTime(endDec);
+
+      blocks.push({
+        startTimeDec: startDec,
+        endTimeDec: endDec,
+        timeLabel: `${startStr} – ${endStr}`,
+        title: task.title,
+        durationLabel: `${task.durationHours}h`
+      });
+
+      clock = endDec + 0.5; // 30 min break
+      if (clock >= 12.5 && clock < 14.0) clock = 14.0; // Lunch break
+    }
+
+    // Schedule fixed tasks
+    for (const ft of fixedTasks) {
+      const startDec = parseTimeToDecimal(ft.fixedTime!);
+      const endDec = startDec + ft.durationHours;
+      const startStr = helperFormatTime(startDec);
+      const endStr = helperFormatTime(endDec);
+
+      if (!blocks.some(b => b.title === ft.title)) {
+        blocks.push({
+          startTimeDec: startDec,
+          endTimeDec: endDec,
+          timeLabel: `${startStr} – ${endStr}`,
+          title: ft.title,
+          durationLabel: `${ft.durationHours}h`
+        });
+      }
+    }
+
+    // Sort all blocks chronologically
+    blocks.sort((a, b) => a.startTimeDec - b.startTimeDec);
 
     const timelineBlocks: any[] = [];
     const createdTasks: any[] = [];
 
-    allTaskList.forEach((taskTitle, idx) => {
-      const slotTime = standardTimeSlots[idx] || `${18 + idx}:00 – ${19 + idx}:00`;
-      const startTime = slotTime.split(' – ')[0] || '09:00';
-
+    blocks.forEach((b, idx) => {
       timelineBlocks.push({
         id: `block-${idx + 1}-${Date.now()}`,
-        time: slotTime,
-        title: taskTitle,
-        duration: '1.5h - 2h',
+        time: b.timeLabel,
+        title: b.title,
+        duration: b.durationLabel,
         priority: idx === 0 ? 'high' : 'medium',
         reminder_enabled: true
       });
 
       const newTask = dbService.createTask(userId, {
-        title: taskTitle,
+        title: b.title,
         date,
-        time: startTime,
-        duration_hours: 2,
+        time: helperFormatTime(b.startTimeDec),
+        duration_hours: b.endTimeDec - b.startTimeDec,
         priority: idx === 0 ? 'high' : 'medium',
         status: 'pending'
       });
@@ -835,100 +954,298 @@ Details:        ${details || 'N/A'}
     payload: any,
     rawQuery: string
   ): ServerActionResult {
-    if (action === 'DELETE') {
-      const courseSearch = (payload.course || payload.title || rawQuery).toLowerCase();
-      const exams = dbService.getExams(userId);
-      const match = exams.find(e => e.course.toLowerCase().includes(courseSearch));
+    const currentTracking = dbService.getStudyTracking(userId);
+    const lower = rawQuery.toLowerCase();
 
-      if (!match) {
+    // 1. "What should I study today?"
+    if (lower.includes('today') && (lower.includes('what should i study') || lower.includes('what do i study') || lower.includes('my study for today') || lower.includes('study schedule today'))) {
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const todayName = dayNames[new Date().getDay()];
+      const plan = currentTracking.study_plan || [];
+      const todayPlan = plan.find(p => p.day.toLowerCase() === todayName.toLowerCase());
+
+      if (!todayPlan || !todayPlan.slots || todayPlan.slots.length === 0) {
         return {
           intent,
           targetModule: 'StudyTracking',
-          action,
-          success: false,
-          error: `No exam found matching "${payload.course || rawQuery}"`,
-          summary: `✗ Failed to delete exam: "${payload.course || rawQuery}" not found.`
+          action: 'READ',
+          success: true,
+          data: { followUpText: `No study sessions are scheduled for today (${todayName}). Enjoy your break or ask me to generate your study plan!` },
+          summary: `✓ Checked study schedule for today.`
         };
       }
 
-      const deleted = dbService.deleteExam(userId, match.id);
-      this.logDebugTrace(intent, action, 'StudyTracking', 'dbService.deleteExam', deleted ? 'SUCCESS' : 'FAILED', deleted ? 'SUCCESS' : 'FAILED', deleted ? 'SUCCESS' : 'FAILED');
+      const slotsSummary = todayPlan.slots.map((s: any) => `• **${s.time}**: ${s.activity}`).join('\n');
+      const followUpText = `Here is what you should study today (**${todayName}**):\n\n${slotsSummary}`;
       return {
         intent,
         targetModule: 'StudyTracking',
-        action,
-        success: deleted,
-        summary: deleted ? `✓ Deleted exam track: "${match.course}".` : `✗ Failed to delete exam track "${match.course}".`
+        action: 'READ',
+        success: true,
+        data: { followUpText },
+        summary: `✓ Retrieved today's study plan.`
       };
     }
 
-    // Default: CREATE
-    let course = payload.course || payload.title;
-    if (!course || typeof course !== 'string' || course.trim().length === 0) {
-      if (rawQuery.toLowerCase().includes('algorithms')) course = 'Algorithms';
-      else if (rawQuery.toLowerCase().includes('math')) course = 'Mathematics';
-      else course = 'Course Revision';
-    }
-
-    let exam_date = payload.exam_date || payload.date;
-    if (!exam_date || !/^\d{4}-\d{2}-\d{2}$/.test(exam_date)) {
-      if (rawQuery.toLowerCase().includes('two weeks') || rawQuery.toLowerCase().includes('2 weeks')) {
-        const d = new Date();
-        d.setDate(d.getDate() + 14);
-        exam_date = d.toISOString().split('T')[0];
-      } else {
-        exam_date = resolveRelativeDate(null, rawQuery);
+    // 2. Exam Countdown
+    if (lower.includes('how long') || lower.includes('days left') || lower.includes('countdown') || (lower.includes('when is') && lower.includes('exam'))) {
+      if (!currentTracking.normal_exam_date) {
+        return {
+          intent,
+          targetModule: 'StudyTracking',
+          action: 'READ',
+          success: true,
+          data: { followUpText: `You haven't set your normal examination session date yet. Tell me your exam date (e.g., "My normal exam session starts August 20").` },
+          summary: `✓ Checked exam countdown.`
+        };
       }
+
+      const targetDate = new Date(currentTracking.normal_exam_date + 'T00:00:00');
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const diffMs = targetDate.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+      const followUpText = `Your normal examination session (${currentTracking.normal_exam_date}) is in **${diffDays > 0 ? diffDays : 0} days**.`;
+      return {
+        intent,
+        targetModule: 'StudyTracking',
+        action: 'READ',
+        success: true,
+        data: { followUpText },
+        summary: `✓ Calculated exam countdown.`
+      };
     }
 
-    const difficulty = (payload.difficulty === 'low' || payload.difficulty === 'high') ? payload.difficulty : 'medium';
+    // 3. View / Read Study Plan
+    if (action === 'READ' || lower.includes("what's my study plan") || lower.includes("show my study plan") || lower.includes("view my study plan")) {
+      const plan = currentTracking.study_plan || [];
+      if (plan.length === 0) {
+        return {
+          intent,
+          targetModule: 'StudyTracking',
+          action: 'READ',
+          success: true,
+          data: { followUpText: `You don't have a generated study plan yet. Ask me to "Generate my study plan" once you've added your subjects and availability.` },
+          summary: `✓ Retrieved study plan.`
+        };
+      }
 
-    const newExam = dbService.createExam(userId, {
-      course: course.trim(),
-      exam_date,
-      difficulty,
-      study_hours_per_day: payload.study_hours_per_day || 3,
-      preferred_study_time: payload.preferred_study_time || '20:00 - 23:00',
-      available_days: payload.available_days || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-      remaining_chapters: payload.remaining_chapters || 10,
-      progress: 0
-    });
+      const planSummary = plan.map((d: any) => `**${d.day}:**\n` + d.slots.map((s: any) => `  • ${s.time} — ${s.activity}`).join('\n')).join('\n\n');
+      const followUpText = `Here is your current study timetable:\n\n${planSummary}`;
+      return {
+        intent,
+        targetModule: 'StudyTracking',
+        action: 'READ',
+        success: true,
+        data: { followUpText },
+        summary: `✓ Retrieved study plan.`
+      };
+    }
 
-    const verifyList = dbService.getExams(userId);
-    const verified = verifyList.some(e => e.id === newExam.id);
+    // 4. Generate Study Plan
+    if (lower.includes('generate') && (lower.includes('plan') || lower.includes('timetable') || lower.includes('schedule'))) {
+      if (currentTracking.subjects.length === 0) {
+        return {
+          intent,
+          targetModule: 'StudyTracking',
+          action: 'CREATE',
+          success: false,
+          error: 'No subjects found',
+          data: { followUpText: `Please add at least one subject to your study tracking first (e.g. "Add Mathematics at 30%").` },
+          summary: `✗ Cannot generate plan without subjects.`
+        };
+      }
 
-    if (verified) {
-      dbService.createNotificationHistory(userId, {
-        type: 'STUDY',
-        title: `Exam Tracking Added: "${newExam.course}"`,
-        description: `Exam date set for ${newExam.exam_date}`,
-        source_id: newExam.id,
-        status: 'completed'
-      });
+      const updated = dbService.saveStudyTracking(userId, {});
+      const plan = updated.study_plan || [];
+      const planSummary = plan.map((d: any) => `**${d.day}:**\n` + d.slots.map((s: any) => `  • ${s.time} — ${s.activity}`).join('\n')).join('\n\n');
 
-      this.logDebugTrace(intent, action, 'StudyTracking', 'dbService.createExam', 'SUCCESS', 'SUCCESS', 'SUCCESS', `Created Exam ID: ${newExam.id}`);
+      const examReminders = generateExamReminders(
+        updated.subjects.map(s => s.name).join(', ') || 'Exam Session',
+        updated.normal_exam_date || '2026-08-20'
+      );
+      for (const rem of examReminders) {
+        dbService.createReminder(userId, {
+          title: rem.title,
+          date: rem.date,
+          time: updated.preferred_start_time || '20:00',
+          repeat: 'none',
+          priority: 'high',
+          voice_notification: true,
+          active: true
+        });
+      }
+
+      const followUpText = `I have generated your personalized study timetable! Weaker subjects have been allocated more revision sessions.\n\n**Generated Study Timetable:**\n\n${planSummary}\n\nAutomated exam proximity reminders have also been scheduled.`;
       return {
         intent,
         targetModule: 'StudyTracking',
         action: 'CREATE',
         success: true,
-        data: newExam,
-        summary: `✓ Study tracking active: "${newExam.course}" exam scheduled for ${newExam.exam_date}.`
+        data: { followUpText, study_tracking: updated },
+        summary: `✓ Generated personalized study plan.`
       };
-    } else {
-      this.logDebugTrace(intent, action, 'StudyTracking', 'dbService.createExam', 'SUCCESS', 'FAILED', 'FAILED');
+    }
+
+    // 5. Subject operations: Delete
+    const delSubjMatch = lower.match(/(?:delete|remove)\s+([a-z0-9\s]+?)(?:\s+from\s+(?:my\s+)?study\s+tracking|$)/i);
+    if (delSubjMatch || action === 'DELETE') {
+      const targetName = delSubjMatch ? delSubjMatch[1].trim() : (payload.course || payload.subject_name || rawQuery).replace(/(?:delete|remove|from|study|tracking)/gi, '').trim();
+      if (targetName) {
+        const updatedSubjects = currentTracking.subjects.filter(s => !s.name.toLowerCase().includes(targetName.toLowerCase()));
+        const updated = dbService.saveStudyTracking(userId, { subjects: updatedSubjects });
+        const followUpText = `Removed **${targetName}** from your study tracking subjects.`;
+        return {
+          intent,
+          targetModule: 'StudyTracking',
+          action: 'DELETE',
+          success: true,
+          data: { followUpText, study_tracking: updated },
+          summary: `✓ Removed subject "${targetName}".`
+        };
+      }
+    }
+
+    // 6. Subject operations: Level Update / Change / Set
+    const setLevelMatch = lower.match(/(?:change|set|update)\s+([a-z0-9\s]+?)\s+(?:to|level\s+to|at)\s+(\d{1,3})%?/i);
+    if (setLevelMatch) {
+      const targetName = setLevelMatch[1].trim();
+      const levelVal = parseInt(setLevelMatch[2], 10);
+      let found = false;
+      const updatedSubjects = currentTracking.subjects.map(s => {
+        if (s.name.toLowerCase().includes(targetName.toLowerCase())) {
+          found = true;
+          return { ...s, level: levelVal };
+        }
+        return s;
+      });
+
+      if (!found) {
+        updatedSubjects.push({
+          id: `subj-${Date.now()}`,
+          name: targetName.charAt(0).toUpperCase() + targetName.slice(1),
+          level: levelVal
+        });
+      }
+
+      const updated = dbService.saveStudyTracking(userId, { subjects: updatedSubjects });
+      const followUpText = `Set **${targetName}** confidence level to **${levelVal}%**.`;
       return {
         intent,
         targetModule: 'StudyTracking',
-        action: 'CREATE',
-        success: false,
-        error: 'Storage verification failed for new exam.',
-        summary: `✗ Failed to persist study tracking for "${course}".`
+        action: 'UPDATE',
+        success: true,
+        data: { followUpText, study_tracking: updated },
+        summary: `✓ Updated level for "${targetName}" to ${levelVal}%.`
       };
     }
+
+    // 7. Subject operations: Add Subject
+    const addSubjMatch = lower.match(/(?:add|create)\s+([a-z0-9\s]+?)\s+(?:to\s+(?:my\s+)?study\s+tracking|at\s+(\d{1,3})%?|with\s+(\d{1,3})%?)/i);
+    if (addSubjMatch || lower.includes('add ') || payload.subject_name) {
+      let subjectName = payload.subject_name || (addSubjMatch ? addSubjMatch[1].trim() : '');
+      let levelVal = payload.level !== undefined ? payload.level : (addSubjMatch ? (addSubjMatch[2] ? parseInt(addSubjMatch[2], 10) : (addSubjMatch[3] ? parseInt(addSubjMatch[3], 10) : undefined)) : undefined);
+
+      if (!subjectName) {
+        const words = rawQuery.replace(/(?:add|to|my|study|tracking)/gi, '').trim();
+        if (words) subjectName = words;
+      }
+
+      const pctMatch = rawQuery.match(/(\d{1,3})%/);
+      if (pctMatch && levelVal === undefined) {
+        levelVal = parseInt(pctMatch[1], 10);
+      }
+
+      if (subjectName && levelVal === undefined) {
+        return {
+          intent,
+          targetModule: 'StudyTracking',
+          action: 'NO_OP',
+          success: true,
+          data: { 
+            followUpText: `What percentage would you give your current level in **${subjectName}**?`,
+            pendingSubject: subjectName
+          },
+          summary: `Asked for level percentage for ${subjectName}.`
+        };
+      }
+
+      if (subjectName && levelVal !== undefined) {
+        const existingIdx = currentTracking.subjects.findIndex(s => s.name.toLowerCase() === subjectName.toLowerCase());
+        let updatedSubjects = [...currentTracking.subjects];
+        if (existingIdx >= 0) {
+          updatedSubjects[existingIdx].level = levelVal;
+        } else {
+          updatedSubjects.push({
+            id: `subj-${Date.now()}`,
+            name: subjectName.charAt(0).toUpperCase() + subjectName.slice(1),
+            level: levelVal
+          });
+        }
+
+        const updated = dbService.saveStudyTracking(userId, { subjects: updatedSubjects });
+        const followUpText = `Added **${subjectName}** at **${levelVal}%** level to your study tracking.`;
+        return {
+          intent,
+          targetModule: 'StudyTracking',
+          action: 'CREATE',
+          success: true,
+          data: { followUpText, study_tracking: updated },
+          summary: `✓ Added subject "${subjectName}" at ${levelVal}%.`
+        };
+      }
+    }
+
+    // 8. Normal Exam date
+    if (lower.includes('normal exam') || lower.includes('exam session')) {
+      const date = payload.date || resolveRelativeDate(null, rawQuery) || '2026-08-20';
+      const updated = dbService.saveStudyTracking(userId, { normal_exam_date: date });
+      const followUpText = `Updated normal examination session start date to **${date}**.`;
+      return {
+        intent,
+        targetModule: 'StudyTracking',
+        action: 'UPDATE',
+        success: true,
+        data: { followUpText, study_tracking: updated },
+        summary: `✓ Set normal exam date to ${date}.`
+      };
+    }
+
+    // 9. CA date
+    if (lower.includes('continuous assessment') || lower.includes('ca period') || lower.includes('ca start')) {
+      const date = payload.date || resolveRelativeDate(null, rawQuery) || '2026-06-10';
+      const updated = dbService.saveStudyTracking(userId, { continuous_assessment_date: date });
+      const followUpText = `Updated continuous assessment period start date to **${date}**.`;
+      return {
+        intent,
+        targetModule: 'StudyTracking',
+        action: 'UPDATE',
+        success: true,
+        data: { followUpText, study_tracking: updated },
+        summary: `✓ Set CA date to ${date}.`
+      };
+    }
+
+    // Fallback update
+    const updatesToApply: Partial<StudyTrackingData> = {};
+    if (payload.hours_per_day || payload.study_hours_per_day) updatesToApply.hours_per_day = payload.hours_per_day || payload.study_hours_per_day;
+    if (payload.normal_exam_date) updatesToApply.normal_exam_date = payload.normal_exam_date;
+    if (payload.continuous_assessment_date) updatesToApply.continuous_assessment_date = payload.continuous_assessment_date;
+    if (payload.available_days) updatesToApply.available_days = payload.available_days;
+
+    const updated = dbService.saveStudyTracking(userId, updatesToApply);
+    return {
+      intent,
+      targetModule: 'StudyTracking',
+      action: 'UPDATE',
+      success: true,
+      data: { followUpText: `Updated your study tracking preferences.`, study_tracking: updated },
+      summary: `✓ Updated study tracking.`
+    };
   }
 
-  // ==================== MEMORY VAULT MODULE ====================
+  // ==================== MEMORY VAULT & SAVED INFORMATION MODULE ====================
   private static handleMemoryVaultAction(
     userId: string,
     intent: string,
@@ -936,55 +1253,181 @@ Details:        ${details || 'N/A'}
     payload: any,
     rawQuery: string
   ): ServerActionResult {
-    if (action === 'DELETE') {
-      const titleSearch = (payload.title || rawQuery).toLowerCase();
+    // 1. READ / SEARCH
+    if (action === 'READ' || action === 'SEARCH') {
       const vaultItems = dbService.getMemoryVaultItems(userId);
-      const match = vaultItems.find(v => v.title.toLowerCase().includes(titleSearch) || v.content.toLowerCase().includes(titleSearch));
+      const memories = dbService.getMemories(userId);
 
-      if (!match) {
+      const itemsList: string[] = [];
+      vaultItems.forEach(v => {
+        const txt = v.content || v.title;
+        if (txt && !itemsList.includes(txt)) itemsList.push(txt);
+      });
+      memories.forEach(m => {
+        if (m.text && !itemsList.includes(m.text)) itemsList.push(m.text);
+      });
+
+      let followUpText = '';
+      if (itemsList.length === 0) {
+        followUpText = "You haven't saved any information in memory yet. Tell me things like 'Remember that my mother's birthday is June 12' or 'Keep in mind my favorite language is Java' and I'll keep them saved for you.";
+      } else {
+        followUpText = `Here is what I have saved in your memory:\n\n` + itemsList.map(item => `• **${item}**`).join('\n');
+      }
+
+      this.logDebugTrace(intent, action, 'MemoryVault', 'dbService.getMemoryVaultItems', 'SUCCESS', 'SUCCESS', 'SUCCESS');
+      return {
+        intent,
+        targetModule: 'MemoryVault',
+        action,
+        success: true,
+        data: { items: itemsList, followUpText },
+        summary: `✓ Retrieved ${itemsList.length} saved memories.`
+      };
+    }
+
+    // 2. DELETE
+    if (action === 'DELETE') {
+      const rawTarget = (payload.title || payload.content || rawQuery).toLowerCase();
+      const targetSearch = rawTarget
+        .replace(/^(delete|remove|forget|the|memory|about|my|saved|info)\s*/g, '')
+        .trim();
+
+      const vaultItems = dbService.getMemoryVaultItems(userId);
+      const memories = dbService.getMemories(userId);
+
+      let matchVault = vaultItems.find(v => 
+        (v.title && v.title.toLowerCase().includes(targetSearch)) || 
+        (v.content && v.content.toLowerCase().includes(targetSearch))
+      );
+      let matchMemory = memories.find(m => 
+        m.text && m.text.toLowerCase().includes(targetSearch)
+      );
+
+      let deletedAny = false;
+      let deletedTitle = targetSearch || 'Memory';
+
+      if (matchVault) {
+        dbService.deleteMemoryVaultItem(userId, matchVault.id);
+        deletedTitle = matchVault.title || matchVault.content;
+        deletedAny = true;
+      }
+
+      if (matchMemory) {
+        dbService.deleteMemory(userId, matchMemory.id);
+        if (!deletedTitle || deletedTitle === targetSearch) deletedTitle = matchMemory.text;
+        deletedAny = true;
+      }
+
+      if (!deletedAny && targetSearch.length > 0) {
+        const keywords = targetSearch.split(/\s+/).filter(w => w.length > 2);
+        for (const kw of keywords) {
+          const mv = vaultItems.find(v => (v.title && v.title.toLowerCase().includes(kw)) || (v.content && v.content.toLowerCase().includes(kw)));
+          const mm = memories.find(m => m.text && m.text.toLowerCase().includes(kw));
+          if (mv) {
+            dbService.deleteMemoryVaultItem(userId, mv.id);
+            deletedTitle = mv.title || mv.content;
+            deletedAny = true;
+          }
+          if (mm) {
+            dbService.deleteMemory(userId, mm.id);
+            deletedAny = true;
+          }
+          if (deletedAny) break;
+        }
+      }
+
+      if (deletedAny) {
+        const followUpText = `Done — I've deleted the memory about **${deletedTitle}**.`;
+        this.logDebugTrace(intent, action, 'MemoryVault', 'dbService.deleteMemoryVaultItem', 'SUCCESS', 'SUCCESS', 'SUCCESS');
+        return {
+          intent,
+          targetModule: 'MemoryVault',
+          action,
+          success: true,
+          data: { followUpText },
+          summary: `✓ Deleted memory about "${deletedTitle}".`
+        };
+      } else {
+        const followUpText = `I couldn't find a saved memory matching "${targetSearch || rawQuery}".`;
+        this.logDebugTrace(intent, action, 'MemoryVault', 'dbService.deleteMemoryVaultItem', 'SUCCESS', 'FAILED', 'FAILED');
         return {
           intent,
           targetModule: 'MemoryVault',
           action,
           success: false,
-          error: `No Memory Vault note found matching "${payload.title || rawQuery}"`,
-          summary: `✗ Failed to delete vault note: "${payload.title || rawQuery}" not found.`
+          data: { followUpText },
+          summary: `✗ No memory found matching "${targetSearch || rawQuery}".`
         };
       }
+    }
 
-      const deleted = dbService.deleteMemoryVaultItem(userId, match.id);
-      this.logDebugTrace(intent, action, 'MemoryVault', 'dbService.deleteMemoryVaultItem', deleted ? 'SUCCESS' : 'FAILED', deleted ? 'SUCCESS' : 'FAILED', deleted ? 'SUCCESS' : 'FAILED');
+    // 3. NO_OP or Empty command
+    if (action === 'NO_OP' || payload?.empty) {
+      const followUpText = "What would you like me to keep in mind?";
       return {
         intent,
         targetModule: 'MemoryVault',
-        action,
-        success: deleted,
-        summary: deleted ? `✓ Deleted vault note: "${match.title}".` : `✗ Failed to delete vault note "${match.title}".`
+        action: 'NO_OP',
+        success: true,
+        data: { followUpText },
+        summary: followUpText
       };
     }
 
-    // Default: CREATE
-    const title = payload.title || payload.content || rawQuery;
-    const content = payload.content || payload.title || rawQuery;
-    const category = payload.category || 'General';
+    // 4. CREATE (Default)
+    let content = payload.content || payload.text || payload.title || rawQuery;
+    content = content
+      .replace(/^vault[:\s,.]*/i, '')
+      .replace(/^(xena,?\s*|please\s*)*/i, '')
+      .trim();
 
-    if (!title || typeof title !== 'string' || title.trim().length === 0) {
-      this.logDebugTrace(intent, action, 'MemoryVault', 'dbService.createVaultItem', 'FAILED', 'FAILED', 'FAILED', 'Missing note content');
+    if (!content) {
+      const followUpText = "What would you like me to keep in mind?";
+      return {
+        intent,
+        targetModule: 'MemoryVault',
+        action: 'NO_OP',
+        success: true,
+        data: { followUpText },
+        summary: followUpText
+      };
+    }
+
+    let title = payload.title;
+    if (!title || title === 'Saved Note' || title === 'Saved Information' || title.length > 40 || title.toLowerCase().startsWith('vault')) {
+      title = content.length > 35 ? content.slice(0, 35) + '...' : content;
+      title = title.charAt(0).toUpperCase() + title.slice(1);
+    }
+
+    // Check for duplicate entry
+    const existingVaultItems = dbService.getMemoryVaultItems(userId);
+    const isDuplicate = existingVaultItems.some(v => 
+      (v.content && v.content.trim().toLowerCase() === content.trim().toLowerCase()) ||
+      (v.title && v.title.trim().toLowerCase() === content.trim().toLowerCase())
+    );
+
+    if (isDuplicate) {
+      const followUpText = "I already have that saved in your Vault Memory.";
       return {
         intent,
         targetModule: 'MemoryVault',
         action: 'CREATE',
-        success: false,
-        error: 'Note content missing.',
-        summary: '✗ Memory Vault save failed: missing note content.'
+        success: true,
+        data: { followUpText },
+        summary: `✓ Information already exists in Vault Memory.`
       };
     }
 
     const newItem = dbService.createVaultItem(userId, {
       title: title.trim().slice(0, 40),
       content: content.trim(),
-      category,
+      category: payload.category || 'Personal',
       tags: payload.tags || ['ai_saved']
+    });
+
+    dbService.createMemory(userId, {
+      text: content.trim(),
+      category: payload.category || 'Personal'
     });
 
     const verifyList = dbService.getMemoryVaultItems(userId);
@@ -993,11 +1436,13 @@ Details:        ${details || 'N/A'}
     if (verified) {
       dbService.createNotificationHistory(userId, {
         type: 'MEMORY_VAULT',
-        title: `Note Saved in Vault: "${newItem.title}"`,
+        title: `Information Saved: "${newItem.title}"`,
         description: newItem.content.slice(0, 60),
         source_id: newItem.id,
         status: 'completed'
       });
+
+      const followUpText = "I've noted that in your Vault Memory.";
 
       this.logDebugTrace(intent, action, 'MemoryVault', 'dbService.createVaultItem', 'SUCCESS', 'SUCCESS', 'SUCCESS', `Created Vault ID: ${newItem.id}`);
       return {
@@ -1005,18 +1450,20 @@ Details:        ${details || 'N/A'}
         targetModule: 'MemoryVault',
         action: 'CREATE',
         success: true,
-        data: newItem,
-        summary: `✓ Preserved note in Memory Vault: "${newItem.title}".`
+        data: { ...newItem, followUpText },
+        summary: `✓ Preserved in memory: "${content}".`
       };
     } else {
+      const followUpText = "I encountered an issue saving this to your Vault Memory. Please try again.";
       this.logDebugTrace(intent, action, 'MemoryVault', 'dbService.createVaultItem', 'SUCCESS', 'FAILED', 'FAILED');
       return {
         intent,
         targetModule: 'MemoryVault',
         action: 'CREATE',
         success: false,
-        error: 'Storage verification failed for vault note.',
-        summary: `✗ Failed to persist note "${title}".`
+        error: 'Storage verification failed for saved memory.',
+        data: { followUpText },
+        summary: `✗ Failed to persist memory "${title}".`
       };
     }
   }

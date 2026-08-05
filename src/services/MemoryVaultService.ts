@@ -39,7 +39,7 @@ export class MemoryVaultService {
       const res = await fetch('/api/memory-vault');
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           await StorageService.save(STORAGE_KEY, data);
           return data;
         }

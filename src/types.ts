@@ -91,6 +91,45 @@ export interface Plan {
   created_at: string;
 }
 
+export interface StudyPlanSlot {
+  time: string;
+  activity: string;
+}
+
+export interface StudyPlanDay {
+  day: string;
+  slots: StudyPlanSlot[];
+}
+
+export interface ExamProximityReminder {
+  id: string;
+  milestone: string;
+  date: string;
+  title: string;
+  status: 'active' | 'scheduled' | 'sent';
+}
+
+export interface StudySubject {
+  id: string;
+  name: string;
+  level: number; // Current level / confidence percentage (0-100)
+}
+
+export interface StudyTrackingData {
+  id: string;
+  user_id: string;
+  normal_exam_date: string; // YYYY-MM-DD e.g. "2026-08-20"
+  continuous_assessment_date: string; // YYYY-MM-DD e.g. "2026-06-10"
+  subjects: StudySubject[];
+  hours_per_day: number; // e.g. 2
+  preferred_start_time: string; // e.g. "20:00"
+  preferred_end_time: string; // e.g. "22:00"
+  available_days: string[]; // e.g. ["Mon", "Tue", "Wed", "Thu", "Fri"]
+  study_plan?: StudyPlanDay[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Exam {
   id: string;
   user_id: string;
@@ -105,6 +144,8 @@ export interface Exam {
   created_at: string;
   auto_reminders?: boolean;
   reminder_intervals?: string[];
+  study_plan?: StudyPlanDay[];
+  exam_reminders?: ExamProximityReminder[];
 }
 
 export interface StudySession {

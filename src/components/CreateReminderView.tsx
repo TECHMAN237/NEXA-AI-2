@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Reminder } from '../types.js';
 import { ProfileService } from '../services/ProfileService.js';
+import { SpeechService } from '../services/SpeechService.js';
 import { nexaOrchestrator } from '../ai/NexaOrchestrator.js';
 import { normalizeTimeString, extractTimeFromText } from '../utils/timeUtils.js';
 import { speakHumanVoice } from '../utils/voiceUtils.js';
@@ -123,49 +124,35 @@ export default function CreateReminderView({
 
   const handleVoiceToggle = () => {
     if (isListening) {
+      SpeechService.stopRecording();
       setIsListening(false);
       return;
     }
 
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      try {
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.lang = 'en-US';
+    SpeechService.startRecording({
+      onStart: () => {
+        setIsListening(true);
+      },
+      onResult: (transcript) => {
+        setNlInput(transcript);
+      },
+      onError: (err) => {
+        console.warn('[VOICE] CreateReminderView error:', err);
+        setIsListening(false);
+        setNexaFeedback(err || 'Microphone access is required for voice input.');
+      },
+      onEnd: (finalTranscript, speechDetected) => {
+        setIsListening(false);
+        const cleanSpeech = finalTranscript.trim();
 
-        recognition.onstart = () => setIsListening(true);
-        recognition.onresult = (e: any) => {
-          const transcript = e.results[0][0].transcript;
-          setNlInput(transcript);
-          setIsListening(false);
-          handleNexaAiParse(transcript);
-        };
-        recognition.onerror = () => setIsListening(false);
-        recognition.onend = () => setIsListening(false);
-        recognition.start();
-        return;
-      } catch (err) {
-        console.warn('Web Speech API error:', err);
+        if (!speechDetected || !cleanSpeech) {
+          setNexaFeedback("I didn't hear anything. Please try again.");
+          return;
+        }
+
+        setNlInput(cleanSpeech);
       }
-    }
-
-    // Interactive Voice Simulation Prompt for quick testing
-    setIsListening(true);
-    const samplePhrases = [
-      "Remind me tomorrow at 8 AM to call my mother.",
-      "I have to submit my dissertation next Friday.",
-      "Please remind me every Monday to attend church.",
-      "I must pay my rent on the first day of every month.",
-      "I have an interview at 2 PM."
-    ];
-    const picked = samplePhrases[Math.floor(Math.random() * samplePhrases.length)];
-    setNlInput(picked);
-    setTimeout(() => {
-      setIsListening(false);
-      handleNexaAiParse(picked);
-    }, 1200);
+    });
   };
 
   // Effect to load edit mode configurations

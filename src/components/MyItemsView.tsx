@@ -11,6 +11,7 @@ import { Reminder, Task, Exam, Event as NexaEvent, MemoryVaultItem, Plan } from 
 import { ProfileService } from '../services/ProfileService.js';
 import { MemoryVaultService } from '../services/MemoryVaultService.js';
 import { speakHumanVoice } from '../utils/voiceUtils.js';
+import { generateStudyPlan, generateExamReminders } from '../utils/studyPlanGenerator.js';
 
 interface MyItemsViewProps {
   reminders: Reminder[];
@@ -96,7 +97,7 @@ export default function MyItemsView({
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'pending' | 'archived'>('all');
-  const [sortBy, setSortBy] = useState<'upcoming' | 'newest' | 'oldest' | 'priority' | 'alphabetical'>('upcoming');
+  const [sortBy, setSortBy] = useState<'upcoming' | 'newest' | 'oldest' | 'priority' | 'alphabetical'>('newest');
 
   // Interactive Details Modal State
   const [selectedItem, setSelectedItem] = useState<{ type: TabType; data: any } | null>(null);
@@ -579,7 +580,10 @@ export default function MyItemsView({
       if (sortBy === 'newest') {
         const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
         const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return dateB - dateA;
+        if (dateA !== dateB) return dateB - dateA;
+        const idNumA = parseInt((a.id || '').replace(/\D/g, ''), 10) || 0;
+        const idNumB = parseInt((b.id || '').replace(/\D/g, ''), 10) || 0;
+        return idNumB - idNumA;
       }
       if (sortBy === 'oldest') {
         const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -619,7 +623,7 @@ export default function MyItemsView({
     { id: 'planning', label: 'Planning', icon: Clock },
     { id: 'study', label: 'Study Tracking', icon: BookOpen },
     { id: 'events', label: 'Events', icon: Calendar },
-    { id: 'vault', label: 'Memory Vault', icon: Database }
+    { id: 'vault', label: 'Saved Information', icon: Database }
   ];
 
   return (
@@ -1359,26 +1363,63 @@ export default function MyItemsView({
                           </div>
                         </div>
 
-                        {/* Progress details */}
-                        <div className="bg-[#0B0E14] border border-nexa-border/60 rounded-xl p-3 grid grid-cols-2 gap-2">
-                          <div>
-                            <span className="text-[8px] text-gray-500 uppercase font-bold block">Study Commitment</span>
-                            <span className="text-xs text-white font-semibold mt-0.5 block">{ex.study_hours_per_day} Hours Daily</span>
-                          </div>
-                          <div>
-                            <span className="text-[8px] text-gray-500 uppercase font-bold block">Preference Slot</span>
-                            <span className="text-xs text-white font-semibold mt-0.5 block">{ex.preferred_study_time || 'N/A'}</span>
-                          </div>
-                          <div className="col-span-2 pt-2.5 border-t border-nexa-border/45">
-                            <div className="flex justify-between text-[10px] text-gray-400 mb-1.5">
-                              <span>Preparation progress: {ex.remaining_chapters} chapters left</span>
-                              <span className="text-nexa-glow font-bold">{ex.progress || 0}%</span>
+                        {/* Full MVP Study Details */}
+                        <div className="bg-[#0B0E14] border border-nexa-border/60 rounded-xl p-3 space-y-3">
+                          <div className="grid grid-cols-3 gap-2 text-center border-b border-white/5 pb-2.5">
+                            <div>
+                              <span className="text-[8px] text-gray-400 uppercase font-bold block">Hours/Day</span>
+                              <span className="text-xs text-cyan-400 font-bold mt-0.5 block">{ex.study_hours_per_day || 3}h</span>
                             </div>
-                            <div className="w-full bg-[#161D2B] rounded-full h-1.5 overflow-hidden">
-                              <div 
-                                className="bg-nexa-blue h-full rounded-full transition-all duration-300" 
-                                style={{ width: `${Math.min(100, Math.max(0, ex.progress || 0))}%` }}
-                              ></div>
+                            <div>
+                              <span className="text-[8px] text-gray-400 uppercase font-bold block">Study Timings</span>
+                              <span className="text-xs text-purple-400 font-bold mt-0.5 block">{ex.preferred_study_time || '20:00 - 23:00'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[8px] text-gray-400 uppercase font-bold block">Study Days</span>
+                              <span className="text-[10px] text-white font-semibold mt-0.5 block truncate">
+                                {ex.available_days && ex.available_days.length > 0 ? ex.available_days.join(', ') : 'All Days'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Generated Study Plan Timetable */}
+                          <div className="space-y-1.5 pt-1">
+                            <span className="text-[9px] font-bold text-cyan-400 uppercase tracking-wider flex items-center space-x-1">
+                              <Sparkles className="w-3 h-3 text-cyan-400" />
+                              <span>Generated Study Timetable</span>
+                            </span>
+                            
+                            <div className="space-y-1 max-h-36 overflow-y-auto custom-scrollbar pr-1">
+                              {((ex.study_plan && ex.study_plan.length > 0) 
+                                ? ex.study_plan 
+                                : generateStudyPlan(ex.course, ex.study_hours_per_day || 3, ex.preferred_study_time || '20:00 - 23:00', ex.available_days || [])
+                              ).map((dayItem, dIdx) => (
+                                <div key={dIdx} className="bg-white/[0.03] p-1.5 rounded border border-white/5 text-[10px]">
+                                  <span className="font-bold text-gray-300 mr-2">{dayItem.day}:</span>
+                                  <span className="text-gray-400">
+                                    {dayItem.slots.map(s => `${s.time} (${s.activity})`).join(' | ')}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Exam Proximity Reminders */}
+                          <div className="pt-2 border-t border-white/5 space-y-1">
+                            <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wider flex items-center space-x-1">
+                              <Bell className="w-3 h-3 text-amber-400" />
+                              <span>Proximity Reminders</span>
+                            </span>
+                            <div className="grid grid-cols-3 gap-1.5 text-[9px]">
+                              {((ex.exam_reminders && ex.exam_reminders.length > 0)
+                                ? ex.exam_reminders
+                                : generateExamReminders(ex.course, ex.exam_date)
+                              ).map((rem, rIdx) => (
+                                <div key={rIdx} className="bg-amber-950/20 border border-amber-500/20 rounded p-1 text-center">
+                                  <span className="text-amber-400 font-bold block text-[8px]">{rem.milestone}</span>
+                                  <span className="text-gray-300 font-mono text-[8.5px]">{rem.date}</span>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         </div>
@@ -1576,10 +1617,10 @@ export default function MyItemsView({
                 <div>
                   <div className="flex items-center space-x-2">
                     <Database className="w-4 h-4 text-cyan-400" />
-                    <h3 className="text-sm font-bold text-white uppercase tracking-wider font-display">Memory Vault Storage</h3>
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider font-display">Saved Information</h3>
                   </div>
                   <p className="text-[11px] text-gray-400 mt-0.5">
-                    Intentionally preserved user facts & reference notes (passport info, parking spots, preferences).
+                    Permanently stored facts, notes, and important information.
                   </p>
                 </div>
                 <button

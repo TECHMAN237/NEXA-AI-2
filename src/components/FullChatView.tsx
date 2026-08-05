@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import ReactMarkdown from 'react-markdown';
 import { 
-  ArrowLeft, Send, Mic, Sparkles, Trash2, Volume2, ShieldAlert, Check, Cpu 
+  ArrowLeft, Send, Mic, Sparkles, Trash2, Volume2, ShieldAlert, Check, Cpu, VolumeX
 } from 'lucide-react';
 import { Message } from '../types.js';
+import MarkdownRenderer from './MarkdownRenderer.js';
+import { SpeechService } from '../services/SpeechService.js';
+import { ChatComposer } from './ChatComposer.js';
 
 interface FullChatViewProps {
   onBack: () => void;
@@ -17,6 +19,10 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [showVoiceOrb, setShowVoiceOrb] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
+  const [audioLevel, setAudioLevel] = useState<number>(0);
+  const [audioSpectrum, setAudioSpectrum] = useState<number[]>([]);
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -32,7 +38,8 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
   const fetchMessages = async () => {
     try {
       const res = await fetch('/api/chat/messages');
-      if (res.ok) {
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
         const data = await res.json();
         setChatMessages(data);
       }
@@ -91,6 +98,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
               try {
                 const data = JSON.parse(line.slice(6));
                 if (data.chunk) {
+                  setIsLoading(false);
                   streamingText += data.chunk;
                   if (!addedTempMessage) {
                     addedTempMessage = true;
@@ -163,36 +171,67 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
 
   const handleVoiceToggle = () => {
     if (isListening) {
+      SpeechService.stopRecording();
       setIsListening(false);
       setShowVoiceOrb(false);
-      // Mock random transcript submission
-      const mockTranscripts = [
-        "Plan study slots for tomorrow morning",
-        "Remind me to read Computer Architecture book at 4 PM",
-        "Track software engineering deadline next week",
-        "Find study spaces nearby"
-      ];
-      const randomText = mockTranscripts[Math.floor(Math.random() * mockTranscripts.length)];
-      handleSendMessage(randomText);
     } else {
-      setIsListening(true);
-      setShowVoiceOrb(true);
-      
-      // Beep tone
-      const audioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (audioCtx) {
-        try {
-          const ctx = new audioCtx();
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.frequency.setValueAtTime(600, ctx.currentTime);
-          gain.gain.setValueAtTime(0.05, ctx.currentTime);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.1);
-        } catch (e) {}
-      }
+      setLiveTranscript('');
+      setAudioLevel(0);
+      setAudioSpectrum([]);
+
+      SpeechService.startRecording({
+        onStart: () => {
+          setIsListening(true);
+          setShowVoiceOrb(true);
+        },
+        onAudioLevel: (level, spectrum) => {
+          setAudioLevel(level);
+          setAudioSpectrum(spectrum);
+        },
+        onResult: (transcript) => {
+          setLiveTranscript(transcript);
+          setInputText(transcript);
+        },
+        onError: (err) => {
+          console.warn('[VOICE] Error:', err);
+          setIsListening(false);
+          setShowVoiceOrb(false);
+          setAudioLevel(0);
+          setAudioSpectrum([]);
+          setSuccessMsg(err || "Microphone access is required for voice input.");
+          setTimeout(() => setSuccessMsg(''), 4000);
+        },
+        onEnd: (finalTranscript, speechDetected) => {
+          setIsListening(false);
+          setShowVoiceOrb(false);
+          setAudioLevel(0);
+          setAudioSpectrum([]);
+
+          const cleanSpeech = finalTranscript.trim();
+
+          if (!speechDetected || !cleanSpeech) {
+            setSuccessMsg("I didn't hear anything. Please try again.");
+            setTimeout(() => setSuccessMsg(''), 4000);
+            setLiveTranscript('');
+            return;
+          }
+
+          setInputText(cleanSpeech);
+          setLiveTranscript('');
+        }
+      });
+    }
+  };
+
+  const handleSpeakMessage = (msgId: string, text: string) => {
+    if (speakingMsgId === msgId) {
+      SpeechService.stopSpeaking();
+      setSpeakingMsgId(null);
+    } else {
+      setSpeakingMsgId(msgId);
+      SpeechService.speak(text, () => {
+        setSpeakingMsgId(null);
+      });
     }
   };
 
@@ -247,20 +286,42 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="mb-3 p-3.5 rounded-xl bg-gradient-to-r from-nexa-blue/15 to-nexa-purple/15 border border-nexa-blue/30 flex items-center justify-between"
+            className="mb-3 p-3.5 rounded-xl bg-gradient-to-r from-nexa-blue/20 to-nexa-purple/20 border border-nexa-blue/40 flex items-center justify-between shadow-[0_0_20px_rgba(0,229,255,0.15)]"
           >
-            <div className="flex items-center space-x-3">
-              <Volume2 className="w-4.5 h-4.5 text-nexa-glow animate-bounce" />
-              <div>
-                <p className="text-xs font-semibold text-nexa-glow">Orb Voice Link Enabled</p>
-                <p className="text-[10px] text-gray-400">Capturing local audio environment...</p>
+            <div className="flex items-center space-x-3 max-w-[75%]">
+              <Mic className="w-5 h-5 text-nexa-glow animate-pulse flex-shrink-0" />
+              <div className="overflow-hidden">
+                <p className="text-xs font-bold text-nexa-glow flex items-center space-x-1.5">
+                  <span>Listening...</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>
+                </p>
+                <p className="text-[11px] text-gray-200 truncate font-mono mt-0.5">
+                  {liveTranscript || "Speak your instruction clearly..."}
+                </p>
               </div>
             </div>
-            <div className="flex items-end justify-center space-x-1 h-6">
-              <div className="w-1 bg-nexa-glow rounded-full animate-[pulse_0.4s_infinite] h-4"></div>
-              <div className="w-1 bg-nexa-purple rounded-full animate-[pulse_0.6s_infinite] h-6"></div>
-              <div className="w-1 bg-nexa-glow rounded-full animate-[pulse_0.3s_infinite] h-3"></div>
-              <div className="w-1 bg-nexa-purple rounded-full animate-[pulse_0.5s_infinite] h-5"></div>
+            <div className="flex items-center space-x-2 flex-shrink-0">
+              {/* Real-time audio signal volume visualizer */}
+              <div className="flex items-end justify-center space-x-1 h-7 px-1 bg-black/30 rounded-lg border border-nexa-blue/30">
+                {[0, 1, 2, 3, 4, 5, 6].map((i) => {
+                  const specVal = audioSpectrum[i * 2] || 0;
+                  const signal = specVal > 0 ? (specVal / 255) * 100 : audioLevel;
+                  const barH = Math.max(3, Math.min(26, Math.round((signal / 100) * 26)));
+                  return (
+                    <div
+                      key={i}
+                      className="w-1 bg-gradient-to-t from-nexa-blue via-nexa-purple to-nexa-glow rounded-full transition-all duration-75"
+                      style={{ height: `${barH}px` }}
+                    />
+                  );
+                })}
+              </div>
+              <button
+                onClick={handleVoiceToggle}
+                className="ml-2 px-2.5 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 text-[10px] rounded-lg font-bold transition cursor-pointer"
+              >
+                Stop
+              </button>
             </div>
           </motion.div>
         )}
@@ -313,13 +374,39 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
                 {msg.sender === 'user' ? (
                   <p className="whitespace-pre-wrap">{msg.text}</p>
                 ) : (
-                  <div className="markdown-content">
-                    <ReactMarkdown>{msg.text}</ReactMarkdown>
+                  <div>
+                    <MarkdownRenderer content={msg.text} />
+                    <div className="flex items-center justify-between mt-2 pt-1 border-t border-nexa-border/40 text-[9px] text-gray-500">
+                      <button
+                        onClick={() => handleSpeakMessage(msg.id, msg.text)}
+                        className={`flex items-center space-x-1 px-1.5 py-0.5 rounded hover:bg-white/10 transition cursor-pointer ${
+                          speakingMsgId === msg.id ? 'text-nexa-glow font-bold animate-pulse' : 'text-gray-400 hover:text-white'
+                        }`}
+                        title="Listen to message"
+                      >
+                        {speakingMsgId === msg.id ? (
+                          <>
+                            <VolumeX className="w-3 h-3 text-nexa-glow" />
+                            <span>Stop</span>
+                          </>
+                        ) : (
+                          <>
+                            <Volume2 className="w-3 h-3" />
+                            <span>Listen</span>
+                          </>
+                        )}
+                      </button>
+                      <span className="font-mono">
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
                   </div>
                 )}
-                <div className={`text-[8px] mt-1 text-right font-mono ${msg.sender === 'user' ? 'text-blue-200/60' : 'text-gray-500'}`}>
-                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
+                {msg.sender === 'user' && (
+                  <div className="text-[8px] mt-1 text-right font-mono text-blue-200/60">
+                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                )}
               </div>
             </div>
           ))
@@ -338,31 +425,15 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Form Bar */}
-      <div className="bg-[#0F131A] border border-nexa-border rounded-2xl p-2.5 flex items-center space-x-2">
-        <input 
-          type="text" 
-          placeholder="Type deep instruction here..."
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-          className="flex-1 bg-[#090C12] text-xs text-white border border-nexa-border rounded-xl px-4 py-3 focus:outline-none focus:border-nexa-blue"
+      {/* Multiline Input Form Composer */}
+      <div className="pt-2">
+        <ChatComposer
+          inputText={inputText}
+          setInputText={setInputText}
+          onSendMessage={handleSendMessage}
+          isLoading={isLoading}
+          placeholder="Type or speak deep instruction..."
         />
-        <button 
-          onClick={handleVoiceToggle}
-          className={`p-3 rounded-xl border border-nexa-border hover:border-nexa-blue/40 transition flex-shrink-0 cursor-pointer ${
-            isListening ? 'bg-red-950/30 text-red-400 border-red-500/40' : 'bg-[#151A24] text-gray-400 hover:text-white'
-          }`}
-          title="Voice Command"
-        >
-          <Mic className="w-4 h-4" />
-        </button>
-        <button 
-          onClick={() => handleSendMessage()}
-          className="p-3 rounded-xl bg-gradient-to-tr from-nexa-blue to-blue-600 text-white hover:opacity-90 shadow-lg shadow-nexa-blue/20 transition flex-shrink-0 cursor-pointer font-bold"
-        >
-          <Send className="w-4 h-4" />
-        </button>
       </div>
     </div>
   );

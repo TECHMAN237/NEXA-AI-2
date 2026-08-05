@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Bell, Clock, BookOpen, Calendar, ChevronRight } from 'lucide-react';
+import { Bell, Clock, BookOpen, Calendar, ChevronRight, Brain } from 'lucide-react';
 
 interface OrganizerViewProps {
   onNavigate: (view: string) => void;
@@ -105,6 +105,31 @@ export default function OrganizerView({ onNavigate }: OrganizerViewProps) {
           );
         })}
       </div>
+
+      {/* Vault Memory Informational Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.45, duration: 0.4 }}
+        className="mt-4 bg-gradient-to-r from-cyan-950/40 to-slate-900/60 border border-cyan-500/20 rounded-2xl p-4 relative overflow-hidden"
+      >
+        <div className="flex items-start space-x-3">
+          <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <Brain className="w-5 h-5" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-xs font-bold text-white tracking-tight uppercase font-display">
+              Vault Memory
+            </h3>
+            <p className="text-xs text-gray-300 mt-1 leading-relaxed">
+              Start your phrase with <strong className="text-cyan-300 font-mono">'Vault'</strong> to tell Xena about something you want to keep in mind.
+            </p>
+            <div className="mt-2 text-[11px] text-cyan-300/90 bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-2.5 py-1.5 font-mono">
+              Example: "Vault I prefer studying in the evening."
+            </div>
+          </div>
+        </div>
+      </motion.div>
 
       {/* Quick Stats Summary Footer */}
       <div className="mt-6 bg-nexa-card/40 border border-nexa-border rounded-xl p-3 flex items-center justify-between">

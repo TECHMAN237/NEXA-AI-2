@@ -2,8 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { 
   User, Profile, Reminder, Task, Plan, Exam, 
-  StudySession, Event, Memory, MemoryVaultItem, Message, Conversation, Notification 
+  StudySession, Event, Memory, MemoryVaultItem, Message, Conversation, Notification,
+  StudyTrackingData, StudySubject
 } from '../src/types.js';
+import { generateSubjectStudyPlan } from '../src/utils/studyPlanGenerator.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -24,6 +26,7 @@ interface Schema {
   notifications: Notification[];
   notification_history: any[];
   smart_actions: any[];
+  study_tracking: StudyTrackingData[];
 }
 
 const DEFAULT_DB: Schema = {
@@ -351,7 +354,8 @@ const DEFAULT_DB: Schema = {
       metadata: { time_slot: '17:00 - 18:00' }
     }
   ],
-  smart_actions: []
+  smart_actions: [],
+  study_tracking: []
 };
 
 // Ensure data folder and file exists
@@ -455,7 +459,16 @@ export const dbService = {
   // Reminders
   getReminders: (userId: string): Reminder[] => {
     const db = readDb();
-    return db.reminders.filter(r => r.user_id === userId);
+    return db.reminders
+      .filter(r => r.user_id === userId)
+      .sort((a, b) => {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        if (timeA !== timeB) return timeB - timeA;
+        const idA = parseInt((a.id || '').replace(/\D/g, ''), 10) || 0;
+        const idB = parseInt((b.id || '').replace(/\D/g, ''), 10) || 0;
+        return idB - idA;
+      });
   },
 
   createReminder: (userId: string, r: Omit<Reminder, 'id' | 'user_id' | 'created_at'>): Reminder => {
@@ -590,6 +603,79 @@ export const dbService = {
       return true;
     }
     return false;
+  },
+
+  // Study Tracking MVP Data Model
+  getStudyTracking: (userId: string): StudyTrackingData => {
+    const db = readDb();
+    if (!db.study_tracking) db.study_tracking = [];
+    let record = db.study_tracking.find(st => st.user_id === userId);
+    if (!record) {
+      record = {
+        id: `study-tracking-${userId}`,
+        user_id: userId,
+        normal_exam_date: '',
+        continuous_assessment_date: '',
+        subjects: [],
+        hours_per_day: 2,
+        preferred_start_time: '20:00',
+        preferred_end_time: '22:00',
+        available_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+        study_plan: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      db.study_tracking.push(record);
+      writeDb(db);
+    }
+    return record;
+  },
+
+  saveStudyTracking: (userId: string, updates: Partial<StudyTrackingData>): StudyTrackingData => {
+    const db = readDb();
+    if (!db.study_tracking) db.study_tracking = [];
+    let existing = db.study_tracking.find(st => st.user_id === userId);
+    if (!existing) {
+      existing = {
+        id: `study-tracking-${userId}`,
+        user_id: userId,
+        normal_exam_date: '',
+        continuous_assessment_date: '',
+        subjects: [],
+        hours_per_day: 2,
+        preferred_start_time: '20:00',
+        preferred_end_time: '22:00',
+        available_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+        study_plan: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+    }
+
+    const updated: StudyTrackingData = {
+      ...existing,
+      ...updates,
+      updated_at: new Date().toISOString()
+    };
+
+    if (updated.subjects && updated.subjects.length > 0 && updated.available_days && updated.available_days.length > 0) {
+      updated.study_plan = generateSubjectStudyPlan(
+        updated.subjects,
+        updated.hours_per_day || 2,
+        updated.preferred_start_time || '20:00',
+        updated.preferred_end_time || '22:00',
+        updated.available_days
+      );
+    }
+
+    const idx = db.study_tracking.findIndex(st => st.user_id === userId);
+    if (idx >= 0) {
+      db.study_tracking[idx] = updated;
+    } else {
+      db.study_tracking.push(updated);
+    }
+    writeDb(db);
+    return updated;
   },
 
   // Study Sessions

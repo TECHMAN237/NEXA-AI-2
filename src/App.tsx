@@ -41,6 +41,7 @@ import { PlanningService } from './services/PlanningService.js';
 import { StudyService } from './services/StudyService.js';
 import { ProfileService } from './services/ProfileService.js';
 import { ProfileManager } from './services/ProfileManager.js';
+import { SpeechService } from './services/SpeechService.js';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -112,34 +113,49 @@ export default function App() {
         fetch('/api/notification-history')
       ]);
 
-      if (remindersRes.ok) {
-        const remindersData = await remindersRes.json();
+      const safeJson = async (res: Response) => {
+        if (!res.ok) return null;
+        const ct = res.headers.get('content-type');
+        if (ct && ct.includes('application/json')) {
+          try {
+            return await res.json();
+          } catch {
+            return null;
+          }
+        }
+        return null;
+      };
+
+      const remindersData = await safeJson(remindersRes);
+      if (remindersData) {
         setReminders(remindersData);
         await ReminderService.saveReminders(remindersData);
       }
-      if (tasksRes.ok) {
-        const tasksData = await tasksRes.json();
+      const tasksData = await safeJson(tasksRes);
+      if (tasksData) {
         setTasks(tasksData);
         await PlanningService.saveTasks(tasksData);
       }
-      if (examsRes.ok) {
-        const examsData = await examsRes.json();
+      const examsData = await safeJson(examsRes);
+      if (examsData) {
         setExams(examsData);
         await StudyService.saveExams(examsData);
       }
-      if (eventsRes.ok) {
-        const eventsData = await eventsRes.json();
+      const eventsData = await safeJson(eventsRes);
+      if (eventsData) {
         setEvents(eventsData);
         await ProfileService.saveEvents(eventsData);
       }
-      if (memoriesRes.ok) setMemories(await memoriesRes.json());
-      if (profileRes.ok) {
-        const profileData = await profileRes.json();
+      const memoriesData = await safeJson(memoriesRes);
+      if (memoriesData) setMemories(memoriesData);
+      
+      const profileData = await safeJson(profileRes);
+      if (profileData) {
         setProfile(profileData);
         await ProfileManager.saveProfile(profileData);
       }
-      if (activitiesRes.ok) {
-        const activitiesData = await activitiesRes.json();
+      const activitiesData = await safeJson(activitiesRes);
+      if (activitiesData && Array.isArray(activitiesData)) {
         setActivityCount(activitiesData.length);
       }
     } catch (e) {
@@ -425,48 +441,28 @@ export default function App() {
   const triggerVoiceAssistant = () => {
     setOrbState('listening');
     setShowQuickPanel(false);
-    
-    // Quick audio beep simulation
-    const audioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (audioContextClass) {
-      try {
-        const ctx = new audioContextClass();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.setValueAtTime(520, ctx.currentTime);
-        gain.gain.setValueAtTime(0.08, ctx.currentTime);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.15);
-      } catch (err) {}
-    }
+
+    SpeechService.startRecording({
+      onStart: () => {
+        setOrbState('listening');
+      },
+      onError: (err) => {
+        console.warn('[VOICE] Orb recording error:', err);
+        setOrbState('idle');
+      },
+      onEnd: (finalTranscript, speechDetected) => {
+        const cleanSpeech = finalTranscript.trim();
+        setOrbState('idle');
+        if (speechDetected && cleanSpeech) {
+          setQuickInput(cleanSpeech);
+          setShowQuickPanel(true);
+        }
+      }
+    });
   };
 
   const stopVoiceAssistant = () => {
-    setOrbState('thinking');
-    setTimeout(() => {
-      setOrbState('completed');
-      
-      const voiceActions = [
-        "Tracked new study milestone: Database Design Exam on August 20",
-        "Saved reminder: Check syllabus tomorrow at 18:00",
-        "Planned study slot: Saturday 20:00 - 22:00 for OS architecture",
-        "Logged preference: Prefer lo-fi white noise playlists"
-      ];
-      const selectedAction = voiceActions[Math.floor(Math.random() * voiceActions.length)];
-      
-      fetch('/api/chat/message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: `[Voice Interaction] Command captured: ${selectedAction}`, type: 'text' })
-      }).then(() => {
-        fetchData();
-        setTimeout(() => {
-          setOrbState('idle');
-        }, 1200);
-      });
-    }, 2000);
+    SpeechService.stopRecording();
   };
 
   const handleOrbClick = () => {
@@ -479,34 +475,34 @@ export default function App() {
   const handlePanelVoiceToggle = () => {
     if (panelVoiceState === 'idle') {
       setPanelVoiceState('listening');
-      const audioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (audioContextClass) {
-        try {
-          const ctx = new audioContextClass();
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.frequency.setValueAtTime(550, ctx.currentTime);
-          gain.gain.setValueAtTime(0.06, ctx.currentTime);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.15);
-        } catch (err) {}
-      }
-    } else if (panelVoiceState === 'listening') {
-      setPanelVoiceState('processing');
-      setTimeout(() => {
-        const commandList = [
-          "Track Computer Architecture exam on August 20",
-          "Remind me to study Operating Systems tomorrow at 8 PM",
-          "Schedule project meeting tomorrow at 10 AM",
-          "Remember that I prefer morning lo-fi study music"
-        ];
-        const randomCmd = commandList[Math.floor(Math.random() * commandList.length)];
-        executeQuickCommand(randomCmd).then(() => {
+      SpeechService.startRecording({
+        onStart: () => {
+          setPanelVoiceState('listening');
+        },
+        onResult: (transcript) => {
+          setQuickInput(transcript);
+        },
+        onError: (err) => {
+          console.warn('[VOICE] QuickPanel voice error:', err);
           setPanelVoiceState('idle');
-        });
-      }, 2200);
+          setQuickPanelFeedback(err || 'Microphone access is required for voice input.');
+          setTimeout(() => setQuickPanelFeedback(''), 4000);
+        },
+        onEnd: (finalTranscript, speechDetected) => {
+          setPanelVoiceState('idle');
+          const cleanSpeech = finalTranscript.trim();
+
+          if (!speechDetected || !cleanSpeech) {
+            setQuickPanelFeedback("I didn't hear anything. Please try again.");
+            setTimeout(() => setQuickPanelFeedback(''), 4000);
+            return;
+          }
+
+          setQuickInput(cleanSpeech);
+        }
+      });
+    } else if (panelVoiceState === 'listening') {
+      SpeechService.stopRecording();
     }
   };
 

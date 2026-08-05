@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { dbService } from "./server/db.js";
-import { routeUserIntent, checkAndMemorize, chatWithNexa, chatWithXenaStream, generateAILinePlanning, reformulateReminder } from "./server/gemini.js";
+import { routeUserIntent, checkAndMemorize, chatWithNexa, chatWithXenaStream, generateAILinePlanning, reformulateReminder, transcribeAudioWithGemini } from "./server/gemini.js";
 import { ServerActionEngine } from "./server/ServerActionEngine.js";
 import { normalizeTimeString, extractTimeFromText } from "./src/utils/timeUtils.js";
 import { parseFollowUpUpdate, parseEventFollowUpUpdate } from "./src/utils/reminderParser.js";
@@ -22,8 +22,45 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Enable JSON request body parsing
-  app.use(express.json());
+  // Enable JSON request body parsing with higher limit for audio base64 STT payload
+  app.use(express.json({ limit: '25mb' }));
+
+  // ==================== SPEECH-TO-TEXT API ====================
+  app.post("/api/stt/transcribe", async (req, res) => {
+    if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
+    const { audioBase64, mimeType } = req.body;
+    if (!audioBase64) {
+      return res.status(400).json({ error: "audioBase64 is required" });
+    }
+
+    try {
+      const profile = dbService.getProfile(currentUserId);
+      const profileName = profile?.full_name || 'Zialy';
+
+      // Gather contextual terms (items, exams, courses, reminders)
+      const contextTerms: string[] = ['CS-305'];
+      try {
+        const db = dbService.getDb();
+        (db.exams || []).filter(e => e.user_id === currentUserId).forEach(exam => {
+          if (exam.course) contextTerms.push(exam.course);
+        });
+        (db.reminders || []).filter(r => r.user_id === currentUserId).forEach(r => {
+          if (r.title) contextTerms.push(r.title);
+        });
+        (db.events || []).filter(ev => ev.user_id === currentUserId).forEach(ev => {
+          if (ev.title) contextTerms.push(ev.title);
+        });
+      } catch (e) {
+        console.warn('Could not collect context terms for STT:', e);
+      }
+
+      const transcript = await transcribeAudioWithGemini(audioBase64, mimeType || 'audio/webm', profileName, contextTerms);
+      res.json({ transcript, source: 'gemini-stt' });
+    } catch (err: any) {
+      console.error("STT endpoint error:", err);
+      res.status(500).json({ error: err.message || "STT failed" });
+    }
+  });
 
   // ==================== AUTHENTICATION API ====================
   app.get("/api/auth/session", (req, res) => {
@@ -159,7 +196,26 @@ async function startServer() {
     planningController.generatePlan(req, res, currentUserId);
   });
 
-  // ==================== EXAMS & STUDY API ====================
+  // ==================== STUDY TRACKING API ====================
+  app.get("/api/study-tracking", (req, res) => {
+    if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
+    const data = dbService.getStudyTracking(currentUserId);
+    res.json(data);
+  });
+
+  app.put("/api/study-tracking", (req, res) => {
+    if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
+    const updated = dbService.saveStudyTracking(currentUserId, req.body);
+    res.json(updated);
+  });
+
+  app.post("/api/study-tracking/generate", (req, res) => {
+    if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
+    const updated = dbService.saveStudyTracking(currentUserId, req.body || {});
+    res.json(updated);
+  });
+
+  // Legacy Exams compatibility routes
   app.get("/api/exams", (req, res) => {
     if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
     studyController.listExams(req, res, currentUserId);
@@ -614,6 +670,20 @@ async function startServer() {
       res.write(`data: ${JSON.stringify({ error: err.message || 'Stream error' })}\n\n`);
       res.end();
     }
+  });
+
+  // API Fallback 404 & Error Handler to prevent Vite SPA from returning HTML on missing/failing API routes
+  app.use("/api/*", (req, res) => {
+    res.status(404).json({ error: `API route ${req.method} ${req.originalUrl} not found` });
+  });
+
+  // Global Express Error Handler for API
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('[EXPRESS_ERROR]', err);
+    if (req.path.startsWith('/api')) {
+      return res.status(500).json({ error: err.message || 'Internal Server Error' });
+    }
+    next(err);
   });
 
   // ==================== ASSET/VITE STATIC DELIVERY ====================
