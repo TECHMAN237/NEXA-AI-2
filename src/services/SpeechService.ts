@@ -641,8 +641,19 @@ export class SpeechService {
   /**
    * Text To Speech (Read Aloud)
    */
-  static speak(text: string, onEnd?: () => void): void {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  static speak(
+    text: string,
+    callbacks?: (() => void) | { onStart?: () => void; onEnd?: () => void; onError?: (err: any) => void }
+  ): void {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      if (typeof callbacks === 'function') callbacks();
+      else if (callbacks?.onEnd) callbacks.onEnd();
+      return;
+    }
+
+    const ttsStartTime = Date.now();
+    const onEndCb = typeof callbacks === 'function' ? callbacks : callbacks?.onEnd;
+    const onStartCb = typeof callbacks !== 'function' ? callbacks?.onStart : undefined;
 
     try {
       window.speechSynthesis.cancel(); // Stop ongoing speech
@@ -656,21 +667,44 @@ export class SpeechService {
         .replace(/`{1,3}.*?`{1,3}/g, '')
         .trim();
 
-      if (!cleanText) return;
+      if (!cleanText) {
+        if (onEndCb) onEndCb();
+        return;
+      }
+
+      logTelemetry('tts_start', { textLength: cleanText.length });
 
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.rate = 1.0;
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
 
-      if (onEnd) {
-        utterance.onend = onEnd;
-        utterance.onerror = onEnd;
-      }
+      let firstAudioFired = false;
+
+      utterance.onstart = () => {
+        if (!firstAudioFired) {
+          firstAudioFired = true;
+          const ttsFirstAudioTime = Date.now();
+          logTelemetry('tts_first_audio', { latencyMs: ttsFirstAudioTime - ttsStartTime });
+          logTelemetry('playback_start', { latencyMs: ttsFirstAudioTime - ttsStartTime });
+        }
+        if (onStartCb) onStartCb();
+      };
+
+      utterance.onend = () => {
+        logTelemetry('tts_end', { durationMs: Date.now() - ttsStartTime });
+        if (onEndCb) onEndCb();
+      };
+
+      utterance.onerror = (err) => {
+        console.warn('Text-To-Speech error:', err);
+        if (onEndCb) onEndCb();
+      };
 
       window.speechSynthesis.speak(utterance);
     } catch (e) {
       console.error('Text-To-Speech error:', e);
+      if (onEndCb) onEndCb();
     }
   }
 

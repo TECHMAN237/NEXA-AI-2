@@ -17,6 +17,7 @@ import ProfileView from './components/ProfileView.js';
 import MemoryView from './components/MemoryView.js';
 import InteractiveWidget from './components/InteractiveWidget.js';
 import ActivityView from './components/ActivityView.js';
+import { LiveVoiceModal } from './components/LiveVoiceModal.js';
 
 // New Profile Sub-Views
 import AccountView from './components/AccountView.js';
@@ -67,6 +68,7 @@ export default function App() {
   const [events, setEvents] = useState<NexaEvent[]>([]);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [isGlobalLiveVoiceOpen, setIsGlobalLiveVoiceOpen] = useState(false);
   const [activityCount, setActivityCount] = useState<number>(5);
   const [reminderToEdit, setReminderToEdit] = useState<Reminder | null>(null);
   const [activeTriggeredReminder, setActiveTriggeredReminder] = useState<Reminder | null>(null);
@@ -819,21 +821,24 @@ export default function App() {
                 <div className="space-y-4">
                   {/* PRIMARY ACTION: Large central Talk to NEXA button */}
                   <button 
-                    onClick={handlePanelVoiceToggle}
+                    onClick={() => {
+                      setShowQuickPanel(false);
+                      setIsGlobalLiveVoiceOpen(true);
+                    }}
                     className="w-full bg-gradient-to-tr from-nexa-blue/20 to-nexa-purple/20 hover:from-nexa-blue/30 hover:to-nexa-purple/30 border-2 border-nexa-blue/60 hover:border-nexa-glow rounded-2xl p-5 flex flex-col items-center justify-center text-center transition-all duration-300 group relative overflow-hidden cursor-pointer shadow-[0_0_20px_rgba(0,229,255,0.15)] hover:shadow-[0_0_25px_rgba(0,229,255,0.3)]"
                   >
                     <div className="absolute top-0 right-0 w-24 h-24 bg-nexa-glow/10 rounded-full blur-2xl group-hover:bg-nexa-glow/20 transition duration-500"></div>
                     
                     <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-nexa-blue to-nexa-purple flex items-center justify-center text-white text-xl shadow-lg shadow-nexa-blue/30 mb-2.5 group-hover:scale-110 transition duration-300">
-                      🎤
+                      🎙️
                     </div>
                     
                     <div className="text-sm font-extrabold text-white font-display uppercase tracking-widest flex items-center space-x-1.5">
-                      <span>Talk to Xena AI</span>
-                      <span className="w-1.5 h-1.5 rounded-full bg-nexa-glow animate-ping"></span>
+                      <span>Talk to Xena AI (Live Voice)</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1 max-w-[280px]">
-                      Trigger standard vocal link to schedule study slots, ask questions, or set goals
+                      Hands-free continuous multi-turn live voice conversation
                     </p>
                   </button>
 
@@ -1091,6 +1096,14 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Global Live Voice Modal */}
+      <LiveVoiceModal
+        isOpen={isGlobalLiveVoiceOpen}
+        onClose={() => setIsGlobalLiveVoiceOpen(false)}
+        onRefreshData={fetchData}
+        profileName={profile?.full_name}
+      />
 
       {/* Floating Toast Notifications */}
       <div className="fixed top-6 right-6 z-[9999] flex flex-col space-y-3 pointer-events-none max-w-sm w-full">

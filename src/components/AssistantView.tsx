@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Mic, Send, Bell, CloudSun, Calendar, BookOpen, Clock, AlertCircle, Sparkles, Trash2, Volume2, VolumeX
+  Mic, Send, Bell, CloudSun, Calendar, BookOpen, Clock, AlertCircle, Sparkles, Trash2, Volume2, VolumeX, Radio
 } from 'lucide-react';
 import { Message, Reminder, Exam, Event as NexaEvent, Task, Profile } from '../types.js';
 import MarkdownRenderer from './MarkdownRenderer.js';
 import { SpeechService } from '../services/SpeechService.js';
 import { ChatComposer } from './ChatComposer.js';
+import { LiveVoiceModal } from './LiveVoiceModal.js';
 
 interface AssistantViewProps {
   onNavigate: (view: string) => void;
@@ -37,6 +38,7 @@ export default function AssistantView({
   const [audioSpectrum, setAudioSpectrum] = useState<number[]>([]);
   const [voiceFeedbackMsg, setVoiceFeedbackMsg] = useState<string>('');
   const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
+  const [isLiveVoiceOpen, setIsLiveVoiceOpen] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -181,6 +183,18 @@ export default function AssistantView({
     }
   };
 
+  const handleNewConversation = async () => {
+    try {
+      const res = await fetch('/api/chat/new', { method: 'POST' });
+      if (res.ok) {
+        setChatMessages([]);
+        onRefreshData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleVoiceToggle = () => {
     if (isListening) {
       SpeechService.stopRecording();
@@ -289,7 +303,7 @@ export default function AssistantView({
         <motion.div 
           animate={{ y: [0, -8, 0] }}
           transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-          onClick={handleVoiceToggle}
+          onClick={() => setIsLiveVoiceOpen(true)}
           className="relative w-44 h-44 z-10 flex flex-col items-center justify-center mb-2 cursor-pointer group"
         >
           {/* Cybernetic outer glowing ring */}
@@ -316,11 +330,29 @@ export default function AssistantView({
           <div className="absolute -bottom-1 w-12 h-3 bg-[#1C2533] border-b border-nexa-border rounded-b-lg -z-10 shadow-lg"></div>
         </motion.div>
 
+        {/* PROMINENT LIVE VOICE MODE BUTTON */}
+        <button
+          onClick={() => setIsLiveVoiceOpen(true)}
+          className="mt-2 px-5 py-2.5 bg-gradient-to-r from-nexa-blue via-nexa-purple to-cyan-400 hover:opacity-90 rounded-2xl text-xs font-black uppercase font-display tracking-widest text-white shadow-[0_0_25px_rgba(0,229,255,0.35)] hover:shadow-[0_0_35px_rgba(0,229,255,0.6)] active:scale-95 transition-all duration-300 flex items-center space-x-2 cursor-pointer z-20"
+        >
+          <Radio className="w-4 h-4 animate-pulse text-white" />
+          <span>Talk to Xena (Live Voice)</span>
+          <span className="w-2 h-2 rounded-full bg-red-400 animate-ping ml-1"></span>
+        </button>
+
         <span className="text-[10px] text-gray-400 mt-2 tracking-widest uppercase font-mono flex items-center space-x-1.5 bg-nexa-card/30 px-3 py-1 rounded-full border border-nexa-border/40 select-none">
           <span className="w-1.5 h-1.5 rounded-full bg-nexa-glow animate-ping"></span>
           <span>XENA AI CORE v1.0 • ONLINE</span>
         </span>
       </div>
+
+      {/* DEDICATED LIVE VOICE MODAL */}
+      <LiveVoiceModal
+        isOpen={isLiveVoiceOpen}
+        onClose={() => setIsLiveVoiceOpen(false)}
+        onRefreshData={onRefreshData}
+        profileName={profile?.full_name}
+      />
 
       {/* Voice Feedback Alert */}
       {voiceFeedbackMsg && (
@@ -387,6 +419,13 @@ export default function AssistantView({
           </div>
           
           <div className="flex items-center space-x-2">
+            <button
+              onClick={handleNewConversation}
+              className="px-2.5 py-1 rounded-lg bg-nexa-card hover:bg-nexa-border border border-nexa-border text-[10px] font-bold text-gray-200 hover:text-white transition cursor-pointer"
+              title="Start a new conversation"
+            >
+              <span>+ New Conversation</span>
+            </button>
             <button 
               onClick={() => onNavigate('full-chat')}
               className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-nexa-blue/15 to-nexa-purple/15 hover:from-nexa-blue/30 hover:to-nexa-purple/30 border border-nexa-blue/30 hover:border-nexa-glow text-[10px] font-bold text-nexa-glow hover:text-white transition-all duration-300 shadow-[0_0_10px_rgba(0,229,255,0.1)] hover:shadow-[0_0_15px_rgba(0,229,255,0.3)] cursor-pointer"

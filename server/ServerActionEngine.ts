@@ -1,8 +1,10 @@
 import { dbService } from './db.js';
-import { normalizeTimeString, extractTimeFromText } from '../src/utils/timeUtils.js';
+import { normalizeTimeString, extractTimeFromText, extractDurationFromText } from '../src/utils/timeUtils.js';
 import { extractReminderParams, parseFollowUpUpdate, cleanReminderTitle, resolveRelativeDate, detectReminderFields } from '../src/utils/reminderParser.js';
 import { generateStudyPlan, generateExamReminders } from '../src/utils/studyPlanGenerator.js';
 import { StudyTrackingData } from '../src/types.js';
+import { extractVaultContent } from './contextualNormalizer.js';
+import { isConversationalText } from './gemini.js';
 
 export interface ServerActionPayload {
   intent: string;
@@ -29,7 +31,196 @@ export interface ServerActionResult {
   summary: string;
 }
 
+export interface PendingDraft {
+  userId: string;
+  intent: 'REMINDER' | 'EVENT' | 'PLANNING' | 'STUDY_TRACKING';
+  data: Record<string, any>;
+  missingFields: string[];
+  createdAt: number;
+}
+
 export class ServerActionEngine {
+  private static pendingDrafts: Map<string, PendingDraft> = new Map();
+
+  public static getPendingDraft(userId: string): PendingDraft | null {
+    const draft = this.pendingDrafts.get(userId);
+    if (!draft) return null;
+    if (Date.now() - draft.createdAt > 15 * 60 * 1000) {
+      this.pendingDrafts.delete(userId);
+      return null;
+    }
+    return draft;
+  }
+
+  public static setPendingDraft(userId: string, draft: PendingDraft): void {
+    this.pendingDrafts.set(userId, draft);
+  }
+
+  public static clearPendingDraft(userId: string): void {
+    this.pendingDrafts.delete(userId);
+  }
+
+  public static async resolvePendingDraft(
+    userId: string,
+    rawQuery: string
+  ): Promise<ServerActionResult | null> {
+    const draft = this.getPendingDraft(userId);
+    if (!draft) return null;
+
+    const lower = rawQuery.toLowerCase().trim();
+
+    // If incoming message is conversational (greeting, thanks, how are you, who are you, etc.),
+    // return null so normal chat handler responds directly without resolving or clearing the pending draft.
+    if (isConversationalText(rawQuery)) {
+      return null;
+    }
+
+    // Explicit cancel check
+    if (/^(cancel|never mind|forget it|stop|no thanks|drop it)$/i.test(lower)) {
+      this.clearPendingDraft(userId);
+      return {
+        intent: draft.intent,
+        targetModule: this.getTargetModuleName(draft.intent),
+        action: 'NO_OP',
+        success: true,
+        summary: "Okay, I've cancelled that."
+      };
+    }
+
+    // New explicit command check or intent switch
+    const isIntentSwitch = (
+      lower.includes('plan') ||
+      lower.includes('organize') ||
+      lower.includes('generate') ||
+      lower.includes('event') ||
+      lower.includes('vault') ||
+      lower.includes('memory') ||
+      lower.includes('study') ||
+      lower.startsWith('actually') ||
+      lower.startsWith('forget') ||
+      /^(remind me to|create a|create me|set a|add a|schedule|what events|show my|view my|list my|tell me|help me)/i.test(lower)
+    );
+
+    const isPureTimeOrDate = /^(at\s+)?(\d{1,2}(:\d{2})?|\d{1,2}\s+\d{2})\s*(am|pm|a\.m\.|p\.m\.)?$/i.test(lower) ||
+      /^(today|tomorrow|tonight|noon|midnight|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/i.test(lower);
+
+    if (isIntentSwitch && !isPureTimeOrDate) {
+      const extractedT = extractTimeFromText(rawQuery);
+      const extractedTitle = cleanReminderTitle(rawQuery, rawQuery);
+      const satisfiesMissingTime = draft.missingFields.includes('time') && extractedT !== null;
+      const satisfiesMissingTitle = draft.missingFields.includes('title') && extractedTitle.length > 0;
+
+      if (!satisfiesMissingTime && !satisfiesMissingTitle) {
+        this.clearPendingDraft(userId);
+        return null;
+      }
+    }
+
+    if (draft.intent === 'REMINDER') {
+      // 1. Missing time check
+      if (draft.missingFields.includes('time')) {
+        const parsedTime = extractTimeFromText(rawQuery) || normalizeTimeString(rawQuery);
+        if (parsedTime && !parsedTime.startsWith('AMBIGUOUS')) {
+          draft.data.time = parsedTime;
+          draft.missingFields = draft.missingFields.filter(f => f !== 'time');
+        } else if (lower.includes('noon')) {
+          draft.data.time = '12:00';
+          draft.missingFields = draft.missingFields.filter(f => f !== 'time');
+        } else if (lower.includes('midnight')) {
+          draft.data.time = '00:00';
+          draft.missingFields = draft.missingFields.filter(f => f !== 'time');
+        }
+      }
+
+      // 2. Missing date check
+      if (draft.missingFields.includes('date')) {
+        const hasDateInQuery = lower.includes('today') || lower.includes('tomorrow') || /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(lower) || /\b\d{4}-\d{2}-\d{2}\b/.test(lower) || /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\b/i.test(lower);
+        if (hasDateInQuery) {
+          draft.data.date = resolveRelativeDate(null, rawQuery);
+          draft.missingFields = draft.missingFields.filter(f => f !== 'date');
+        } else if (draft.data.time) {
+          draft.data.date = resolveRelativeDate(null, 'today');
+          draft.missingFields = draft.missingFields.filter(f => f !== 'date');
+        }
+      }
+
+      // 3. Missing title check
+      if (draft.missingFields.includes('title')) {
+        const cleanT = cleanReminderTitle(rawQuery, rawQuery);
+        if (cleanT && cleanT.length > 0) {
+          draft.data.title = cleanT;
+          draft.missingFields = draft.missingFields.filter(f => f !== 'title');
+        }
+      }
+
+      // Parse optional modifiers if user provides them
+      if (lower.includes('high priority') || lower.includes('urgent')) draft.data.priority = 'high';
+      if (lower.includes('low priority')) draft.data.priority = 'low';
+      if (lower.includes('every monday') || lower.includes('weekly')) draft.data.repeat = 'weekly';
+      if (lower.includes('every day') || lower.includes('daily')) draft.data.repeat = 'daily';
+
+      if (draft.missingFields.length === 0) {
+        const newRem = dbService.createReminder(userId, {
+          title: draft.data.title,
+          description: draft.data.description || '',
+          date: draft.data.date,
+          time: draft.data.time,
+          repeat: draft.data.repeat || 'none',
+          priority: draft.data.priority || 'medium',
+          voice_notification: draft.data.voiceReminder !== false,
+          active: draft.data.active !== false,
+          category: draft.data.category || 'General',
+          status: 'scheduled'
+        });
+
+        this.clearPendingDraft(userId);
+
+        const { followUpText } = detectReminderFields(newRem, rawQuery, draft.data);
+
+        dbService.createNotificationHistory(userId, {
+          type: 'REMINDER',
+          title: `Reminder Created: "${newRem.title}"`,
+          description: `Scheduled for ${newRem.date} at ${newRem.time}`,
+          source_id: newRem.id,
+          status: 'completed'
+        });
+
+        return {
+          intent: 'REMINDER',
+          targetModule: 'Reminder',
+          action: 'CREATE',
+          success: true,
+          data: newRem,
+          summary: followUpText
+        };
+      } else {
+        this.setPendingDraft(userId, draft);
+        let nextQuestion = 'What time should I set for this reminder?';
+        if (draft.missingFields.includes('title') && (draft.missingFields.includes('time') || draft.missingFields.includes('date'))) {
+          nextQuestion = 'Absolutely. What would you like me to remind you about, and when should I remind you?';
+        } else if (draft.missingFields.includes('title')) {
+          nextQuestion = 'What would you like me to remind you about?';
+        } else if (draft.missingFields.includes('time') && draft.missingFields.includes('date')) {
+          nextQuestion = 'When should I remind you?';
+        } else if (draft.missingFields.includes('time')) {
+          nextQuestion = 'Sure. What time should I remind you?';
+        } else if (draft.missingFields.includes('date')) {
+          nextQuestion = 'What date should I set for this reminder?';
+        }
+
+        return {
+          intent: 'REMINDER',
+          targetModule: 'Reminder',
+          action: 'CREATE',
+          success: true,
+          data: { pending: true, missingFields: draft.missingFields },
+          summary: nextQuestion
+        };
+      }
+    }
+
+    return null;
+  }
   /**
    * Log development execution trace (AI ACTION DEBUG)
    */
@@ -309,16 +500,55 @@ Details:        ${details || 'N/A'}
 
     const params = extractReminderParams(payload, rawQuery);
 
+    // Missing information check
+    const missingFields: string[] = [];
     if (!params.title || params.title.trim().length === 0) {
-      console.log('[REMINDER_CREATE_RESULT]', { success: false, error: 'Missing reminder title' });
-      this.logDebugTrace(intent, action, 'Reminder', 'dbService.createReminder', 'FAILED', 'FAILED', 'FAILED', 'Missing reminder title');
+      missingFields.push('title');
+    }
+    if (!params.isTimeExplicit && !payload?.time) {
+      missingFields.push('time');
+    }
+    if (!params.isDateExplicit && !payload?.date && !params.isTimeExplicit && !payload?.time) {
+      missingFields.push('date');
+    }
+
+    if (missingFields.length > 0) {
+      ServerActionEngine.setPendingDraft(userId, {
+        userId,
+        intent: 'REMINDER',
+        data: {
+          title: params.title,
+          date: params.date,
+          repeat: params.repeat,
+          priority: params.priority,
+          voiceReminder: params.voiceReminder,
+          active: params.active,
+          category: params.category,
+          description: params.description
+        },
+        missingFields,
+        createdAt: Date.now()
+      });
+
+      let followUpQuestion = '';
+      if (missingFields.includes('title')) {
+        followUpQuestion = 'What would you like me to remind you about?';
+      } else if (missingFields.includes('time') && missingFields.includes('date')) {
+        followUpQuestion = 'When should I remind you?';
+      } else if (missingFields.includes('time')) {
+        followUpQuestion = 'Sure. What time should I remind you?';
+      } else {
+        followUpQuestion = 'What date should I set for this reminder?';
+      }
+
+      this.logDebugTrace(intent, action, 'Reminder', 'PendingDraftStore', 'SUCCESS', 'SUCCESS', 'SUCCESS', `Stored pending draft. Missing: ${missingFields.join(', ')}`);
       return {
         intent,
         targetModule: 'Reminder',
         action: 'CREATE',
-        success: false,
-        error: 'Reminder title missing or ambiguous.',
-        summary: '✗ Reminder creation failed: missing title description.'
+        success: true,
+        data: { pending: true, missingFields },
+        summary: followUpQuestion
       };
     }
 
@@ -451,12 +681,41 @@ Details:        ${details || 'N/A'}
     const date = resolveRelativeDate(payload.date, rawQuery);
     const lowerQuery = rawQuery.toLowerCase();
 
+    const isMetaChunk = (text: string): boolean => {
+      const lower = text.trim().toLowerCase();
+      if (!lower || lower.length < 2) return true;
+      if (/^(help me|plan my day|generate my plan|generate my plan for that|create my plan|make a schedule|organize these tasks|schedule them|for that|plan it|make a plan)$/i.test(lower)) return true;
+      if (/^can\s+you\s+create\s+a\s+plan/i.test(lower)) return true;
+      if (/^i\s+want\s+you\s+to\s+help\s+me/i.test(lower)) return true;
+      if (/^generate\s+(my|a)?\s*plan/i.test(lower)) return true;
+      if (/^create\s+(my|a)?\s*plan/i.test(lower)) return true;
+      if (/^plan\s+my\s+day/i.test(lower)) return true;
+      if (/^help\s+me\s+plan/i.test(lower)) return true;
+      if (/^organize\s+(these\s+tasks|my\s+day|my\s+schedule|my\s+tasks)/i.test(lower)) return true;
+      if (/^arrange\s+(these\s+activities|my\s+tasks)/i.test(lower)) return true;
+      if (/^for\s+that\??$/i.test(lower)) return true;
+      return false;
+    };
+
     // Helper: Stage 1 - Task Extraction
     const parseAndExtractTasks = (query: string) => {
       let cleaned = query
-        .replace(/^(help\s+me|please|can\s+you|i\s+want\s+to|i\s+need\s+to)\s+/gi, '')
-        .replace(/\b(help\s+me\s+plan\s+my\s+day|plan\s+my\s+day|plan\s+for\s+tomorrow|organize\s+my\s+day|daily\s+plan|daily\s+schedule)\b/gi, '')
-        .replace(/\b(create|make|generate|build|organize|structure|schedule)\s+(a\s+|my\s+)?(daily\s+)?(plan|schedule|day|timeline)\b/gi, '')
+        .replace(/i\s+want\s+you\s+to\s+help\s+me\s+(to\s+)?plan\s+my\s+day\.?/gi, '')
+        .replace(/can\s+you\s+create\s+a\s+plan\s+for\s+that\??/gi, '')
+        .replace(/can\s+you\s+create\s+a\s+plan\??/gi, '')
+        .replace(/generate\s+my\s+plan\s+for\s+that/gi, '')
+        .replace(/generate\s+my\s+plan/gi, '')
+        .replace(/generate\s+a\s+plan/gi, '')
+        .replace(/create\s+my\s+plan/gi, '')
+        .replace(/create\s+a\s+plan/gi, '')
+        .replace(/help\s+me\s+plan\s+my\s+day/gi, '')
+        .replace(/plan\s+my\s+day/gi, '')
+        .replace(/make\s+a\s+schedule/gi, '')
+        .replace(/organize\s+these\s+tasks/gi, '')
+        .replace(/organize\s+my\s+day/gi, '')
+        .replace(/schedule\s+them/gi, '')
+        .replace(/for\s+that\??$/gi, '')
+        .replace(/^(help\s+me|please|can\s+you|i\s+want\s+to)\s+/gi, '')
         .replace(/\b(for\s+)?(tomorrow|today|this\s+weekend|next\s+week)\b/gi, '')
         .trim();
 
@@ -468,54 +727,56 @@ Details:        ${details || 'N/A'}
         .map(c => c.trim())
         .filter(c => c.length > 2);
 
-      const results: Array<{ title: string; durationHours: number; fixedTime: string | null }> = [];
+      const results: Array<{ title: string; durationHours: number; durationLabel: string; fixedTime: string | null }> = [];
 
       for (const chunk of rawChunks) {
-        const lowerChunk = chunk.toLowerCase();
-
-        if (
-          /^(help me|plan my day|organize my schedule|tomorrow|today|for tomorrow|my plan|daily plan)$/i.test(lowerChunk) ||
-          lowerChunk.includes('help me plan') ||
-          lowerChunk.includes('plan my day') ||
-          lowerChunk.includes('organize my day') ||
-          lowerChunk.includes('create my plan')
-        ) {
+        if (isMetaChunk(chunk)) {
           continue;
         }
 
         let durationHours = 1.5;
-        const durationMatch = chunk.match(/(\d+(\.\d+)?)\s*(hours?|hrs?|h)\b/i);
-        if (durationMatch) {
-          durationHours = parseFloat(durationMatch[1]);
+        let durationLabel = '1.5h';
+
+        const extDur = extractDurationFromText(chunk);
+        if (extDur) {
+          durationHours = extDur.durationHours;
+          durationLabel = extDur.durationLabel;
         }
 
         let fixedTime: string | null = null;
         const timeMatch = extractTimeFromText(chunk);
-        if (timeMatch && (/\b(at|from|starts?\s+at)\b/i.test(chunk) || /\b(am|pm)\b/i.test(chunk))) {
+        if (timeMatch && !timeMatch.startsWith('AMBIGUOUS:') && (/\b(at|from|starts?\s+at)\b/i.test(chunk) || /\b(am|pm)\b/i.test(chunk))) {
           fixedTime = timeMatch;
         }
 
         let title = chunk
-          .replace(/\b(for\s+)?(\d+(\.\d+)?)\s*(hours?|hrs?|h)\b/gi, '')
+          .replace(/\b(for\s+)?(\d+(\.\d+)?)\s*(hours?|hrs?|h|minutes?|mins?|m)\b/gi, '')
+          .replace(/\b(for\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty)\s*(hours?|hrs?|h|minutes?|mins?|m)\b/gi, '')
           .replace(/\b(at|from|starts?\s+at)\s+\d{1,2}(:\d{2})?\s*(am|pm)?\b/gi, '')
           .replace(/\b\d{1,2}(:\d{2})?\s*(am|pm)\b/gi, '')
-          .replace(/^(i\s+need\s+to|i\s+have\s+to|i\s+want\s+to|need\s+to|have\s+to|i\s+must|attend|do)\s+/i, '')
+          .replace(/^(i\s+need\s+to|i\s+have\s+to|i\s+want\s+to|need\s+to|have\s+to|i\s+must|make\s+this\s+activity|create\s+a)\s+/i, '')
           .replace(/^(tomorrow|today|for\s+tomorrow|for\s+today)\s+/i, '')
           .replace(/[^a-zA-Z0-9\s-]/g, ' ')
           .replace(/\s+/g, ' ')
           .trim();
 
         if (title) {
-          title = title.split(' ').map(w => w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : '').join(' ');
+          // Capitalize words cleanly while preserving acronyms like CSC305
+          title = title.split(' ').map(w => {
+            if (w.length === 0) return '';
+            if (/^[A-Z0-9]+$/.test(w)) return w; // Keep uppercase terms like CSC305, CS101
+            return w[0].toUpperCase() + w.slice(1);
+          }).join(' ');
         }
 
-        if (!title || /^(Help Me|Plan My Day|Organize My Day|Plan|Tomorrow|Today)$/i.test(title)) {
+        if (!title || isMetaChunk(title)) {
           continue;
         }
 
         results.push({
           title,
           durationHours,
+          durationLabel,
           fixedTime
         });
       }
@@ -527,26 +788,51 @@ Details:        ${details || 'N/A'}
     let taskSpecs = parseAndExtractTasks(rawQuery);
 
     if (taskSpecs.length === 0 && Array.isArray(payload.tasks) && payload.tasks.length > 0) {
-      taskSpecs = payload.tasks.map((t: any) => ({
-        title: typeof t === 'string' ? t : t.title || 'Task',
-        durationHours: t.durationHours || 1.5,
-        fixedTime: t.fixedTime || null
-      }));
+      taskSpecs = payload.tasks
+        .map((t: any) => {
+          const ext = typeof t === 'string' ? extractDurationFromText(t) : null;
+          const durHours = t.durationHours || (ext ? ext.durationHours : 1.5);
+          const durLabel = t.durationLabel || (ext ? ext.durationLabel : `${durHours}h`);
+          return {
+            title: typeof t === 'string' ? t : t.title || 'Task',
+            durationHours: durHours,
+            durationLabel: durLabel,
+            fixedTime: t.fixedTime || null
+          };
+        })
+        .filter((t: any) => !isMetaChunk(t.title));
     }
 
-    // If still empty, check existing items for the date or fallback
+    // Check available time constraint in raw query (e.g., "3 hours available")
+    const availMatch = rawQuery.match(/(\d+(\.\d+)?)\s*(hours?|hrs?|h)\s*(available|free|total)/i) ||
+                      rawQuery.match(/(available|free|have)\s*(\d+(\.\d+)?)\s*(hours?|hrs?|h)/i);
+    if (availMatch && taskSpecs.length > 0) {
+      const availVal = parseFloat(availMatch[1] || availMatch[2]);
+      if (availVal > 0) {
+        const perTaskDuration = parseFloat((availVal / taskSpecs.length).toFixed(1));
+        taskSpecs.forEach(t => {
+          if (!t.fixedTime) {
+            t.durationHours = perTaskDuration;
+            t.durationLabel = `${perTaskDuration}h`;
+          }
+        });
+      }
+    }
+
+    // If still empty, check existing items for the date
     if (taskSpecs.length === 0) {
       const existingDbTasks = dbService.getTasks(userId).filter(t => t.date === date);
       const existingDbEvents = dbService.getEvents(userId).filter(e => e.date === date);
-      existingDbTasks.forEach(t => taskSpecs.push({ title: t.title, durationHours: 1.5, fixedTime: t.time || null }));
-      existingDbEvents.forEach(e => taskSpecs.push({ title: e.title, durationHours: 1.5, fixedTime: e.time || null }));
+      existingDbTasks.forEach(t => taskSpecs.push({ title: t.title, durationHours: 1.5, durationLabel: '1.5h', fixedTime: t.time || null }));
+      existingDbEvents.forEach(e => taskSpecs.push({ title: e.title, durationHours: 1.5, durationLabel: '1.5h', fixedTime: e.time || null }));
     }
 
+    // Fallback ONLY if zero tasks specified and zero existing DB tasks/events
     if (taskSpecs.length === 0) {
       taskSpecs = [
-        { title: 'Core Focus Session', durationHours: 2, fixedTime: null },
-        { title: 'Project Assignments', durationHours: 1.5, fixedTime: null },
-        { title: 'Review & Reflection', durationHours: 1, fixedTime: null }
+        { title: 'Core Focus Session', durationHours: 2, durationLabel: '2h', fixedTime: null },
+        { title: 'Project Assignments', durationHours: 1.5, durationLabel: '1.5h', fixedTime: null },
+        { title: 'Review & Reflection', durationHours: 1, durationLabel: '1h', fixedTime: null }
       ];
     }
 
@@ -588,11 +874,11 @@ Details:        ${details || 'N/A'}
         endTimeDec: endDec,
         timeLabel: `${startStr} – ${endStr}`,
         title: task.title,
-        durationLabel: `${task.durationHours}h`
+        durationLabel: task.durationLabel
       });
 
-      clock = endDec + 0.5; // 30 min break
-      if (clock >= 12.5 && clock < 14.0) clock = 14.0; // Lunch break
+      clock = endDec + 0.25; // 15 min break between tasks
+      if (clock >= 12.5 && clock < 13.5) clock = 13.5; // Lunch break
     }
 
     // Schedule fixed tasks
@@ -608,7 +894,7 @@ Details:        ${details || 'N/A'}
           endTimeDec: endDec,
           timeLabel: `${startStr} – ${endStr}`,
           title: ft.title,
-          durationLabel: `${ft.durationHours}h`
+          durationLabel: ft.durationLabel
         });
       }
     }
@@ -617,7 +903,6 @@ Details:        ${details || 'N/A'}
     blocks.sort((a, b) => a.startTimeDec - b.startTimeDec);
 
     const timelineBlocks: any[] = [];
-    const createdTasks: any[] = [];
 
     blocks.forEach((b, idx) => {
       timelineBlocks.push({
@@ -628,16 +913,6 @@ Details:        ${details || 'N/A'}
         priority: idx === 0 ? 'high' : 'medium',
         reminder_enabled: true
       });
-
-      const newTask = dbService.createTask(userId, {
-        title: b.title,
-        date,
-        time: helperFormatTime(b.startTimeDec),
-        duration_hours: b.endTimeDec - b.startTimeDec,
-        priority: idx === 0 ? 'high' : 'medium',
-        status: 'pending'
-      });
-      createdTasks.push(newTask);
     });
 
     const suggestions = `Daily plan structured around your actual tasks for ${date}. High-priority focus blocks assigned chronologically.`;
@@ -668,7 +943,7 @@ Details:        ${details || 'N/A'}
       targetModule: 'Planning',
       action: 'CREATE',
       success: true,
-      data: { ...newPlan, followUpText, tasks: createdTasks },
+      data: { ...newPlan, followUpText, tasks: timelineBlocks },
       summary: `✓ Generated structured daily schedule for ${newPlan.date} with ${timelineBlocks.length} time blocks.`
     };
   }
@@ -1375,11 +1650,10 @@ Details:        ${details || 'N/A'}
     }
 
     // 4. CREATE (Default)
-    let content = payload.content || payload.text || payload.title || rawQuery;
-    content = content
-      .replace(/^vault[:\s,.]*/i, '')
-      .replace(/^(xena,?\s*|please\s*)*/i, '')
-      .trim();
+    const rawInputToClean = payload.content || payload.text || payload.title || rawQuery;
+    const extractedVault = extractVaultContent(rawInputToClean);
+    let content = extractedVault.content;
+    let title = extractedVault.title;
 
     if (!content) {
       const followUpText = "What would you like me to keep in mind?";
@@ -1391,12 +1665,6 @@ Details:        ${details || 'N/A'}
         data: { followUpText },
         summary: followUpText
       };
-    }
-
-    let title = payload.title;
-    if (!title || title === 'Saved Note' || title === 'Saved Information' || title.length > 40 || title.toLowerCase().startsWith('vault')) {
-      title = content.length > 35 ? content.slice(0, 35) + '...' : content;
-      title = title.charAt(0).toUpperCase() + title.slice(1);
     }
 
     // Check for duplicate entry

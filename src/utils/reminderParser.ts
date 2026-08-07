@@ -10,6 +10,8 @@ export interface ExtractedReminderInfo {
   voiceReminder: boolean;
   description?: string;
   category?: string;
+  isTimeExplicit: boolean;
+  isDateExplicit: boolean;
 }
 
 /**
@@ -95,7 +97,12 @@ export function resolveRelativeDate(dateInput: string | undefined | null, queryT
 export function cleanReminderTitle(rawTitle: string, fullQuery: string): string {
   let source = (rawTitle || fullQuery || '').trim();
 
-  // 1. Remove greetings and conversational wrappers anywhere in the query
+  // 1. Remove correction preambles and greetings
+  let cleanedText = source
+    .replace(/^(no|no\s+no|actually|i\s+meant|instead|correction|that's\s+wrong|change\s+that)\b[,]?.?\s*/i, '')
+    .replace(/^(i\s+want\s+you\s+to|i\s+want|i\s+need\s+you\s+to|i\s+would\s+like\s+you\s+to|could\s+you\s+please|can\s+you\s+please)\s+/i, '')
+    .trim();
+
   const conversationalWrappers = [
     /\b(hello|hey|hi|dear)\s+(xena|nexa|assistant)\b[,]?.?/gi,
     /\b(hope\s+you\s+(are|'re)\s+(doing\s+)?(fine|well|good|ok|great))\b[,]?.?/gi,
@@ -105,15 +112,27 @@ export function cleanReminderTitle(rawTitle: string, fullQuery: string): string 
     /\b(i\s+need\s+you\s+to|i\s+would\s+like\s+you\s+to|i'd\s+like\s+you\s+to|i\s+want\s+you\s+to|could\s+you\s+please|can\s+you\s+please|can\s+you|could\s+you)\b/gi,
   ];
 
-  let cleanedText = source;
   for (const cw of conversationalWrappers) {
     cleanedText = cleanedText.replace(cw, ' ');
   }
   cleanedText = cleanedText.replace(/\s+/g, ' ').trim();
 
+  // Explicit check for meta-commands / questions asking if Xena can create a reminder / empty intentions
+  const isGenericCommandQuestion = /^(create|set|add|make|schedule)?\s*(me\s+)?(a\s+)?reminder\s*[,.]?\s*(can\s+you\s+(do\s+that|help( me)?)|is\s+that\s+possible|\?)?\??$/i.test(cleanedText) ||
+    /^(can\s+you\s+(do\s+that|help( me)?)|do\s+it|make\s+one|create\s+one|create\s+something|reminder|task|your\s+task|placeholder|default\s+task|todo|unknown|undefined|null|something|anything)\??$/i.test(cleanedText) ||
+    /^create me a reminder, do that\??$/i.test(cleanedText);
+
+  if (isGenericCommandQuestion) {
+    return '';
+  }
+
   // 2. Look for explicit action phrase after command words:
   const actionRegexes = [
-    /\b(?:create|set|add|make|schedule)(?:\s+me)?(?:\s+a)?\s+reminder\s+(?:for\s+me\s+)?(?:to|for|about)\s+(.+)/i,
+    /\b(?:create|set|add|make|schedule)(?:\s+me)?(?:\s+a)?\s+reminder\s+(?:at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s+)?(?:for\s+me\s+)?(?:to|for|about)\s+(.+)/i,
+    /\b(?:can|could|would)\s+(?:you\s+)?(?:please\s+)?remind\s+me\s+(?:to|for|about|that)\s+(.+)/i,
+    /\b(?:can|could|would)\s+(?:you\s+)?(?:please\s+)?(?:create|set|add|make|schedule)\s+(?:me\s+)?(?:a\s+)?reminder\s+(?:to|for|about)\s+(.+)/i,
+    /\b(?:make\s+sure\s+(?:that\s+)?(?:i\s+)?(?:remember\s+to|don't\s+forget\s+to))\s+(.+)/i,
+    /\b(?:i\s+don't\s+want\s+to\s+forget\s+to|don't\s+let\s+me\s+forget\s+to|help\s+me\s+remember\s+to|so\s+i\s+don't\s+forget\s+to)\s+(.+)/i,
     /\bremind\s+me\s+that\s+i\s+(?:have\s+to|need\s+to|must)\s+(.+)/i,
     /\bremind\s+me\s+that\s+i\s+have\s+a\s+(.+)/i,
     /\bremind\s+me\s+that\s+(.+)/i,
@@ -145,6 +164,15 @@ export function cleanReminderTitle(rawTitle: string, fullQuery: string): string 
     for (const prefix of commandPrefixes) {
       extractedAction = extractedAction.replace(prefix, '');
     }
+  }
+
+  // Clean remaining prepositional prefixes like "for me to", "for me", "to"
+  extractedAction = extractedAction.replace(/^(for\s+me\s+to|for\s+me\s+about|for\s+me\s+for|for\s+me|to|for|about|that)\s+/i, '').trim();
+
+  // Check if extractedAction is itself a meta phrase or placeholder
+  const isMetaResult = /^(can\s+you\s+do\s+that\??|do\s+it|make\s+one|create\s+one|create\s+something|reminder|task|your\s+task|placeholder|default\s+task|todo|unknown|undefined|null|something|anything|me)$/i.test(extractedAction.trim());
+  if (isMetaResult) {
+    return '';
   }
 
   // 3. Handle complex case: "I have an important CSC305 class tomorrow and I don't want to forget to revise for it" -> "Revise for CSC305"
@@ -218,7 +246,8 @@ export function cleanReminderTitle(rawTitle: string, fullQuery: string): string 
     .replace(/\s+/g, ' ')
     .trim();
 
-  if (!extractedAction) return '';
+  const finalCheck = /^(can\s+you\s+do\s+that\??|do\s+it|make\s+one|create\s+one|create\s+something|reminder|task|your\s+task|placeholder|default\s+task|todo|unknown|undefined|null|something|anything|me)$/i.test(extractedAction);
+  if (!extractedAction || finalCheck) return '';
 
   // Capitalize first letter
   return extractedAction.charAt(0).toUpperCase() + extractedAction.slice(1);
@@ -235,27 +264,37 @@ export function extractReminderParams(
   const rawTitle = payload?.title || payload?.content || queryText;
   const cleanedTitle = cleanReminderTitle(rawTitle, queryText);
 
-  // Date resolution
+  const lowerText = queryText.toLowerCase();
+
+  // Date resolution & explicit check
+  const isDateExplicit = !!(
+    payload?.date ||
+    lowerText.includes('today') ||
+    lowerText.includes('tomorrow') ||
+    lowerText.includes('demain') ||
+    lowerText.includes('tonight') ||
+    lowerText.includes("aujourd'hui") ||
+    lowerText.includes('next week') ||
+    /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(lowerText) ||
+    /\b\d{4}-\d{2}-\d{2}\b/.test(lowerText) ||
+    /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\b/i.test(lowerText)
+  );
   const date = resolveRelativeDate(payload?.date, queryText, refDate);
 
-  // Time resolution
-  const lowerText = queryText.toLowerCase();
-  let parsedTime = normalizeTimeString(payload?.time) || extractTimeFromText(queryText);
+  // Time resolution & explicit check
+  const rawTimeMatch = normalizeTimeString(payload?.time) || extractTimeFromText(queryText);
+  let isTimeExplicit = false;
+  let parsedTime = '';
 
-  if (!parsedTime) {
-    if (lowerText.includes('at noon') || lowerText.includes('noon')) {
-      parsedTime = '12:00';
-    } else if (lowerText.includes('at midnight') || lowerText.includes('midnight')) {
-      parsedTime = '00:00';
-    } else if (lowerText.includes('morning')) {
-      parsedTime = '09:00';
-    } else if (lowerText.includes('evening')) {
-      parsedTime = '18:00';
-    } else if (lowerText.includes('afternoon')) {
-      parsedTime = '14:00';
-    } else {
-      parsedTime = '09:00'; // Default fallback time
-    }
+  if (rawTimeMatch && !rawTimeMatch.startsWith('AMBIGUOUS')) {
+    isTimeExplicit = true;
+    parsedTime = rawTimeMatch;
+  } else if (lowerText.includes('at noon') || lowerText.includes('noon')) {
+    isTimeExplicit = true;
+    parsedTime = '12:00';
+  } else if (lowerText.includes('at midnight') || lowerText.includes('midnight')) {
+    isTimeExplicit = true;
+    parsedTime = '00:00';
   }
 
   // Recurrence
@@ -300,7 +339,9 @@ export function extractReminderParams(
     active,
     voiceReminder,
     description: payload?.description || '',
-    category: payload?.category || 'General'
+    category: payload?.category || 'General',
+    isTimeExplicit,
+    isDateExplicit
   };
 }
 
@@ -401,10 +442,16 @@ export function parseFollowUpUpdate(
     lower.startsWith('make it') ||
     lower.startsWith('repeat') ||
     lower.startsWith('set it') ||
-    lower.startsWith('change it') ||
+    lower.startsWith('change') ||
+    lower.startsWith('update') ||
+    lower.startsWith('no') ||
+    lower.startsWith('actually') ||
+    lower.startsWith('i meant') ||
     lower.startsWith('add note') ||
     lower.startsWith('add a note') ||
     lower.startsWith('add description') ||
+    lower.includes('not am') ||
+    lower.includes('not pm') ||
     lower.includes('every week') ||
     lower.includes('every monday') ||
     lower.includes('every day') ||
@@ -416,7 +463,8 @@ export function parseFollowUpUpdate(
     lower.includes('priority') ||
     lower.includes('monthly') ||
     lower.includes('weekly') ||
-    lower.includes('daily')
+    lower.includes('daily') ||
+    /\b(\d{1,2}(:\d{2})?|\d{1,2}\s+\d{2})\s*(am|pm)\b/i.test(lower)
   );
 
   if (!isAffirmativeOrDirectMod) return null;

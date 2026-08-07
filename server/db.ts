@@ -548,7 +548,9 @@ export const dbService = {
   // Plans
   getPlans: (userId: string): Plan[] => {
     const db = readDb();
-    return db.plans.filter(p => p.user_id === userId);
+    return (db.plans || [])
+      .filter(p => p.user_id === userId)
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
   },
 
   createPlan: (userId: string, p: Omit<Plan, 'id' | 'user_id' | 'created_at'>): Plan => {
@@ -850,6 +852,21 @@ export const dbService = {
     const existing = db.conversations.find(c => c.user_id === userId);
     if (existing) return existing;
 
+    const newConv: Conversation = {
+      id: `conv-${Date.now()}`,
+      user_id: userId,
+      title: 'Main Chat Assistant',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    db.conversations.push(newConv);
+    writeDb(db);
+    return newConv;
+  },
+
+  createNewConversation: (userId: string): Conversation => {
+    const db = readDb();
+    db.conversations = db.conversations.filter(c => c.user_id !== userId);
     const newConv: Conversation = {
       id: `conv-${Date.now()}`,
       user_id: userId,

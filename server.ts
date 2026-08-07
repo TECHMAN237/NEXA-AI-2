@@ -2,8 +2,9 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { dbService } from "./server/db.js";
-import { routeUserIntent, checkAndMemorize, chatWithNexa, chatWithXenaStream, generateAILinePlanning, reformulateReminder, transcribeAudioWithGemini } from "./server/gemini.js";
+import { routeUserIntent, checkAndMemorize, chatWithNexa, chatWithXenaStream, chatWithXenaLive, generateAILinePlanning, reformulateReminder, transcribeAudioWithGemini } from "./server/gemini.js";
 import { ServerActionEngine } from "./server/ServerActionEngine.js";
+import { normalizeUserInput } from "./server/contextualNormalizer.js";
 import { normalizeTimeString, extractTimeFromText } from "./src/utils/timeUtils.js";
 import { parseFollowUpUpdate, parseEventFollowUpUpdate } from "./src/utils/reminderParser.js";
 import {
@@ -487,31 +488,59 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  app.post("/api/chat/new", (req, res) => {
+    if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
+    const newConv = dbService.createNewConversation(currentUserId);
+    ServerActionEngine.clearPendingDraft(currentUserId);
+    res.json({ conversation: newConv, success: true });
+  });
+
   app.post("/api/chat/message", async (req, res) => {
     if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
     const { text, type } = req.body;
     if (!text) return res.status(400).json({ error: "Message text is required" });
 
+    // Post-transcription contextual normalization
+    const normalized = normalizeUserInput(text);
+    const cleanedText = normalized.finalTranscript;
+
     const conversation = dbService.getOrCreateConversation(currentUserId);
 
-    console.log('[CHAT_INPUT]', { userMessage: text });
+    console.log('[CHAT_INPUT]', { rawText: text, cleanedText, wasCorrected: normalized.wasCorrected });
 
     // 1. Save user's message in local DB
     const userMsg = dbService.createMessage(conversation.id, {
       sender: 'user',
-      text,
+      text: cleanedText,
       type: type || 'text'
     });
+
+    // 1.5 Check Pending Action Draft resolution first
+    const pendingResult = await ServerActionEngine.resolvePendingDraft(currentUserId, cleanedText);
+    if (pendingResult) {
+      const assistantReply = pendingResult.summary;
+      const assistantMsg = dbService.createMessage(conversation.id, {
+        sender: 'assistant',
+        text: assistantReply,
+        type: 'text'
+      });
+      return res.json({
+        userMessage: userMsg,
+        assistantMessage: assistantMsg,
+        intent: { intent: pendingResult.intent },
+        actionResults: [pendingResult]
+      });
+    }
 
     // 2. Proactive AI Intent Router with Follow-Up Protection
     const reminders = dbService.getReminders(currentUserId);
     const lastReminder = reminders.length > 0 ? reminders[reminders.length - 1] : null;
-    const followUp = parseFollowUpUpdate(text, lastReminder);
+    const followUp = parseFollowUpUpdate(cleanedText, lastReminder);
 
     let intentClassification: any = null;
     let actionsToRun: any[] = [];
 
-    if (followUp && followUp.isFollowUp && lastReminder) {
+    if (followUp && followUp.isFollowUp && lastReminder && !/^(remind|create|set|add|schedule)/i.test(cleanedText.toLowerCase())) {
       console.log(`[Xena Follow-Up] Directing update to existing reminder ID ${lastReminder.id}:`, followUp.updates);
       actionsToRun = [{
         intent: 'REMINDER',
@@ -525,8 +554,23 @@ async function startServer() {
         explanation: `Updating existing reminder "${lastReminder.title}" (${lastReminder.id})`
       };
     } else {
-      intentClassification = await routeUserIntent(text);
+      const recentMsgs = dbService.getMessages(conversation.id).slice(-6);
+      intentClassification = await routeUserIntent(cleanedText, recentMsgs);
       console.log('[AI_INTENT]', { intent: intentClassification.intent, classification: intentClassification });
+
+      if (intentClassification.intent === 'AMBIGUOUS') {
+        const assistantMsg = dbService.createMessage(conversation.id, {
+          sender: 'assistant',
+          text: intentClassification.clarificationPrompt || "What would you like me to do with that information?",
+          type: 'text'
+        });
+        return res.json({
+          userMessage: userMsg,
+          assistantMessage: assistantMsg,
+          intent: intentClassification,
+          actionResults: []
+        });
+      }
 
       if (intentClassification.actions && intentClassification.actions.length > 0) {
         actionsToRun = intentClassification.actions;
@@ -541,13 +585,13 @@ async function startServer() {
 
     console.log('[ACTION_DISPATCH]', { actions: actionsToRun });
 
-    const actionResults = await ServerActionEngine.executeActions(currentUserId, actionsToRun, text);
+    const actionResults = await ServerActionEngine.executeActions(currentUserId, actionsToRun, cleanedText);
 
     // 4. Proactive AI Memory Check
-    const memorizedText = await checkAndMemorize(currentUserId, text);
+    const memorizedText = await checkAndMemorize(currentUserId, cleanedText);
 
     // 5. Generate AI response contextually grounded
-    let assistantReply = await chatWithNexa(currentUserId, conversation.id, text, actionResults);
+    let assistantReply = await chatWithNexa(currentUserId, conversation.id, cleanedText, actionResults);
     if (!assistantReply || !assistantReply.trim()) {
       assistantReply = "Done — Action completed. Would you like to add anything else?";
     }
@@ -570,11 +614,141 @@ async function startServer() {
     });
   });
 
+  // ==================== FAST LIVE CONVERSATIONAL MODE ENDPOINT ====================
+  app.post("/api/chat/live", async (req, res) => {
+    if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
+    const startTime = Date.now();
+    const { text, type } = req.body;
+
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ error: "Message text is required" });
+    }
+
+    const normalized = normalizeUserInput(text);
+    const cleanedText = normalized.finalTranscript;
+
+    if (!cleanedText) {
+      return res.status(400).json({ error: "Empty input message" });
+    }
+
+    const conversation = dbService.getOrCreateConversation(currentUserId);
+
+    // Save user's message in local DB
+    const userMsg = dbService.createMessage(conversation.id, {
+      sender: 'user',
+      text: cleanedText,
+      type: type || 'voice'
+    });
+
+    // Check Pending Action Draft resolution first
+    const pendingResult = await ServerActionEngine.resolvePendingDraft(currentUserId, cleanedText);
+    if (pendingResult) {
+      let assistantReply = pendingResult.summary;
+      if (pendingResult.data?.title && pendingResult.data?.date && pendingResult.data?.time) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const dateWord = pendingResult.data.date === todayStr ? 'today' : 'tomorrow';
+        assistantReply = `Done. I'll remind you ${dateWord} at ${pendingResult.data.time} to ${pendingResult.data.title}.`;
+      }
+      const assistantMsg = dbService.createMessage(conversation.id, {
+        sender: 'assistant',
+        text: assistantReply,
+        type: 'text'
+      });
+      return res.json({
+        userMessage: userMsg,
+        assistantMessage: assistantMsg,
+        intent: { intent: pendingResult.intent },
+        actionResults: [pendingResult],
+        latency: {
+          totalMs: Date.now() - startTime,
+          sttMs: 0,
+          aiMs: Date.now() - startTime
+        }
+      });
+    }
+
+    // 1. Proactive AI Intent Router with Follow-Up Protection
+    const reminders = dbService.getReminders(currentUserId);
+    const lastReminder = reminders.length > 0 ? reminders[reminders.length - 1] : null;
+    const followUp = parseFollowUpUpdate(cleanedText, lastReminder);
+
+    let intentClassification: any = null;
+    let actionsToRun: any[] = [];
+
+    if (followUp && followUp.isFollowUp && lastReminder) {
+      actionsToRun = [{
+        intent: 'REMINDER',
+        action: 'UPDATE',
+        payload: { ...followUp.updates, id: lastReminder.id }
+      }];
+      intentClassification = {
+        intent: 'REMINDER',
+        intents: ['REMINDER'],
+        actions: actionsToRun,
+        explanation: `Updating existing reminder "${lastReminder.title}" (${lastReminder.id})`
+      };
+    } else {
+      intentClassification = await routeUserIntent(cleanedText);
+
+      if (intentClassification.actions && intentClassification.actions.length > 0) {
+        actionsToRun = intentClassification.actions;
+      } else if (intentClassification.intent && intentClassification.intent !== 'NORMAL_CHAT') {
+        actionsToRun = [{
+          intent: intentClassification.intent,
+          action: 'CREATE',
+          payload: intentClassification.extractedData || {}
+        }];
+      }
+    }
+
+    // Execute actions instantly in DB
+    const actionResults = await ServerActionEngine.executeActions(currentUserId, actionsToRun, cleanedText);
+
+    // NON-BLOCKING Background Memory Extraction
+    checkAndMemorize(currentUserId, cleanedText).catch(err => {
+      console.warn("[Background Memory Extraction Warning]", err);
+    });
+
+    // Generate fast voice response (1-3 sentences max)
+    const aiStartTime = Date.now();
+    let assistantReply = await chatWithXenaLive(currentUserId, conversation.id, cleanedText, actionResults);
+    const aiEndTime = Date.now();
+
+    if (!assistantReply || !assistantReply.trim()) {
+      assistantReply = "Done — Action completed.";
+    }
+
+    // Save AI response in DB
+    const assistantMsg = dbService.createMessage(conversation.id, {
+      sender: 'assistant',
+      text: assistantReply.trim(),
+      type: 'voice'
+    });
+
+    const totalDurationMs = Date.now() - startTime;
+
+    res.json({
+      userMessage: userMsg,
+      assistantMessage: assistantMsg,
+      intent: intentClassification,
+      actionResults,
+      replyText: assistantReply.trim(),
+      timings: {
+        totalMs: totalDurationMs,
+        aiMs: aiEndTime - aiStartTime
+      }
+    });
+  });
+
   // Streaming SSE endpoint for real-time token streaming
   app.post("/api/chat/stream", async (req, res) => {
     if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
     const { text, type } = req.body;
     if (!text) return res.status(400).json({ error: "Message text is required" });
+
+    // Post-transcription contextual normalization
+    const normalized = normalizeUserInput(text);
+    const cleanedText = normalized.finalTranscript;
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -582,11 +756,11 @@ async function startServer() {
 
     const conversation = dbService.getOrCreateConversation(currentUserId);
 
-    console.log('[CHAT_INPUT]', { userMessage: text });
+    console.log('[CHAT_INPUT]', { rawText: text, cleanedText, wasCorrected: normalized.wasCorrected });
 
     dbService.createMessage(conversation.id, {
       sender: 'user',
-      text,
+      text: cleanedText,
       type: type || 'text'
     });
 
@@ -594,11 +768,11 @@ async function startServer() {
     try {
       const reminders = dbService.getReminders(currentUserId);
       const lastReminder = reminders.length > 0 ? reminders[reminders.length - 1] : null;
-      const followUp = parseFollowUpUpdate(text, lastReminder);
+      const followUp = parseFollowUpUpdate(cleanedText, lastReminder);
 
       const events = dbService.getEvents(currentUserId);
       const lastIncompleteEvent = events.slice().reverse().find(e => e.date === 'Not specified' || e.time === 'Not specified' || e.location === 'Not specified');
-      const eventFollowUp = parseEventFollowUpUpdate(text, lastIncompleteEvent);
+      const eventFollowUp = parseEventFollowUpUpdate(cleanedText, lastIncompleteEvent);
 
       let actionsToRun: any[] = [];
 
@@ -617,7 +791,7 @@ async function startServer() {
           payload: { ...eventFollowUp.updates, id: lastIncompleteEvent.id }
         }];
       } else {
-        const intentClassification = await routeUserIntent(text);
+        const intentClassification = await routeUserIntent(cleanedText);
         console.log('[AI_INTENT]', { intent: intentClassification.intent, classification: intentClassification });
 
         if (intentClassification.actions && intentClassification.actions.length > 0) {
@@ -633,8 +807,8 @@ async function startServer() {
 
       console.log('[ACTION_DISPATCH]', { actions: actionsToRun });
 
-      actionResults = await ServerActionEngine.executeActions(currentUserId, actionsToRun, text);
-      await checkAndMemorize(currentUserId, text);
+      actionResults = await ServerActionEngine.executeActions(currentUserId, actionsToRun, cleanedText);
+      await checkAndMemorize(currentUserId, cleanedText);
     } catch (e) {
       console.warn('[Xena Chat Stream] Intent execution error:', e);
     }
@@ -645,7 +819,7 @@ async function startServer() {
       await chatWithXenaStream(
         currentUserId, 
         conversation.id, 
-        text, 
+        cleanedText, 
         (chunk: string) => {
           accumulatedText += chunk;
           res.write(`data: ${JSON.stringify({ chunk })}\n\n`);

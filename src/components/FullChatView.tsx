@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  ArrowLeft, Send, Mic, Sparkles, Trash2, Volume2, ShieldAlert, Check, Cpu, VolumeX
+  ArrowLeft, Send, Mic, Sparkles, Trash2, Volume2, ShieldAlert, Check, Cpu, VolumeX, Radio
 } from 'lucide-react';
 import { Message } from '../types.js';
 import MarkdownRenderer from './MarkdownRenderer.js';
 import { SpeechService } from '../services/SpeechService.js';
 import { ChatComposer } from './ChatComposer.js';
+import { LiveVoiceModal } from './LiveVoiceModal.js';
 
 interface FullChatViewProps {
   onBack: () => void;
@@ -24,6 +25,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
   const [audioSpectrum, setAudioSpectrum] = useState<number[]>([]);
   const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
+  const [isLiveVoiceOpen, setIsLiveVoiceOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -169,6 +171,20 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
     }
   };
 
+  const handleNewConversation = async () => {
+    try {
+      const res = await fetch('/api/chat/new', { method: 'POST' });
+      if (res.ok) {
+        setChatMessages([]);
+        setSuccessMsg('New conversation started!');
+        setTimeout(() => setSuccessMsg(''), 2500);
+        onRefreshData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleVoiceToggle = () => {
     if (isListening) {
       SpeechService.stopRecording();
@@ -256,6 +272,21 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
         </div>
 
         <div className="flex items-center space-x-2">
+          <button
+            onClick={handleNewConversation}
+            className="px-3 py-1.5 bg-nexa-card hover:bg-nexa-border border border-nexa-border text-gray-200 hover:text-white rounded-xl text-[10px] font-bold uppercase font-mono tracking-wider flex items-center space-x-1.5 cursor-pointer"
+            title="Start a new conversation"
+          >
+            <span>+ New Conversation</span>
+          </button>
+          <button
+            onClick={() => setIsLiveVoiceOpen(true)}
+            className="px-3 py-1.5 bg-gradient-to-r from-nexa-blue to-nexa-purple hover:opacity-90 text-white rounded-xl text-[10px] font-bold uppercase font-mono tracking-wider flex items-center space-x-1.5 shadow-md cursor-pointer"
+          >
+            <Radio className="w-3.5 h-3.5 text-white animate-pulse" />
+            <span>Live Voice</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>
+          </button>
           {chatMessages.length > 0 && (
             <button 
               onClick={handleClearHistory}
@@ -270,6 +301,12 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
           </span>
         </div>
       </div>
+
+      <LiveVoiceModal
+        isOpen={isLiveVoiceOpen}
+        onClose={() => setIsLiveVoiceOpen(false)}
+        onRefreshData={onRefreshData}
+      />
 
       {/* Success Notification */}
       {successMsg && (

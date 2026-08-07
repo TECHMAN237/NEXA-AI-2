@@ -197,7 +197,7 @@ export default function MyItemsView({
 
     let endpoint = '';
     if (type === 'reminders') endpoint = `/api/reminders/${id}`;
-    else if (type === 'planning') endpoint = `/api/tasks/${id}`;
+    else if (type === 'planning') endpoint = id.startsWith('plan-') ? `/api/plans/${id}` : `/api/tasks/${id}`;
     else if (type === 'study') endpoint = `/api/exams/${id}`;
     else if (type === 'events') endpoint = `/api/events/${id}`;
     else if (type === 'vault') endpoint = `/api/memory-vault/${id}`;
@@ -981,14 +981,23 @@ export default function MyItemsView({
           )}
 
           {/* 2. PLANNING MODULE */}
-          {activeTab === 'planning' && (
+          {activeTab === 'planning' && (() => {
+            const sortedPlans = [...plans].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+            const planTaskTitles = new Set(
+              plans.flatMap(p => (p.timeline || []).map((t: any) => t.title?.toLowerCase().trim()))
+            );
+            const standaloneTasks = processedTasks.filter(
+              t => !planTaskTitles.has(t.title?.toLowerCase().trim())
+            );
+
+            return (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               className="space-y-3"
             >
-              {plans.length === 0 && tasks.length === 0 ? (
+              {sortedPlans.length === 0 && standaloneTasks.length === 0 ? (
                 <div className="text-center py-12 bg-nexa-card/20 border border-dashed border-nexa-border rounded-2xl p-6">
                   <Clock className="w-8 h-8 text-gray-600 mx-auto mb-2" />
                   <p className="text-xs text-gray-400 font-medium">No plans or tasks. Ask Xena AI "organize my day" to generate a timeline schedule!</p>
@@ -996,14 +1005,14 @@ export default function MyItemsView({
               ) : (
                 <>
                   {/* Generated Daily Schedule Plans */}
-                  {plans.length > 0 && (
+                  {sortedPlans.length > 0 && (
                     <div className="space-y-3 mb-6">
                       <div className="flex items-center space-x-2 text-xs font-bold font-mono tracking-wider uppercase text-amber-400">
                         <Sparkles className="w-4 h-4 text-amber-400" />
-                        <span>Xena AI Daily Schedules ({plans.length})</span>
+                        <span>Xena AI Daily Schedules ({sortedPlans.length})</span>
                       </div>
 
-                      {plans.map((plan) => (
+                      {sortedPlans.map((plan) => (
                         <div 
                           key={plan.id}
                           className="bg-nexa-card border border-amber-500/30 rounded-2xl p-4 shadow-lg space-y-3 hover:border-amber-500/50 transition"
@@ -1081,12 +1090,12 @@ export default function MyItemsView({
                   )}
 
                   {/* Individual Tasks */}
-                  {processedTasks.length > 0 && (
+                  {standaloneTasks.length > 0 && (
                     <div className="space-y-2">
                       <div className="text-[10px] font-bold font-mono tracking-wider uppercase text-gray-400">
-                        Individual Action Tasks ({processedTasks.length})
+                        Standalone Action Tasks ({standaloneTasks.length})
                       </div>
-                      {processedTasks.map((t) => (
+                      {standaloneTasks.map((t) => (
                   <div 
                     key={t.id} 
                     className={`bg-nexa-card border border-nexa-border/85 rounded-2xl p-4 flex flex-col justify-between hover:border-nexa-blue/35 transition ${
@@ -1218,7 +1227,8 @@ export default function MyItemsView({
           </>
         )}
       </motion.div>
-    )}
+            );
+          })()}
 
           {/* 3. STUDY TRACKING MODULE */}
           {activeTab === 'study' && (

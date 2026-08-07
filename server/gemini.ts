@@ -3,6 +3,7 @@ import { dbService } from "./db.js";
 import { IntentClassification } from "../src/types.js";
 import { extractTimeFromText, normalizeTimeString } from "../src/utils/timeUtils.js";
 import { cleanReminderTitle, resolveRelativeDate, extractReminderParams } from "../src/utils/reminderParser.js";
+import { normalizeUserInput, extractVaultContent } from "./contextualNormalizer.js";
 
 // Helper to clean JSON response from markdown code fences or surrounding whitespace
 function cleanJsonResponse(text: string): string {
@@ -14,7 +15,7 @@ function cleanJsonResponse(text: string): string {
   return cleaned;
 }
 
-const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.6-flash"];
+const GEMINI_MODELS = ["gemini-3.5-flash", "gemini-2.0-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3-flash-preview"];
 
 async function generateContentWithFallback(ai: GoogleGenAI, params: any) {
   let lastError: any = null;
@@ -27,8 +28,10 @@ async function generateContentWithFallback(ai: GoogleGenAI, params: any) {
     } catch (err: any) {
       lastError = err;
       const isQuotaOr429 = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED');
+      const isUnavailableOrInternal = err?.status === 503 || err?.status === 500 || err?.status === 504 || err?.message?.includes('UNAVAILABLE') || err?.message?.includes('INTERNAL');
+      const isBadRequestOrInvalid = err?.status === 400 || err?.message?.includes('400') || err?.message?.includes('INVALID_ARGUMENT');
       console.warn(`[GEMINI_MODEL_FALLBACK] Model ${model} failed (${err?.status || 'Error'}). Trying next fallback...`, err?.message || err);
-      if (!isQuotaOr429 && !err?.message?.includes('not found')) {
+      if (!isQuotaOr429 && !isUnavailableOrInternal && !isBadRequestOrInvalid && !err?.message?.includes('not found')) {
         throw err;
       }
     }
@@ -46,7 +49,13 @@ async function generateContentStreamWithFallback(ai: GoogleGenAI, params: any) {
       });
     } catch (err: any) {
       lastError = err;
+      const isQuotaOr429 = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED');
+      const isUnavailableOrInternal = err?.status === 503 || err?.status === 500 || err?.status === 504 || err?.message?.includes('UNAVAILABLE') || err?.message?.includes('INTERNAL');
+      const isBadRequestOrInvalid = err?.status === 400 || err?.message?.includes('400') || err?.message?.includes('INVALID_ARGUMENT');
       console.warn(`[GEMINI_STREAM_FALLBACK] Model ${model} failed. Trying next...`, err?.message || err);
+      if (!isQuotaOr429 && !isUnavailableOrInternal && !isBadRequestOrInvalid && !err?.message?.includes('not found')) {
+        throw err;
+      }
     }
   }
   throw lastError;
@@ -171,7 +180,7 @@ CRITICAL RULES:
     });
 
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("Gemini STT timeout after 4500ms")), 4500);
+      setTimeout(() => reject(new Error("Gemini STT timeout after 30000ms")), 30000);
     });
 
     const response = await Promise.race([generatePromise, timeoutPromise]);
@@ -183,7 +192,8 @@ CRITICAL RULES:
       return "";
     }
 
-    return resultText;
+    const normalized = normalizeUserInput(resultText);
+    return normalized.finalTranscript;
   } catch (err) {
     console.error("[GEMINI_STT_ERROR]", err);
     return "";
@@ -216,21 +226,171 @@ class MemoryCache<T> {
 const intentCache = new MemoryCache<IntentClassification>();
 const reformulateCache = new MemoryCache<string>();
 
+export function isConversationalText(text: string): boolean {
+  if (!text) return false;
+  const lower = text.trim().toLowerCase();
+
+  // If query starts with or contains an explicit action verb:
+  const isExplicitAction = /^(remind me to|create a|create me|add a|schedule|save to vault|vault |delete memory|delete event|delete task|update event|change event)/i.test(lower);
+  if (isExplicitAction) {
+    return false;
+  }
+
+  // Greetings
+  const greetings = [
+    'good morning', 'good afternoon', 'good evening', 'good night',
+    'hello', 'hi', 'hey', 'greetings', 'bonjour', 'salut', 'hola', 'coucou',
+    'hello xena', 'hi xena', 'hey xena', 'dear xena'
+  ];
+  if (greetings.includes(lower) || greetings.some(g => lower === g || lower.startsWith(g + ',') || lower.startsWith(g + '!'))) {
+    return true;
+  }
+
+  // Inquiry about well-being
+  if (
+    lower.includes('how are you') ||
+    lower.includes('how are you doing') ||
+    lower.includes("how's it going") ||
+    lower.includes('how do you do') ||
+    lower.includes('how is everything') ||
+    lower.includes("how's your day") ||
+    lower.includes('how are you today')
+  ) {
+    return true;
+  }
+
+  // Gratitude / Casual acknowledgements
+  if (
+    lower === 'thanks' || lower === 'thank you' || lower === 'thanks a lot' ||
+    lower === 'thank you xena' || lower === 'merci' || lower === 'cool' ||
+    lower === 'awesome' || lower === 'great' || lower === 'nice' ||
+    lower === 'ok' || lower === 'okay' || lower === 'got it'
+  ) {
+    return true;
+  }
+
+  // Questions about Xena / Identity / Capabilities / General Questions
+  if (
+    lower.includes('who are you') ||
+    lower.includes('what is your name') ||
+    lower.includes("what's your name") ||
+    lower.includes('what can you do') ||
+    lower.includes('what can you help') ||
+    lower.includes('who made you') ||
+    lower.includes('who created you') ||
+    lower.includes('what is xena') ||
+    lower.includes("what's xena") ||
+    lower.includes('tell me about yourself') ||
+    lower.includes('tell me a joke') ||
+    lower.includes('tell me a story') ||
+    lower.includes("what's my name") ||
+    lower.includes('what is my name') ||
+    lower.includes('difference between') ||
+    lower.includes('how do reminders work') ||
+    lower.includes('how do events work') ||
+    lower.includes('can you create reminders') ||
+    lower.includes('can you help me plan')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+export function extractEventParams(text: string) {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const hasExplicitDate = /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2}\/\d{1,2}|\d{4}-\d{2}-\d{2})\b/i.test(text);
+  const date = hasExplicitDate ? resolveRelativeDate(null, text) : todayStr;
+  const explicitTime = extractTimeFromText(text);
+  const time = explicitTime ? explicitTime : '12:00';
+
+  let title = text;
+  const isCalledMatch = text.match(/(?:called|named)\s+(.+)/i);
+  if (isCalledMatch && isCalledMatch[1]) {
+    title = isCalledMatch[1].replace(/[.]$/, '').trim();
+  } else {
+    title = title
+      .replace(/^(I\s+(have|got)\s+(an\s+)?(event|meeting|appointment|gathering)\s+)/i, '')
+      .replace(/\s+(on|this|next)?\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today).*$/i, '')
+      .replace(/\s+(at)\s+\d{1,2}(:\d{2})?\s*(am|pm)?.*$/i, '')
+      .trim();
+    if (title) {
+      title = title.split(/\s+/).map(w => w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : '').join(' ');
+    }
+    if (!title) title = 'Saved Event';
+  }
+  return { title, date, time, description: text };
+}
+
+export function generateConversationalResponse(userText: string, profileName?: string): string {
+  const lower = userText.trim().toLowerCase();
+  const name = profileName || 'Zialy';
+
+  // Well-being & Greetings combined (e.g., "Good morning, how are you doing?")
+  if (lower.includes('good morning') && (lower.includes('how are you') || lower.includes('how are you doing'))) {
+    return "Good morning! I'm doing great, thanks for asking. How can I help you today?";
+  }
+  if (lower.includes('good morning')) {
+    return "Good morning! How are you doing today?";
+  }
+  if (lower.includes('good afternoon')) {
+    return "Good afternoon! I'm doing well, thank you. How can I assist you today?";
+  }
+  if (lower.includes('good evening')) {
+    return "Good evening! Everything is going great. How can I assist you tonight?";
+  }
+  if (lower.includes('good night')) {
+    return "Good night! Have a peaceful rest.";
+  }
+
+  // Inquiry about well-being
+  if (lower.includes('how are you') || lower.includes('how are you doing') || lower.includes("how's it going") || lower.includes('how do you do')) {
+    return "I'm doing great, thanks for asking! How are you doing today?";
+  }
+
+  // Greetings
+  if (lower.startsWith('hello') || lower.startsWith('hi') || lower.startsWith('hey') || lower.startsWith('greetings') || lower.startsWith('bonjour')) {
+    return "Hello! I'm doing really well. How can I assist you today?";
+  }
+
+  // Gratitude
+  if (lower.includes('thank') || lower.includes('merci') || lower === 'thanks') {
+    return "You're very welcome! Let me know if you need anything else.";
+  }
+
+  // Capability & Assistance Questions
+  if (lower.includes('what can you do') || lower.includes('what can you help') || lower.includes('can you create reminders') || lower.includes('can you help me plan')) {
+    return "I can help you create reminders with voice alerts, schedule calendar events, organize daily plans, track exam study progress, and save notes to your Vault Memory. What would you like to do?";
+  }
+
+  // Identity
+  if (lower.includes('who are you') || lower.includes('what is xena') || lower.includes("what's xena") || lower.includes('what is your name') || lower.includes("what's your name") || lower.includes('who made you') || lower.includes('who created you')) {
+    return "I am Xena AI, your personal mobile management agent. I help organize your schedule, reminders, study tracking, and vault memories.";
+  }
+
+  // User Name
+  if (lower.includes("what's my name") || lower.includes('what is my name')) {
+    return `Your name is ${name}. How can I help you today?`;
+  }
+
+  // Jokes
+  if (lower.includes('joke')) {
+    return "Why don't programmers like nature? It has too many bugs!";
+  }
+
+  return "I'm doing well! How can I help you today?";
+}
+
 /**
  * Fast-path check for simple greetings to skip model roundtrip and minimize latency.
  */
 function getFastPathIntent(text: string): IntentClassification | null {
-  const clean = text.toLowerCase().trim();
-  const simpleChatGreetings = [
-    'hi', 'hello', 'hey', 'who are you', 'what is your name',
-    'what can you do', 'help', 'bonjour', 'salut', 'coucou', 'hola'
-  ];
-  if (simpleChatGreetings.includes(clean)) {
+  if (isConversationalText(text)) {
     return {
       intent: 'NORMAL_CHAT',
       intents: ['NORMAL_CHAT'],
       actions: [{ intent: 'NORMAL_CHAT', action: 'NO_OP', payload: {} }],
-      explanation: 'Greeting detected — routing directly to assistant conversation.'
+      explanation: 'Conversational request — routing directly to assistant conversation.'
     };
   }
   return null;
@@ -330,10 +490,10 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
   }
 
   // 1c. Explicit Vault Command (Create Memory)
-  if (/^vault(\b|[:\s,.]|$)/i.test(cleanText.trim())) {
-    const rawContent = cleanText.trim().replace(/^vault[:\s,.]*/i, '').trim();
+  if (/^(vault|volt|volts|vaults|valts)\b/i.test(cleanText.trim())) {
+    const extracted = extractVaultContent(cleanText);
 
-    if (!rawContent) {
+    if (!extracted.content) {
       return {
         intent: 'MEMORY_VAULT',
         intents: ['MEMORY_VAULT'],
@@ -347,22 +507,16 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
       };
     }
 
-    let title = rawContent;
-    if (title.length > 35) {
-      title = title.slice(0, 35) + '...';
-    }
-    title = title.charAt(0).toUpperCase() + title.slice(1);
-
     return {
       intent: 'MEMORY_VAULT',
       intents: ['MEMORY_VAULT'],
       actions: [{
         intent: 'MEMORY_VAULT',
         action: 'CREATE',
-        payload: { title, content: rawContent, category: 'Personal' }
+        payload: { title: extracted.title, content: extracted.content, category: 'Personal' }
       }],
-      extractedData: { title, content: rawContent, category: 'Personal' },
-      explanation: `Saving Vault memory: "${rawContent}".`
+      extractedData: { title: extracted.title, content: extracted.content, category: 'Personal' },
+      explanation: `Saving Vault memory: "${extracted.content}".`
     };
   }
 
@@ -372,13 +526,20 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
     lower.includes('create a plan') ||
     lower.includes('plan my day') ||
     lower.includes('plan for tomorrow') ||
+    lower.includes('plan for today') ||
     lower.includes('organize my day') ||
     lower.includes('daily plan') ||
     lower.includes('organize my schedule') ||
     lower.includes('schedule my day') ||
     lower.includes('make a plan') ||
+    lower.includes('generate a plan') ||
+    lower.includes('generate my plan') ||
+    lower.includes('help me plan') ||
+    lower.includes('help me to plan') ||
+    lower.includes('plan my activities') ||
+    lower.includes('create a schedule') ||
     lower.includes('organize my revision') ||
-    (lower.includes('class at') && (lower.includes('study') || lower.includes('project') || lower.includes('finish'))) ||
+    (lower.includes('plan') && (lower.includes('football') || lower.includes('dance') || lower.includes('study') || lower.includes('eat') || lower.includes('tasks') || lower.includes('activities') || lower.includes('day') || lower.includes('today') || lower.includes('tomorrow'))) ||
     (lower.includes('need to study') && lower.includes('hours')) ||
     (lower.includes('need to') && lower.includes('plan'))
   );
@@ -505,6 +666,9 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
   }
 
   // 4. Event check (CREATE)
+  const eventKeywords = ['event', 'bootcamp', 'conference', 'workshop', 'webinar', 'seminar', 'meeting', 'appointment', 'church service', 'summit', 'gala', 'wedding', 'party', 'concert', 'festival', 'match', 'game'];
+  const hasEventKeyword = eventKeywords.some(kw => lower.includes(kw));
+
   const isEventQuery = (
     lower.includes('save it in my events') ||
     lower.includes('in my events') ||
@@ -520,7 +684,15 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
     lower.includes('doctor appointment') ||
     lower.includes('conference on') ||
     (lower.startsWith('add ') && (lower.includes('event') || lower.includes('meeting') || lower.includes('service') || lower.includes('conference') || lower.includes('workshop') || lower.includes('webinar') || lower.includes('bootcamp'))) ||
-    (lower.includes('remind me') && (lower.includes('in my events') || lower.includes('to my events') || lower.includes('save it in my events') || lower.includes('as an event')))
+    (lower.includes('remind me') && (lower.includes('in my events') || lower.includes('to my events') || lower.includes('save it in my events') || lower.includes('as an event'))) ||
+    (hasEventKeyword && (
+      lower.includes('add ') ||
+      lower.includes('schedule ') ||
+      lower.includes('create ') ||
+      lower.includes('save ') ||
+      lower.includes('put in calendar') ||
+      lower.includes('add to calendar')
+    ))
   );
 
   if (isEventQuery) {
@@ -531,25 +703,31 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
     const time = explicitTime ? explicitTime : 'Not specified';
 
     let location = 'Not specified';
-    const locMatch = cleanText.match(/\b(at|in)\s+([A-Z0-9][a-zA-Z0-9\s,]{2,30})/);
-    if (locMatch && !/saturday|sunday|monday|tuesday|wednesday|thursday|friday|today|tomorrow|events|my events/i.test(locMatch[2])) {
+    const locMatch = cleanText.match(/\b(at|in)\s+([A-Z0-9][a-zA-Z0-9\s,]{2,30})/i);
+    if (locMatch && !/\b(saturday|sunday|monday|tuesday|wednesday|thursday|friday|today|tomorrow|events|my events|am|pm)\b/i.test(locMatch[2]) && !/^\d+\s*(am|pm)?$/i.test(locMatch[2])) {
       location = locMatch[2].trim();
     }
 
-    let title = cleanText
-      .replace(/^(I\s+(would\s+like|want)\s+(you\s+)?to\s+)?(remind\s+me\s+of\s+the|remind\s+me\s+about\s+the|remind\s+me\s+of|remind\s+me\s+about|remind\s+me\s+to|remind\s+me|save\s+my|save\s+the|save\s+it\s+in|save\s+in|save\s+to|save|add\s+my|add\s+the|add|schedule\s+my|schedule\s+the|schedule|create\s+my|create\s+the|create)\s+/i, '')
-      .replace(/\s+(that\s+will\s+happen|which\s+is\s+happening|happening|taking\s+place).*$/i, '')
-      .replace(/\s+(and\s+)?(save\s+it\s+(inside|in)|add\s+it\s+to|save\s+to)\s+(my\s+)?events.*$/i, '')
-      .replace(/\s+(inside|in|to)\s+(my\s+)?events.*$/i, '')
-      .replace(/\s+as\s+an?\s+event.*$/i, '')
-      .replace(/\s+(this|next)?\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today).*$/i, '')
-      .replace(/\s+(on|at)\s+\d{1,2}(:\d{2})?\s*(am|pm)?.*$/i, '')
-      .trim();
-
-    if (title) {
-      title = title.split(/\s+/).map(w => w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : '').join(' ');
+    let title = cleanText;
+    const isCalledMatch = cleanText.match(/(?:called|named)\s+(.+)/i);
+    if (isCalledMatch && isCalledMatch[1]) {
+      title = isCalledMatch[1].replace(/[.]$/, '').trim();
+    } else {
+      title = title
+        .replace(/^(I\s+(would\s+like|want)\s+(you\s+)?to\s+)?(please\s+)?(remind\s+me\s+of\s+the|remind\s+me\s+about\s+the|remind\s+me\s+of|remind\s+me\s+about|remind\s+me\s+to|remind\s+me|save\s+my|save\s+the|save\s+it\s+in|save\s+in|save\s+to|save|add\s+my|add\s+the|add|schedule\s+my|schedule\s+the|schedule|create\s+my|create\s+the|create|i\s+have\s+an)\s+/i, '')
+        .replace(/\s+(that\s+will\s+happen|which\s+is\s+happening|happening|taking\s+place).*$/i, '')
+        .replace(/\s+(and\s+)?(save\s+it\s+(inside|in)|add\s+it\s+to|save\s+to)\s+(my\s+)?events.*$/i, '')
+        .replace(/\s+(inside|in|to)\s+(my\s+)?events.*$/i, '')
+        .replace(/\s+as\s+an?\s+event.*$/i, '')
+        .replace(/\s+(on|this|next)?\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today).*$/i, '')
+        .replace(/\s+(on|at)\s+\d{1,2}(:\d{2})?\s*(am|pm)?.*$/i, '')
+        .trim();
+        
+      if (title) {
+        title = title.split(/\s+/).map(w => w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : '').join(' ');
+      }
+      if (!title) title = 'Scheduled Event';
     }
-    if (!title) title = 'Scheduled Event';
 
     return {
       intent: 'EVENT',
@@ -569,7 +747,7 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
       explanation: `Scheduling event "${title}".`
     };
   }
-
+  
   // 4. Study Tracking check
   const isStudyQuery = (
     lower.includes('study tracker') ||
@@ -726,6 +904,22 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
   );
 
   if (isReminderQuery) {
+    if (
+      lower.includes('can you do that') ||
+      lower.includes('can you create') ||
+      lower.includes('can you set') ||
+      lower.includes('is that possible') ||
+      lower.includes('how do you') ||
+      lower.includes('what can you do')
+    ) {
+      return {
+        intent: 'NORMAL_CHAT',
+        intents: ['NORMAL_CHAT'],
+        actions: [{ intent: 'NORMAL_CHAT', action: 'NO_OP', payload: {} }],
+        explanation: 'Capability question regarding reminders — routing to chat response.'
+      };
+    }
+
     const params = extractReminderParams({}, cleanText);
     if (!params.title || params.title.trim().length === 0) {
       return {
@@ -771,7 +965,7 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
 /**
  * Route User Intent: Simple & robust intent classification using Gemini JSON schema.
  */
-export async function routeUserIntent(text: string): Promise<IntentClassification> {
+export async function routeUserIntent(text: string, recentMessages: any[] = []): Promise<IntentClassification> {
   const cleanText = text.trim();
   const cacheKey = cleanText.toLowerCase();
 
@@ -780,11 +974,15 @@ export async function routeUserIntent(text: string): Promise<IntentClassificatio
   if (fastPath) return fastPath;
 
   // 2. Deterministic Rule-Based Pre-check for explicit commands (Reminders, Memory Vault, etc.)
-  const ruleMatch = parseRuleBasedIntent(cleanText);
-  if (ruleMatch) {
-    console.log('[INTENT_RULE_MATCH]', ruleMatch);
-    intentCache.set(cacheKey, ruleMatch, 60000);
-    return ruleMatch;
+  if (cleanText.toLowerCase().includes('just told you') || cleanText.toLowerCase().includes('save that') || cleanText.toLowerCase().includes('save this event') || cleanText.toLowerCase().includes('save it')) {
+    // Bypass rule-based for contextual commands
+  } else {
+    const ruleMatch = parseRuleBasedIntent(cleanText);
+    if (ruleMatch) {
+      console.log('[INTENT_RULE_MATCH]', ruleMatch);
+      intentCache.set(cacheKey, ruleMatch, 60000);
+      return ruleMatch;
+    }
   }
 
   // 3. Check cache for repeated query
@@ -801,15 +999,39 @@ export async function routeUserIntent(text: string): Promise<IntentClassificatio
     explanation: 'Defaulting to general assistant chat in local mode.'
   };
 
+  // Local Contextual Save Fallback
+  if (cleanText.toLowerCase().includes('just told you') || cleanText.toLowerCase().includes('save that') || cleanText.toLowerCase().includes('save this event') || cleanText.toLowerCase().includes('save it')) {
+    const lastUserMsg = recentMessages.slice().reverse().find(m => m.sender === 'user' && m.text !== text);
+    if (lastUserMsg) {
+       const eventParams = extractEventParams(lastUserMsg.text);
+       return {
+         intent: 'EVENT',
+         intents: ['EVENT'],
+         actions: [{
+           intent: 'EVENT',
+           action: 'CREATE',
+           payload: eventParams
+         }],
+         extractedData: eventParams,
+         explanation: `Saving event "${eventParams.title}" from previous message.`
+       };
+    }
+  }
+
   if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
     return defaultFallbackResult;
   }
 
   const ai = getGemini();
 
+  let contextStr = "";
+  if (recentMessages && recentMessages.length > 0) {
+    contextStr = "\n\nRecent Conversation Context:\n" + recentMessages.map(m => `${m.sender.toUpperCase()}: ${m.text}`).join("\n");
+  }
+
   try {
     const response = await generateContentWithFallback(ai, {
-      contents: `Classify user request, detect single or multi-intents, and extract structured actions: "${cleanText}"`,
+      contents: `Classify user request, detect single or multi-intents, and extract structured actions: "${cleanText}"${contextStr}`,
       config: {
         systemInstruction: `You are Xena AI's Intent Classifier, Multi-Intent Detector, and Action Formatter.
 Current date: ${todayStr}.
@@ -829,16 +1051,18 @@ Supported Intents:
 
 CRITICAL INSTRUCTIONS:
 1. EVENT VS REMINDER VS QUERY:
-   - CREATE_REMINDER (intent: "REMINDER", action: "CREATE"): User asks to create a NEW reminder notification (e.g. "Remind me to call John at 8pm").
-   - CREATE_EVENT (intent: "EVENT", action: "CREATE"): User asks to add or schedule a NEW calendar event (e.g. "Add church service Sunday at 9am").
+   - CREATE_REMINDER (intent: "REMINDER", action: "CREATE"): User asks to create a NEW personal reminder notification or task (e.g. "Remind me to call John at 8pm").
+   - CREATE_EVENT (intent: "EVENT", action: "CREATE"): User asks to add or schedule a NEW calendar event, meeting, appointment, ceremony, etc. (e.g. "Add church service Sunday at 9am"). If the user explicitly mentions an "event" (e.g. "I have an event..."), it MUST be an EVENT, not a REMINDER.
    - VIEW_UPCOMING_EVENTS (intent: "VIEW_UPCOMING_EVENTS", action: "READ"): User asks to check, retrieve, or list existing events on their calendar (e.g. "What events do I have coming up?", "Remind me what events I have coming up"). The word "remind" in "Remind me what events I have coming up" means RETRIEVING existing events — DO NOT create a reminder or event!
 2. VOICE CLEANING: Clean speech hesitations ("um", "uh", "you know", "like", "err") and correct obvious speech typos.
 3. MULTI-INTENT DETECTION: A single message may contain multiple independent intentions!
    Example: "My exam is on August 20. Create a study plan. Remind me three days before."
    Detects: EVENT/STUDY_TRACKING, PLANNING, and REMINDER! Return ALL detected intents in "intents" array and generate corresponding "actions".
 4. DATES & TIMES: "tomorrow" = today + 1 day (${todayStr}). Always format time as 24-hour HH:MM.
-5. AMBIGUITY: If a reminder or event request is missing vital detail (like missing title for "remind me tomorrow"), set intent to "AMBIGUOUS", provide missingFields and a clear clarificationPrompt.
-6. REMINDER TITLE EXTRACTION: For REMINDER intent, 'title' MUST contain ONLY the concise, actionable task (e.g. 'Study CSC305', 'Call John', 'Submit project'). NEVER use the entire conversational sentence. Strip greetings ('Hello Xena', 'hope you are fine'), politeness ('please'), command language ('create me a reminder to', 'remind me to'), and date/time expressions ('at 3 PM', 'tomorrow') from the title.`,
+5. AMBIGUITY & INCOMPLETE REQUESTS: If a reminder or event request is missing vital detail (like missing title for "remind me tomorrow" or "I want you to create me a reminder"), set intent to "AMBIGUOUS", provide missingFields and a clear clarificationPrompt.
+6. REMINDER TITLE EXTRACTION: For REMINDER intent, 'title' MUST contain ONLY the concise, actionable task (e.g. 'Study CSC305', 'Call John', 'Submit project'). NEVER use the entire conversational sentence. Strip greetings ('Hello Xena', 'hope you are fine'), politeness ('please'), command language ('create me a reminder to', 'remind me to'), and date/time expressions ('at 3 PM', 'tomorrow') from the title.
+7. NEVER INVENT INFORMATION: Do NOT invent missing fields (e.g. do not invent 09:00, or a default title like "Reminder", or a location). Only extract what the user explicitly said.
+8. CONTEXTUAL COMMANDS: If the user says "Save the event I just told you" or "Save that", set intent="EVENT", action="CREATE". Do not invent the title; it will be resolved from the conversation context.`,
         responseMimeType: "application/json",
         maxOutputTokens: 500,
         responseSchema: {
@@ -1027,7 +1251,9 @@ function generateLocalFormattedResponse(
 
     if (successful.length > 0) {
       for (const res of successful) {
-        if (res.data?.followUpText) {
+        if (res.data?.pending) {
+          output += `${res.summary}\n\n`;
+        } else if (res.data?.followUpText) {
           output += `${res.data.followUpText}\n\n`;
         } else if (res.targetModule === 'Reminder') {
           const d = res.data || {};
@@ -1138,6 +1364,10 @@ function generateLocalFormattedResponse(
       return text;
     }
     return `## Vault Memory\n\nNo saved items in your Vault Memory yet. Prefix any message with **Vault** (e.g., *"Vault I prefer studying at night"*) to record facts.`;
+  }
+
+  if (isConversationalText(userText)) {
+    return generateConversationalResponse(userText);
   }
 
   return `Hello! I am **Xena AI**, your personal mobile management agent. How can I assist you with your schedule, reminders, study goals, or saved vault items today?`;
@@ -1341,6 +1571,196 @@ CORE RULES:
 }
 
 /**
+ * Fast, Voice-Optimized Response Generator for Live Conversational Mode (1-3 sentences max)
+ */
+export function generateLocalVoiceResponse(
+  userText: string,
+  actionResults?: any[],
+  reminders: any[] = [],
+  exams: any[] = [],
+  events: any[] = [],
+  memories: any[] = [],
+  tasks: any[] = []
+): string {
+  const lower = userText.toLowerCase();
+
+  // 1. Action Results Summaries
+  if (actionResults && actionResults.length > 0) {
+    const successful = actionResults.filter(a => a.success);
+    if (successful.length > 0) {
+      const parts: string[] = [];
+      for (const res of successful) {
+        if (res.data?.followUpText) {
+          parts.push(res.data.followUpText);
+        } else if (res.targetModule === 'Reminder') {
+          const d = res.data || {};
+          parts.push(`I've set a reminder for "${d.title || 'your task'}" on ${d.date || 'today'} at ${d.time || '09:00'}.`);
+        } else if (res.targetModule === 'Event') {
+          const d = res.data || {};
+          parts.push(`I've scheduled the event "${d.title || 'Event'}" for ${d.date || 'today'} at ${d.time || '09:00'}${d.location && d.location !== 'Not specified' ? ` at ${d.location}` : ''}.`);
+        } else if (res.targetModule === 'StudyTracking') {
+          const d = res.data || {};
+          parts.push(`I've updated your study tracking for ${d.course || 'your course'}.`);
+        } else if (res.targetModule === 'MemoryVault') {
+          parts.push(`I've saved "${res.data?.content || 'your note'}" to your Vault Memory.`);
+        } else if (res.targetModule === 'Planning') {
+          parts.push(`I've organized your daily schedule.`);
+        } else {
+          parts.push(res.summary.replace(/^✓\s*/, ''));
+        }
+      }
+      return parts.join(' ');
+    }
+  }
+
+  // 2. Direct Query Answers
+  // Tasks query
+  if (lower.includes('tasks today') || lower.includes('my tasks') || lower.includes('tasks')) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayTasks = tasks.filter(t => t.date === todayStr || !t.date || t.date === 'Not specified');
+    if (todayTasks.length > 0) {
+      const taskList = todayTasks.slice(0, 3).map(t => `${t.title}${t.time ? ` at ${t.time}` : ''}`).join(', ');
+      return `You have ${todayTasks.length} task${todayTasks.length > 1 ? 's' : ''} scheduled for today: ${taskList}.`;
+    }
+    return "You don't have any tasks scheduled for today.";
+  }
+
+  // Next Event query
+  if (lower.includes('next event') || lower.includes('upcoming event') || lower.includes('my events')) {
+    if (events.length > 0) {
+      const first = events[0];
+      return `Your next event is "${first.title}" on ${first.date} at ${first.time}${first.location && first.location !== 'Not specified' ? ` at ${first.location}` : ''}.`;
+    }
+    return "You don't have any upcoming events scheduled.";
+  }
+
+  // Study Plan query
+  if (lower.includes('study plan') || lower.includes('study tracking') || lower.includes('my study')) {
+    if (exams.length > 0) {
+      const examSummary = exams.map(e => `${e.course} exam on ${e.exam_date} with ${e.progress}% readiness`).join('; ');
+      return `Here is your study tracking summary: ${examSummary}.`;
+    }
+    return "You haven't set up any study trackers yet. You can tell me to add an exam date anytime.";
+  }
+
+  // Active Reminders query
+  if (lower.includes('reminders') || lower.includes('active reminders')) {
+    const active = reminders.filter(r => r.active !== false);
+    if (active.length > 0) {
+      const remList = active.slice(0, 3).map(r => `${r.title} at ${r.time}`).join(', ');
+      return `You have ${active.length} active reminder${active.length > 1 ? 's' : ''}: ${remList}.`;
+    }
+    return "You have no active reminders right now.";
+  }
+
+  // Vault memory query
+  if (lower.includes('vault') || lower.includes('saved memory') || lower.includes('what did i save')) {
+    if (memories.length > 0) {
+      const memList = memories.slice(0, 3).map(m => m.text).join('; ');
+      return `Here are your recent Vault memories: ${memList}.`;
+    }
+    return "No saved items in your Vault Memory yet.";
+  }
+
+  if (isConversationalText(userText)) {
+    return generateConversationalResponse(userText);
+  }
+
+  return "I'm doing well! How can I help you today?";
+}
+
+/**
+ * Fast AI Voice Response Generator for Live Mode with 2s Hard Timeout
+ */
+export async function chatWithXenaLive(
+  userId: string,
+  conversationId: string,
+  userText: string,
+  actionResults?: any[]
+): Promise<string> {
+  const reminders = dbService.getReminders(userId);
+  const exams = dbService.getExams(userId);
+  const events = dbService.getEvents(userId);
+  const memories = dbService.getMemories(userId);
+  const tasks = dbService.getTasks(userId);
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+    return generateLocalVoiceResponse(userText, actionResults, reminders, exams, events, memories, tasks);
+  }
+
+  // Fast path if local action results can be directly verbalized
+  if (actionResults && actionResults.length > 0 && actionResults.every(a => a.success)) {
+    const localRes = generateLocalVoiceResponse(userText, actionResults, reminders, exams, events, memories, tasks);
+    if (localRes && !localRes.startsWith("I am Xena AI")) {
+      return localRes;
+    }
+  }
+
+  const history = dbService.getMessages(conversationId).slice(-3); // Keep context lightweight (last 3 messages)
+  const ai = getGemini();
+
+  const activeReminders = reminders.filter(r => r.active !== false).slice(0, 3);
+  const activeExams = exams.slice(0, 3);
+  const activeEvents = events.slice(0, 3);
+
+  const contextParts: string[] = [
+    `Current Date: ${new Date().toISOString().split('T')[0]}`
+  ];
+
+  if (actionResults && actionResults.length > 0) {
+    const actionLogs = actionResults.map(r => `[Module: ${r.targetModule} | Action: ${r.action} | Success: ${r.success}] ${r.summary}`).join('\n');
+    contextParts.push(`[ACTION RESULTS]\n${actionLogs}`);
+  }
+
+  if (activeReminders.length > 0) {
+    contextParts.push(`Active Reminders: ${activeReminders.map(r => `${r.title} (${r.date} ${r.time})`).join(', ')}`);
+  }
+  if (activeExams.length > 0) {
+    contextParts.push(`Exams: ${activeExams.map(e => `${e.course} on ${e.exam_date}`).join(', ')}`);
+  }
+  if (activeEvents.length > 0) {
+    contextParts.push(`Events: ${activeEvents.map(ev => `${ev.title} on ${ev.date} at ${ev.time}`).join(', ')}`);
+  }
+  if (history.length > 0) {
+    contextParts.push(`Recent Context: ${history.map(h => `${h.sender}: ${h.text}`).join(' | ')}`);
+  }
+
+  const prompt = `[CONTEXT]\n${contextParts.join('\n')}\n\n[USER]\n"${userText}"`;
+
+  try {
+    const generatePromise = generateContentWithFallback(ai, {
+      contents: prompt,
+      config: {
+        maxOutputTokens: 120,
+        temperature: 0.2,
+        systemInstruction: `You are Xena AI speaking live over voice in conversational mode.
+Provide a CONCISE, NATURAL, SPOKEN-FRIENDLY response (1 to 3 short sentences maximum).
+DO NOT use markdown headings, tables, or lists. Speak directly, clearly, and politely so it sounds natural when spoken aloud.`
+      }
+    });
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("Fast AI Live response timeout after 2000ms")), 2000);
+    });
+
+    const response = await Promise.race([generatePromise, timeoutPromise]);
+    const reply = response.text?.trim();
+
+    if (reply && reply.length > 0) {
+      // Strip markdown code fences or asterisks if any
+      const cleanReply = reply.replace(/#+\s+/g, '').replace(/\*+/g, '').trim();
+      return cleanReply;
+    }
+
+    return generateLocalVoiceResponse(userText, actionResults, reminders, exams, events, memories, tasks);
+  } catch (err) {
+    console.warn("[LIVE_VOICE_AI_FAST_FALLBACK]", err);
+    return generateLocalVoiceResponse(userText, actionResults, reminders, exams, events, memories, tasks);
+  }
+}
+
+/**
  * Generate AI suggested Planning timeline
  */
 export async function generateAILinePlanning(userId: string, date: string, customPrompt?: string): Promise<{ timeline: any[], suggestions: string }> {
@@ -1376,10 +1796,11 @@ User memories & habits: ${memories.map(m => m.text).join(', ')}`;
       config: {
         systemInstruction: `Create an elegant, highly optimized daily planner timeline.
 CRITICAL MANDATES:
-1. TITLE PRESERVATION: You must strictly preserve any user-provided titles, schedules, or task names (e.g. "My Monday Schedule", specific task titles) exactly as written. Do not summarize, reword, translate, or replace them.
-2. SMART GENERATION: Incorporate existing tasks and build directly on top of the user's existing plans. Do NOT invent a completely different layout or lose the user's input.
-3. Output a structured array of 4-7 timeline blocks from 08:00 to 22:00.
-4. Include a 'suggestions' field with at most 1-2 concise, high-value habit suggestions.`,
+1. DISTINGUISH TASKS FROM INSTRUCTIONS: Meta-instructions to Xena (e.g., "Generate my plan", "Plan my day", "Organize these tasks", "Create my plan", "For that") MUST NEVER appear as tasks or blocks in the generated plan.
+2. USE ONLY USER'S ACTUAL TASKS: Build the timeline exclusively around the specific tasks requested by the user. Do NOT invent unrelated activities (e.g., Exercise, Meditation, Morning walk, Reading) unless explicitly asked by the user.
+3. TITLE PRESERVATION: Preserve user-provided task names exactly as written (e.g. CSC305, Java Assignment).
+4. Output a structured array of chronological timeline blocks from morning to evening.
+5. Include a 'suggestions' field with at most 1 concise habit suggestion.`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,

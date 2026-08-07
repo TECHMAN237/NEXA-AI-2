@@ -1,0 +1,956 @@
+{
+  "users": [
+    {
+      "id": "user-1",
+      "email": "steevezali@gmail.com",
+      "full_name": "Alex T.",
+      "created_at": "2025-05-01T08:00:00Z"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "profile-1",
+      "user_id": "user-1",
+      "email": "steevezali@gmail.com",
+      "full_name": "Alex T.",
+      "avatar_url": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+      "premium": true,
+      "language": "English",
+      "theme": "Dark",
+      "notifications_enabled": true,
+      "connected_apps": [
+        "Google Calendar",
+        "Spotify",
+        "Notion"
+      ],
+      "created_at": "2025-05-01T08:00:00Z"
+    }
+  ],
+  "conversations": [
+    {
+      "id": "conv-1",
+      "user_id": "user-1",
+      "title": "Study planning & reminders help",
+      "created_at": "2025-05-18T10:00:00Z",
+      "updated_at": "2026-08-06T19:30:09.577Z"
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg-1",
+      "conversation_id": "conv-1",
+      "sender": "user",
+      "text": "Remind me to study tomorrow.",
+      "created_at": "2025-05-20T09:28:00Z",
+      "type": "text"
+    },
+    {
+      "id": "msg-2",
+      "conversation_id": "conv-1",
+      "sender": "assistant",
+      "text": "I've added a study reminder for tomorrow (May 21, 2025) at 18:00. I also scheduled 'Study Computer Architecture' in your timeline.",
+      "created_at": "2025-05-20T09:29:00Z",
+      "type": "text"
+    },
+    {
+      "sender": "user",
+      "text": "I have an event this Sunday at 3 PM. The event is called Majestical Night.",
+      "type": "text",
+      "id": "msg-1786042873439",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:01:13.439Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — I've saved **Majestical Night** for 2026-08-09 at 3 PM.\n\nWhere will it take place?",
+      "type": "text",
+      "id": "msg-1786042874434",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:01:14.434Z"
+    },
+    {
+      "sender": "user",
+      "text": "Save the event I just told you.",
+      "type": "text",
+      "id": "msg-1786042874453",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:01:14.453Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — I've saved **Majestical Night** for 2026-08-09 at 3 PM.\n\nWhere will it take place?",
+      "type": "text",
+      "id": "msg-1786042875209",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:01:15.209Z"
+    },
+    {
+      "sender": "user",
+      "text": "I want you to create me a reminder, can you do that?",
+      "type": "text",
+      "id": "msg-1786042875220",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:01:15.220Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "What would you like me to remind you about?",
+      "type": "text",
+      "id": "msg-1786042875225",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:01:15.225Z"
+    },
+    {
+      "sender": "user",
+      "text": "Good evening Xena, how are you doing?",
+      "type": "text",
+      "id": "msg-1786043369995",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:09:29.995Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — Updated **Majestical Night** location to **Good eveng Xena how are you dog?**.",
+      "type": "text",
+      "id": "msg-1786043370943",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:09:30.943Z"
+    },
+    {
+      "sender": "user",
+      "text": "I’m doing well. I have an event this Sunday at 3 PM called Majestical Night.",
+      "type": "text",
+      "id": "msg-1786043414597",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:10:14.597Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "**Reminder Created**\n\n- **Task**: Pay Electricity Bill\n- **Date**: 2025-05-25\n- **Time**: 15:00\n- **Notifications**: Voice & Push Enabled",
+      "type": "text",
+      "id": "msg-1786043415297",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:10:15.297Z"
+    },
+    {
+      "sender": "user",
+      "text": "I’m doing well. I have an event this Sunday at 3 PM called Majestical Night.",
+      "type": "text",
+      "id": "msg-1786043922627",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:18:42.627Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "**Reminder Created**\n\n- **Task**: Pay Electricity Bill\n- **Date**: 2025-05-25\n- **Time**: 15:00\n- **Notifications**: Voice & Push Enabled",
+      "type": "text",
+      "id": "msg-1786043937031",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:18:57.031Z"
+    },
+    {
+      "sender": "user",
+      "text": "Good evening how are you doing.",
+      "type": "voice",
+      "id": "msg-1786044204890",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:23:24.890Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Good evening! I'm doing well, thanks for asking. How can I help you tonight?",
+      "type": "voice",
+      "id": "msg-1786044205492",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:23:25.492Z"
+    },
+    {
+      "sender": "user",
+      "text": "Create me a reminder to study at 8 :25 p.m.",
+      "type": "voice",
+      "id": "msg-1786044227872",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:23:47.872Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "I've set a reminder for \"your task\" on today at 09:00.",
+      "type": "voice",
+      "id": "msg-1786044227890",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:23:47.890Z"
+    },
+    {
+      "sender": "user",
+      "text": "Not 9:00 I said 8:25 p.m.",
+      "type": "voice",
+      "id": "msg-1786044252765",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:24:12.765Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done. I'll remind you today at 09:00 to Study.",
+      "type": "text",
+      "id": "msg-1786044252768",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:24:12.768Z"
+    },
+    {
+      "sender": "user",
+      "text": "Good evening how are you doing.",
+      "type": "voice",
+      "id": "msg-1786044354208",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:25:54.208Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Good evening! I'm doing well, thank you. How can I help you tonight?",
+      "type": "voice",
+      "id": "msg-1786044355084",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:25:55.084Z"
+    },
+    {
+      "sender": "user",
+      "text": "I want you to save the event of the church service on Sunday at 2:00 p.m.",
+      "type": "voice",
+      "id": "msg-1786044378607",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:26:18.607Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — I've saved **Event Of The Church Service** for 2026-08-09 at 2 AM.\n\nWhere will it take place?",
+      "type": "voice",
+      "id": "msg-1786044378617",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:26:18.617Z"
+    },
+    {
+      "sender": "user",
+      "text": "It will take place at my language Junction malingo junction yes.",
+      "type": "voice",
+      "id": "msg-1786044402000",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:26:42.000Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — I've saved **It Will Take Place At My Language Junction Malingo Junction Yes.** to your events.\n\nWhat date will it happen? What time will it start? Where will it take place?",
+      "type": "voice",
+      "id": "msg-1786044402965",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:26:42.965Z"
+    },
+    {
+      "sender": "user",
+      "text": "I told you already where it will take place at malingo Junction and I said the day is this Saturday and the time is 2:00 p.m. so save it that.",
+      "type": "voice",
+      "id": "msg-1786044443287",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:27:23.287Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — I've saved **I Told You Already Where It Will Take Place At Malingo Junction And I Said The Day Is** for 2026-08-08 at 2 AM.\n\nWhere will it take place?",
+      "type": "voice",
+      "id": "msg-1786044444208",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:27:24.208Z"
+    },
+    {
+      "sender": "user",
+      "text": "Good evening how are you doing.",
+      "type": "voice",
+      "id": "msg-1786044511117",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:28:31.117Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Good evening! I'm doing well, thanks for asking. How can I help you tonight?",
+      "type": "voice",
+      "id": "msg-1786044511744",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:28:31.744Z"
+    },
+    {
+      "sender": "user",
+      "text": "Who are you and what is your goal.",
+      "type": "voice",
+      "id": "msg-1786044525969",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:28:45.969Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "I'm Xena, your AI assistant. My goal is to help you stay organized, manage your schedule, and answer your questions.",
+      "type": "voice",
+      "id": "msg-1786044526673",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:28:46.673Z"
+    },
+    {
+      "sender": "user",
+      "text": "Wow that is great then help me to plan my day I need to study CSC 305 for 2 hours and play football for 1 hour and eat for 30 minutes today.",
+      "type": "voice",
+      "id": "msg-1786044571088",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:29:31.088Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "MY PLAN FOR TODAY (2026-08-06):\n\n08:00 – 09:30\nWow That Is Great\n\n09:45 – 11:45\nHelp Me To I Need To Study CSC 305\n\n12:00 – 13:00\nPlay Football\n\n13:30 – 14:00\nEat",
+      "type": "voice",
+      "id": "msg-1786044571103",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:29:31.103Z"
+    },
+    {
+      "sender": "user",
+      "text": "Thank you you are very powerful.",
+      "type": "voice",
+      "id": "msg-1786044607856",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:30:07.856Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "You're very welcome! I'm glad I could help you organize your day. Have a great time studying and playing football!",
+      "type": "voice",
+      "id": "msg-1786044609577",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-06T19:30:09.577Z"
+    }
+  ],
+  "reminders": [
+    {
+      "id": "rem-1",
+      "user_id": "user-1",
+      "title": "Buy groceries",
+      "date": "2025-05-21",
+      "time": "10:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "created_at": "2025-05-20T08:00:00Z"
+    },
+    {
+      "id": "rem-2",
+      "user_id": "user-1",
+      "title": "Project submission",
+      "date": "2025-05-22",
+      "time": "23:59",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "created_at": "2025-05-20T08:00:00Z"
+    },
+    {
+      "id": "rem-3",
+      "user_id": "user-1",
+      "title": "Call Mom",
+      "date": "2025-05-23",
+      "time": "18:00",
+      "repeat": "weekly",
+      "priority": "low",
+      "voice_notification": false,
+      "active": true,
+      "created_at": "2025-05-19T08:00:00Z"
+    },
+    {
+      "id": "rem-4",
+      "user_id": "user-1",
+      "title": "Doctor Appointment",
+      "date": "2025-05-24",
+      "time": "09:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "created_at": "2025-05-18T08:00:00Z"
+    },
+    {
+      "id": "rem-5",
+      "user_id": "user-1",
+      "title": "Pay Electricity Bill",
+      "date": "2025-05-25",
+      "time": "15:00",
+      "repeat": "monthly",
+      "priority": "medium",
+      "voice_notification": false,
+      "active": true,
+      "created_at": "2025-05-15T08:00:00Z"
+    },
+    {
+      "title": "Study",
+      "description": "",
+      "date": "2026-08-06",
+      "time": "20:25",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "triggered",
+      "id": "rem-1786044252767",
+      "user_id": "user-1",
+      "created_at": "2026-08-06T19:24:12.767Z",
+      "updated_at": "2026-08-06T19:24:49.103Z",
+      "sound_enabled": true,
+      "sound_name": "default",
+      "voice_name": "default",
+      "voice_speed": 1
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-1",
+      "user_id": "user-1",
+      "title": "Study Computer Architecture",
+      "date": "2025-05-21",
+      "time": "08:00",
+      "duration_hours": 2,
+      "priority": "high",
+      "status": "pending",
+      "created_at": "2025-05-20T08:00:00Z"
+    },
+    {
+      "id": "task-2",
+      "user_id": "user-1",
+      "title": "Project Work",
+      "date": "2025-05-21",
+      "time": "10:30",
+      "duration_hours": 2,
+      "priority": "medium",
+      "status": "pending",
+      "created_at": "2025-05-20T08:00:00Z"
+    }
+  ],
+  "plans": [
+    {
+      "id": "plan-1",
+      "user_id": "user-1",
+      "date": "2025-05-21",
+      "timeline": [
+        {
+          "id": "time-1",
+          "time": "08:00 - 10:00",
+          "title": "Study Computer Architecture",
+          "duration": "2h",
+          "color": "blue"
+        },
+        {
+          "id": "time-2",
+          "time": "10:30 - 12:30",
+          "title": "Project Work",
+          "duration": "2h",
+          "color": "purple"
+        },
+        {
+          "id": "time-3",
+          "time": "12:30 - 13:30",
+          "title": "Lunch Break",
+          "duration": "1h",
+          "color": "slate"
+        },
+        {
+          "id": "time-4",
+          "time": "14:00 - 16:00",
+          "title": "Data Structures",
+          "duration": "2h",
+          "color": "teal"
+        },
+        {
+          "id": "time-5",
+          "time": "17:00 - 18:00",
+          "title": "Gym",
+          "duration": "1h",
+          "color": "green"
+        },
+        {
+          "id": "time-6",
+          "time": "20:00 - 21:30",
+          "title": "Review & Notes",
+          "duration": "1.5h",
+          "color": "orange"
+        }
+      ],
+      "suggestions": "You have 2 free hours tomorrow morning. Perfect time for deep study.",
+      "created_at": "2025-05-20T09:30:00Z"
+    },
+    {
+      "date": "2026-08-06",
+      "timeline": [
+        {
+          "id": "block-1-1786044571097",
+          "time": "08:00 – 09:30",
+          "title": "Wow That Is Great",
+          "duration": "1.5h",
+          "priority": "high",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-2-1786044571097",
+          "time": "09:45 – 11:45",
+          "title": "Help Me To I Need To Study CSC 305",
+          "duration": "2h",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-3-1786044571097",
+          "time": "12:00 – 13:00",
+          "title": "Play Football",
+          "duration": "1h",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-4-1786044571097",
+          "time": "13:30 – 14:00",
+          "title": "Eat",
+          "duration": "30 mins",
+          "priority": "medium",
+          "reminder_enabled": true
+        }
+      ],
+      "suggestions": "Daily plan structured around your actual tasks for 2026-08-06. High-priority focus blocks assigned chronologically.",
+      "id": "plan-1786044571098",
+      "user_id": "user-1",
+      "created_at": "2026-08-06T19:29:31.098Z"
+    }
+  ],
+  "exams": [
+    {
+      "id": "exam-1",
+      "user_id": "user-1",
+      "course": "Computer Architecture",
+      "exam_date": "2025-08-20",
+      "difficulty": "high",
+      "study_hours_per_day": 3,
+      "preferred_study_time": "20:00 - 23:00",
+      "available_days": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat",
+        "Sun"
+      ],
+      "remaining_chapters": 8,
+      "progress": 35,
+      "created_at": "2025-05-01T08:00:00Z"
+    }
+  ],
+  "study_sessions": [
+    {
+      "id": "session-1",
+      "user_id": "user-1",
+      "exam_id": "exam-1",
+      "title": "Memory Hierarchy Revision",
+      "date": "2025-05-21",
+      "time": "20:00",
+      "duration_minutes": 180,
+      "status": "scheduled",
+      "created_at": "2025-05-20T09:30:00Z"
+    }
+  ],
+  "events": [
+    {
+      "id": "event-1",
+      "user_id": "user-1",
+      "title": "Team Meeting",
+      "date": "2025-05-22",
+      "time": "15:00",
+      "location": "Tech Hub, Buea",
+      "description": "Discuss project progress and next steps.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Sarah",
+        "Michael",
+        "Kevin",
+        "Alex"
+      ],
+      "created_at": "2025-05-18T12:00:00Z"
+    },
+    {
+      "title": "Majestical Night",
+      "date": "2026-08-09",
+      "time": "15:00",
+      "location": "Not specified",
+      "description": "I have an event this Sunday at 3 PM. The event is called Majestical Night.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1786042873447",
+      "user_id": "user-1",
+      "created_at": "2026-08-06T19:01:13.447Z"
+    },
+    {
+      "title": "Majestical Night",
+      "date": "2026-08-09",
+      "time": "15:00",
+      "location": "Good eveng Xena how are you dog?",
+      "description": "I have an event this Sunday at 3 PM. The event is called Majestical Night.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1786042874457",
+      "user_id": "user-1",
+      "created_at": "2026-08-06T19:01:14.457Z"
+    },
+    {
+      "title": "Event Of The Church Service",
+      "date": "2026-08-09",
+      "time": "02:00",
+      "location": "Not specified",
+      "description": "I want you to save the event of the church service on Sunday at 2:00 p.m.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1786044378614",
+      "user_id": "user-1",
+      "created_at": "2026-08-06T19:26:18.614Z"
+    }
+  ],
+  "memories": [
+    {
+      "id": "mem-1",
+      "user_id": "user-1",
+      "text": "I usually study at night.",
+      "category": "Preference",
+      "created_at": "2025-05-10T14:30:00Z"
+    },
+    {
+      "id": "mem-2",
+      "user_id": "user-1",
+      "text": "My Computer Architecture exam is August 20.",
+      "category": "Milestone",
+      "created_at": "2025-05-08T11:15:00Z"
+    },
+    {
+      "id": "mem-3",
+      "user_id": "user-1",
+      "text": "I prefer Spotify while studying.",
+      "category": "Preference",
+      "created_at": "2025-05-05T09:00:00Z"
+    },
+    {
+      "id": "mem-4",
+      "user_id": "user-1",
+      "text": "I like silent reminders during meetings.",
+      "category": "Setting",
+      "created_at": "2025-04-29T16:20:00Z"
+    },
+    {
+      "id": "mem-5",
+      "user_id": "user-1",
+      "text": "I go to church every Sunday morning.",
+      "category": "Schedule",
+      "created_at": "2025-04-20T10:00:00Z"
+    },
+    {
+      "text": "The user studies at 8:25 p.m.",
+      "category": "Schedule",
+      "id": "mem-1786044228633",
+      "user_id": "user-1",
+      "created_at": "2026-08-06T19:23:48.633Z"
+    },
+    {
+      "text": "The church service is on Sunday at 2:00 p.m.",
+      "category": "Schedule",
+      "id": "mem-1786044379325",
+      "user_id": "user-1",
+      "created_at": "2026-08-06T19:26:19.325Z"
+    },
+    {
+      "text": "The event will take place at Malingo Junction this Saturday at 2:00 p.m.",
+      "category": "Schedule",
+      "id": "mem-1786044444904",
+      "user_id": "user-1",
+      "created_at": "2026-08-06T19:27:24.904Z"
+    }
+  ],
+  "memory_vault": [
+    {
+      "id": "vault-1",
+      "user_id": "user-1",
+      "title": "Passport Location",
+      "content": "My passport is inside the blue drawer in the study desk.",
+      "category": "Location",
+      "tags": [
+        "important",
+        "documents"
+      ],
+      "created_at": "2026-07-25T10:00:00Z"
+    },
+    {
+      "id": "vault-2",
+      "user_id": "user-1",
+      "title": "Parking Spot Level",
+      "content": "I parked at level B2, spot #44.",
+      "category": "Location",
+      "tags": [
+        "car",
+        "parking"
+      ],
+      "created_at": "2026-07-28T14:15:00Z"
+    },
+    {
+      "id": "vault-3",
+      "user_id": "user-1",
+      "title": "Supervisor Preferences",
+      "content": "My supervisor Dr. Vance prefers afternoon meetings after 2 PM.",
+      "category": "Work",
+      "tags": [
+        "university",
+        "meeting"
+      ],
+      "created_at": "2026-07-29T11:00:00Z"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "notif-1",
+      "user_id": "user-1",
+      "title": "Upcoming Exam Prep",
+      "text": "Your Computer Architecture exam is in 3 months. Keep up the revision!",
+      "date": "2025-05-20T09:00:00Z",
+      "read": false,
+      "created_at": "2025-05-20T09:00:00Z"
+    },
+    {
+      "id": "notif-1786044289948",
+      "user_id": "user-1",
+      "title": "Reminder: Study",
+      "text": "Time to start your scheduled activity. Priority: medium",
+      "date": "2026-08-06T20:25:00",
+      "read": false,
+      "created_at": "2026-08-06T19:24:49.948Z"
+    }
+  ],
+  "notification_history": [
+    {
+      "id": "act-1",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Study CSC301",
+      "description": "Xena AI reminded you to start your study session.",
+      "status": "completed",
+      "created_at": "2026-07-14T18:00:00-07:00",
+      "metadata": {}
+    },
+    {
+      "id": "act-2",
+      "user_id": "user-1",
+      "type": "STUDY",
+      "title": "Computer Architecture Revision",
+      "description": "Xena AI created a revision reminder because your exam is in 14 days.",
+      "status": "completed",
+      "created_at": "2026-07-14T14:30:00-07:00",
+      "metadata": {
+        "countdown_days": 14,
+        "progress": 35,
+        "action_label": "Revise Chapters 1-3"
+      }
+    },
+    {
+      "id": "act-3",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Tech Conference",
+      "description": "Xena AI reminded you 30 minutes before your event.",
+      "status": "completed",
+      "created_at": "2026-07-14T15:00:00-07:00",
+      "metadata": {
+        "location": "Tech Hub, Buea",
+        "action_label": "View Location"
+      }
+    },
+    {
+      "id": "act-4",
+      "user_id": "user-1",
+      "type": "AI_ACTION",
+      "title": "Xena AI opened your study document",
+      "description": "Action executed: OPEN_DOCUMENT",
+      "status": "completed",
+      "created_at": "2026-07-14T20:00:00-07:00",
+      "metadata": {
+        "action_type": "OPEN_DOCUMENT",
+        "document_name": "CSC301 Notes PDF"
+      }
+    },
+    {
+      "id": "act-5",
+      "user_id": "user-1",
+      "type": "PLANNING",
+      "title": "Review & Notes Schedule Block",
+      "description": "Xena AI marked planning block as finished on schedule.",
+      "status": "completed",
+      "created_at": "2026-07-14T17:00:00-07:00",
+      "metadata": {
+        "time_slot": "17:00 - 18:00"
+      }
+    },
+    {
+      "id": "act-1786042873448",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Majestical Night\"",
+      "description": "2026-08-09 at 15:00 (Not specified)",
+      "source_id": "event-1786042873447",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-08-06T19:01:13.448Z"
+    },
+    {
+      "id": "act-1786042874457",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Majestical Night\"",
+      "description": "2026-08-09 at 15:00 (Not specified)",
+      "source_id": "event-1786042874457",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-08-06T19:01:14.457Z"
+    },
+    {
+      "id": "act-1786044252767",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Study\"",
+      "description": "Scheduled for 2026-08-06 at 09:00",
+      "source_id": "rem-1786044252767",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-08-06T19:24:12.767Z"
+    },
+    {
+      "id": "act-1786044289946",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Updated: Study",
+      "description": "NEXA modified and re-scheduled reminder details.",
+      "source_id": "rem-1786044252767",
+      "status": "completed",
+      "metadata": {
+        "active": true,
+        "priority": "medium"
+      },
+      "created_at": "2026-08-06T19:24:49.946Z"
+    },
+    {
+      "id": "act-1786044290415",
+      "user_id": "user-1",
+      "type": "REMINDERS",
+      "title": "Item Modified",
+      "description": "Updated details and timings for \"Study\"",
+      "source_id": "rem-1786044252767",
+      "status": "completed",
+      "metadata": {
+        "updated_at": "2026-08-06T19:24:49.103Z",
+        "title": "Study",
+        "description": "",
+        "date": "2026-08-06",
+        "time": "20:25",
+        "priority": "medium",
+        "repeat": "none",
+        "category": "General",
+        "sound_enabled": true,
+        "sound_name": "default",
+        "voice_notification": true,
+        "voice_name": "default",
+        "voice_speed": 1
+      },
+      "created_at": "2026-08-06T19:24:50.415Z"
+    },
+    {
+      "id": "act-1786044303429",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Study\"",
+      "source_id": "rem-1786044252767",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-08-06T19:25:03.429Z"
+    },
+    {
+      "id": "act-1786044378615",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Event Of The Church Service\"",
+      "description": "2026-08-09 at 02:00 (Not specified)",
+      "source_id": "event-1786044378614",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-08-06T19:26:18.615Z"
+    },
+    {
+      "id": "act-1786044402962",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"It Will Take Place At My Language Junction Malingo Junction Yes.\"",
+      "description": "Not specified at Not specified (Not specified)",
+      "source_id": "event-1786044402961",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-08-06T19:26:42.962Z"
+    },
+    {
+      "id": "act-1786044444204",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"I Told You Already Where It Will Take Place At Malingo Junction And I Said The Day Is\"",
+      "description": "2026-08-08 at 02:00 (Not specified)",
+      "source_id": "event-1786044444203",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-08-06T19:27:24.204Z"
+    },
+    {
+      "id": "act-1786044477448",
+      "user_id": "user-1",
+      "type": "EVENTS",
+      "title": "Item Deleted",
+      "description": "User deleted item \"I Told You Already Where It Will Take Place At Malingo Junction And I Said The Day Is\"",
+      "source_id": "event-1786044444203",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-08-06T19:27:57.448Z"
+    },
+    {
+      "id": "act-1786044482895",
+      "user_id": "user-1",
+      "type": "EVENTS",
+      "title": "Item Deleted",
+      "description": "User deleted item \"It Will Take Place At My Language Junction Malingo Junction Yes.\"",
+      "source_id": "event-1786044402961",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-08-06T19:28:02.895Z"
+    },
+    {
+      "id": "act-1786044571099",
+      "user_id": "user-1",
+      "type": "PLANNING",
+      "title": "Plan Initialized for 2026-08-06",
+      "description": "Generated 4 schedule time blocks",
+      "source_id": "plan-1786044571098",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-08-06T19:29:31.099Z"
+    }
+  ],
+  "smart_actions": [],
+  "study_tracking": []
+}
