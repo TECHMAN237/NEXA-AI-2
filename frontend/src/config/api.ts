@@ -5,7 +5,11 @@
 const getApiBaseUrl = (): string => {
   const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
-    return envUrl.trim().replace(/\/$/, '');
+    let clean = envUrl.trim().replace(/\/$/, '');
+    if (clean.endsWith('/api')) {
+      clean = clean.slice(0, -4);
+    }
+    return clean;
   }
   // Automatic fallback for production deployment (e.g. Vercel) if VITE_API_URL build arg was omitted
   if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1') && !window.location.hostname.includes('run.app')) {
