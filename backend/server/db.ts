@@ -441,15 +441,51 @@ export const dbService = {
     return newUser;
   },
 
-  getProfile: (userId: string): Profile | undefined => {
+  getProfile: (userId: string): Profile => {
     const db = readDb();
-    return db.profiles.find(p => p.user_id === userId);
+    let profile = db.profiles.find(p => p.user_id === userId);
+    if (!profile) {
+      profile = {
+        id: `profile-${Date.now()}`,
+        user_id: userId,
+        email: 'steevezali@gmail.com',
+        full_name: 'Alex T.',
+        avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+        premium: true,
+        language: 'English',
+        theme: 'Dark',
+        notifications_enabled: true,
+        connected_apps: ['Google Calendar', 'Spotify', 'Notion'],
+        created_at: new Date().toISOString()
+      };
+      db.profiles.push(profile);
+      writeDb(db);
+    }
+    return profile;
   },
 
-  updateProfile: (userId: string, updates: Partial<Profile>): Profile | undefined => {
+  updateProfile: (userId: string, updates: Partial<Profile>): Profile => {
     const db = readDb();
-    const idx = db.profiles.findIndex(p => p.user_id === userId);
-    if (idx === -1) return undefined;
+    let idx = db.profiles.findIndex(p => p.user_id === userId);
+    if (idx === -1) {
+      const newProfile: Profile = {
+        id: `profile-${Date.now()}`,
+        user_id: userId,
+        email: 'steevezali@gmail.com',
+        full_name: 'Alex T.',
+        avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+        premium: true,
+        language: 'English',
+        theme: 'Dark',
+        notifications_enabled: true,
+        connected_apps: ['Google Calendar', 'Spotify', 'Notion'],
+        created_at: new Date().toISOString(),
+        ...updates
+      };
+      db.profiles.push(newProfile);
+      writeDb(db);
+      return newProfile;
+    }
 
     db.profiles[idx] = { ...db.profiles[idx], ...updates };
     writeDb(db);

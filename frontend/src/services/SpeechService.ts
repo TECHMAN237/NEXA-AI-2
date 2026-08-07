@@ -397,9 +397,9 @@ export class SpeechService {
         this.activeAbortController = abortController;
 
         const timeoutId = setTimeout(() => {
-          console.warn(`[VOICE] STT request for session ${sessionId} exceeded 5000ms threshold. Aborting.`);
+          console.warn(`[VOICE] STT request for session ${sessionId} exceeded 15000ms threshold. Aborting.`);
           abortController.abort();
-        }, 5000);
+        }, 15000);
 
         try {
           const res = await fetch(getApiUrl('/api/stt/transcribe'), {

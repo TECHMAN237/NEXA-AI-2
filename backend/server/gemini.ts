@@ -16,11 +16,10 @@ function cleanJsonResponse(text: string): string {
 }
 
 const GEMINI_MODELS = [
-  "gemini-2.5-flash",
   "gemini-2.0-flash",
-  "gemini-2.5-pro",
+  "gemini-1.5-flash",
   "gemini-2.0-flash-lite",
-  "gemini-1.5-flash"
+  "gemini-1.5-pro"
 ];
 
 async function delayMs(ms: number) {
@@ -38,14 +37,9 @@ async function generateContentWithFallback(ai: GoogleGenAI, params: any) {
     } catch (err: any) {
       lastError = err;
       const isQuotaOr429 = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED');
-      const isUnavailableOrInternal = err?.status === 503 || err?.status === 500 || err?.status === 504 || err?.message?.includes('UNAVAILABLE') || err?.message?.includes('INTERNAL');
-      const isBadRequestOrInvalid = err?.status === 400 || err?.message?.includes('400') || err?.message?.includes('INVALID_ARGUMENT');
-      console.warn(`[GEMINI_MODEL_FALLBACK] Model ${model} failed (${err?.status || 'Error'}). Trying next fallback...`, err?.message || err);
+      console.warn(`[GEMINI_MODEL_FALLBACK] Model ${model} failed (${err?.status || 'Error'}). Trying next model...`, err?.message || err);
       if (isQuotaOr429) {
         await delayMs(500);
-      }
-      if (!isQuotaOr429 && !isUnavailableOrInternal && !isBadRequestOrInvalid && !err?.message?.includes('not found')) {
-        throw err;
       }
     }
   }
@@ -63,14 +57,9 @@ async function generateContentStreamWithFallback(ai: GoogleGenAI, params: any) {
     } catch (err: any) {
       lastError = err;
       const isQuotaOr429 = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED');
-      const isUnavailableOrInternal = err?.status === 503 || err?.status === 500 || err?.status === 504 || err?.message?.includes('UNAVAILABLE') || err?.message?.includes('INTERNAL');
-      const isBadRequestOrInvalid = err?.status === 400 || err?.message?.includes('400') || err?.message?.includes('INVALID_ARGUMENT');
-      console.warn(`[GEMINI_STREAM_FALLBACK] Model ${model} failed. Trying next...`, err?.message || err);
+      console.warn(`[GEMINI_STREAM_FALLBACK] Model ${model} failed. Trying next model...`, err?.message || err);
       if (isQuotaOr429) {
         await delayMs(500);
-      }
-      if (!isQuotaOr429 && !isUnavailableOrInternal && !isBadRequestOrInvalid && !err?.message?.includes('not found')) {
-        throw err;
       }
     }
   }

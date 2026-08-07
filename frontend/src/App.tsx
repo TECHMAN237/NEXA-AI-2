@@ -154,6 +154,10 @@ export default function App() {
       
       const profileData = await safeJson(profileRes);
       if (profileData) {
+        const localProfile = await ProfileManager.loadProfile();
+        if (localProfile?.avatar_url && localProfile.avatar_url.startsWith('data:image/') && (!profileData.avatar_url || profileData.avatar_url.includes('unsplash'))) {
+          profileData.avatar_url = localProfile.avatar_url;
+        }
         setProfile(profileData);
         await ProfileManager.saveProfile(profileData);
       }
