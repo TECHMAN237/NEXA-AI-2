@@ -33,7 +33,8 @@ export class ReminderRepositoryImpl implements ReminderRepository {
   }
 
   async update(userId: string, id: string, data: Partial<Reminder>): Promise<Reminder | null> {
-    return dbService.updateReminder(userId, id, data);
+    const res = dbService.updateReminder(userId, id, data);
+    return res !== undefined ? res : null;
   }
 
   async delete(userId: string, id: string): Promise<boolean> {

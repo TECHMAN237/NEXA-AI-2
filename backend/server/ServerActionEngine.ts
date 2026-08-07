@@ -1,8 +1,8 @@
 import { dbService } from './db.js';
-import { normalizeTimeString, extractTimeFromText, extractDurationFromText } from '../src/utils/timeUtils.js';
-import { extractReminderParams, parseFollowUpUpdate, cleanReminderTitle, resolveRelativeDate, detectReminderFields } from '../src/utils/reminderParser.js';
-import { generateStudyPlan, generateExamReminders } from '../src/utils/studyPlanGenerator.js';
-import { StudyTrackingData } from '../src/types.js';
+import { normalizeTimeString, extractTimeFromText, extractDurationFromText } from '../utils/timeUtils.js';
+import { extractReminderParams, parseFollowUpUpdate, cleanReminderTitle, resolveRelativeDate, detectReminderFields } from '../utils/reminderParser.js';
+import { generateStudyPlan, generateExamReminders } from '../utils/studyPlanGenerator.js';
+import { StudyTrackingData } from '../types/index.js';
 import { extractVaultContent } from './contextualNormalizer.js';
 import { isConversationalText } from './gemini.js';
 
@@ -384,7 +384,7 @@ Details:        ${details || 'N/A'}
 
     // Check if user's query is a follow-up modification on the most recently created reminder
     const followUp = parseFollowUpUpdate(rawQuery, lastReminder);
-    if (followUp && followUp.isFollowUp && lastReminder) {
+    if (followUp && followUp.isFollowUp && lastReminder && followUp.updates) {
       const updated = dbService.updateReminder(userId, lastReminder.id, followUp.updates);
       if (updated) {
         this.logDebugTrace(intent, 'UPDATE', 'Reminder', 'dbService.updateReminder', 'SUCCESS', 'SUCCESS', 'SUCCESS', `Updated ID: ${lastReminder.id}`);
@@ -1112,7 +1112,7 @@ Details:        ${details || 'N/A'}
         .trim();
 
       if (title) {
-        title = title.split(/\s+/).map(w => w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : '').join(' ');
+        title = title.split(/\s+/).map((w: string) => w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : '').join(' ');
       }
     }
     if (!title || typeof title !== 'string' || title.trim().length === 0) {
@@ -1594,7 +1594,7 @@ Details:        ${details || 'N/A'}
       }
 
       if (!deletedAny && targetSearch.length > 0) {
-        const keywords = targetSearch.split(/\s+/).filter(w => w.length > 2);
+        const keywords = targetSearch.split(/\s+/).filter((w: string) => w.length > 2);
         for (const kw of keywords) {
           const mv = vaultItems.find(v => (v.title && v.title.toLowerCase().includes(kw)) || (v.content && v.content.toLowerCase().includes(kw)));
           const mm = memories.find(m => m.text && m.text.toLowerCase().includes(kw));

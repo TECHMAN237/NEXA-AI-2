@@ -25,7 +25,8 @@ export class EventRepositoryImpl implements EventRepository {
   }
 
   async update(userId: string, id: string, data: Partial<Event>): Promise<Event | null> {
-    return dbService.updateEvent(userId, id, data);
+    const res = dbService.updateEvent(userId, id, data);
+    return res !== undefined ? res : null;
   }
 
   async delete(userId: string, id: string): Promise<boolean> {

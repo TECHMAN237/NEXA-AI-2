@@ -28,11 +28,11 @@
   ],
   "conversations": [
     {
-      "id": "conv-1",
+      "id": "conv-1786064391174",
       "user_id": "user-1",
-      "title": "Study planning & reminders help",
-      "created_at": "2025-05-18T10:00:00Z",
-      "updated_at": "2026-08-06T19:30:09.577Z"
+      "title": "Main Chat Assistant",
+      "created_at": "2026-08-07T00:59:51.174Z",
+      "updated_at": "2026-08-07T00:59:51.174Z"
     }
   ],
   "messages": [
@@ -323,6 +323,198 @@
       "id": "msg-1786044609577",
       "conversation_id": "conv-1",
       "created_at": "2026-08-06T19:30:09.577Z"
+    },
+    {
+      "sender": "user",
+      "text": "Good evening how are you doing.",
+      "type": "voice",
+      "id": "msg-1786062728276",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:32:08.276Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Good evening! I'm doing well, thank you. How can I help you tonight?",
+      "type": "voice",
+      "id": "msg-1786062729105",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:32:09.105Z"
+    },
+    {
+      "sender": "user",
+      "text": "Who are you and what is your goal.",
+      "type": "voice",
+      "id": "msg-1786062745782",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:32:25.782Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "I'm Xena AI, your personal assistant. My goal is to help you stay organized, manage your schedule, and answer your questions.",
+      "type": "voice",
+      "id": "msg-1786062746696",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:32:26.696Z"
+    },
+    {
+      "sender": "user",
+      "text": "Whoa that is great then can you create me a reminder is it possible.",
+      "type": "voice",
+      "id": "msg-1786062768612",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:32:48.613Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Yes, absolutely! Just let me know what you'd like to be reminded of and the date and time, and I'll set it right up for you.",
+      "type": "voice",
+      "id": "msg-1786062769334",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:32:49.334Z"
+    },
+    {
+      "sender": "user",
+      "text": "Okay I need to study CSC p 302 at 1:35 a.m. today.",
+      "type": "voice",
+      "id": "msg-1786062801411",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:33:21.411Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Updated your study tracking preferences.",
+      "type": "voice",
+      "id": "msg-1786062802417",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:33:22.417Z"
+    },
+    {
+      "sender": "user",
+      "text": "No you are supposed to create a reminder not update my Study Tracking.",
+      "type": "voice",
+      "id": "msg-1786062817296",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:33:37.296Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Updated your study tracking preferences.",
+      "type": "voice",
+      "id": "msg-1786062817307",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:33:37.307Z"
+    },
+    {
+      "sender": "user",
+      "text": "Now I want you to help me to plan my day can you do that.",
+      "type": "voice",
+      "id": "msg-1786062833899",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:33:53.899Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "MY PLAN FOR TODAY (2026-08-07):\n\n08:00 – 09:30\nNow Can You Do That",
+      "type": "voice",
+      "id": "msg-1786062833912",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:33:53.912Z"
+    },
+    {
+      "sender": "user",
+      "text": "Of week because getting the same emergency this frequent things doesn't happen kidnapping because if a girl trying yeah what does hitting is pretty good the kids are generalizing it for maybe emergency in general but now the East is that I probably Define the problem I already give them a problem statement right so I cannot just go now that until then change the problem statement telling them that no we are not much of indication she doesn't know I deliver you're going to ruins from what we stated initially I know you'doing and that's really the problem but later on you can see how we can do that I was supposed to send you the list we are supposed to take the information to give me I was supposed to give you the list on which you're supposed to take the information that you're supposed to give me but I'm just from switching for my desktop to my phone and what's up so not working this message I just asked you need to send you the list I asked him to send me to send you but since it's not I don't know but I visited this by tomorrow morning I don't think this much of coaching day I think it's something more a marketing as I'm looking the program I will capacity for us to sell to sell the project because the most important part of the program I think something that it feels print we are going to be to be going at the level of them the different customer Target and proposing our solution but I don't really think that I really technical techno dick technical things but it's most of selling the projects.",
+      "type": "voice",
+      "id": "msg-1786063189434",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:39:49.434Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "It sounds like you're dealing with a lot, especially shifting from the problem statement to focusing more on the marketing and pitching side of the project. Would you like me to help you organize your tasks or draft that list for tomorrow morning?",
+      "type": "voice",
+      "id": "msg-1786063191494",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:39:51.494Z"
+    },
+    {
+      "sender": "user",
+      "text": "No it's okay it was a mistake.",
+      "type": "voice",
+      "id": "msg-1786063211977",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:40:11.977Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "No problem at all! Let me know if you need help with anything else.",
+      "type": "voice",
+      "id": "msg-1786063213642",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:40:13.642Z"
+    },
+    {
+      "sender": "user",
+      "text": "Can you create an event.",
+      "type": "voice",
+      "id": "msg-1786063228057",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:40:28.057Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — I've saved **Can You Create An Event.** to your events.\n\nWhat time will it start? Where will it take place?",
+      "type": "voice",
+      "id": "msg-1786063228069",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:40:28.069Z"
+    },
+    {
+      "sender": "user",
+      "text": "Did you take place at hotel office la feliz at aqua.",
+      "type": "voice",
+      "id": "msg-1786063254720",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:40:54.720Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "I'm a bit confused by that location. Could you please clarify where the event should take place?",
+      "type": "voice",
+      "id": "msg-1786063256283",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:40:56.283Z"
+    },
+    {
+      "sender": "user",
+      "text": "At hotel la feliz.",
+      "type": "voice",
+      "id": "msg-1786063271964",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:41:11.964Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "I've noted that in your Vault Memory.",
+      "type": "voice",
+      "id": "msg-1786063272905",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:41:12.905Z"
+    },
+    {
+      "sender": "user",
+      "text": "It's okay it's okay for the day thank you.",
+      "type": "voice",
+      "id": "msg-1786063285919",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:41:25.919Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "You're very welcome! Let me know if you need anything else before you turn in. Have a great rest of your day at Hotel La Feliz!",
+      "type": "voice",
+      "id": "msg-1786063287672",
+      "conversation_id": "conv-1",
+      "created_at": "2026-08-07T00:41:27.672Z"
     }
   ],
   "reminders": [
@@ -523,6 +715,23 @@
       "id": "plan-1786044571098",
       "user_id": "user-1",
       "created_at": "2026-08-06T19:29:31.098Z"
+    },
+    {
+      "date": "2026-08-07",
+      "timeline": [
+        {
+          "id": "block-1-1786062833906",
+          "time": "08:00 – 09:30",
+          "title": "Now Can You Do That",
+          "duration": "1.5h",
+          "priority": "high",
+          "reminder_enabled": true
+        }
+      ],
+      "suggestions": "Daily plan structured around your actual tasks for 2026-08-07. High-priority focus blocks assigned chronologically.",
+      "id": "plan-1786062833907",
+      "user_id": "user-1",
+      "created_at": "2026-08-07T00:33:53.907Z"
     }
   ],
   "exams": [
@@ -620,6 +829,20 @@
       "id": "event-1786044378614",
       "user_id": "user-1",
       "created_at": "2026-08-06T19:26:18.614Z"
+    },
+    {
+      "title": "Can You Create An Event.",
+      "date": "2026-08-07",
+      "time": "Not specified",
+      "location": "Not specified",
+      "description": "Can you create an event.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1786063228063",
+      "user_id": "user-1",
+      "created_at": "2026-08-07T00:40:28.063Z"
     }
   ],
   "memories": [
@@ -678,6 +901,20 @@
       "id": "mem-1786044444904",
       "user_id": "user-1",
       "created_at": "2026-08-06T19:27:24.904Z"
+    },
+    {
+      "text": "I need to study CSC p 302 at 1:35 a.m. today.",
+      "category": "Schedule",
+      "id": "mem-1786062803133",
+      "user_id": "user-1",
+      "created_at": "2026-08-07T00:33:23.133Z"
+    },
+    {
+      "text": "At hotel la feliz.",
+      "category": "Personal",
+      "id": "mem-1786063272901",
+      "user_id": "user-1",
+      "created_at": "2026-08-07T00:41:12.901Z"
     }
   ],
   "memory_vault": [
@@ -716,6 +953,17 @@
         "meeting"
       ],
       "created_at": "2026-07-29T11:00:00Z"
+    },
+    {
+      "title": "At hotel la feliz.",
+      "content": "At hotel la feliz.",
+      "category": "Personal",
+      "tags": [
+        "ai_saved"
+      ],
+      "id": "vault-1786063272899",
+      "user_id": "user-1",
+      "created_at": "2026-08-07T00:41:12.899Z"
     }
   ],
   "notifications": [
@@ -949,8 +1197,64 @@
       "status": "completed",
       "metadata": {},
       "created_at": "2026-08-06T19:29:31.099Z"
+    },
+    {
+      "id": "act-1786062833908",
+      "user_id": "user-1",
+      "type": "PLANNING",
+      "title": "Plan Initialized for 2026-08-07",
+      "description": "Generated 1 schedule time blocks",
+      "source_id": "plan-1786062833907",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-08-07T00:33:53.908Z"
+    },
+    {
+      "id": "act-1786063228065",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Can You Create An Event.\"",
+      "description": "2026-08-07 at Not specified (Not specified)",
+      "source_id": "event-1786063228063",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-08-07T00:40:28.065Z"
+    },
+    {
+      "id": "act-1786063272902",
+      "user_id": "user-1",
+      "type": "MEMORY_VAULT",
+      "title": "Information Saved: \"At hotel la feliz.\"",
+      "description": "At hotel la feliz.",
+      "source_id": "vault-1786063272899",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-08-07T00:41:12.902Z"
     }
   ],
   "smart_actions": [],
-  "study_tracking": []
+  "study_tracking": [
+    {
+      "id": "study-tracking-user-1",
+      "user_id": "user-1",
+      "normal_exam_date": "",
+      "continuous_assessment_date": "",
+      "subjects": [],
+      "hours_per_day": 3,
+      "preferred_start_time": "20:00",
+      "preferred_end_time": "22:00",
+      "available_days": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat",
+        "Sun"
+      ],
+      "study_plan": [],
+      "created_at": "2026-08-07T00:33:22.411Z",
+      "updated_at": "2026-08-07T00:33:37.303Z"
+    }
+  ]
 }

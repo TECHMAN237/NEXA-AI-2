@@ -27,7 +27,8 @@ export class StudyRepositoryImpl implements StudyRepository {
   }
 
   async updateExam(userId: string, id: string, data: Partial<StudyExam>): Promise<StudyExam | null> {
-    return dbService.updateExam(userId, id, data);
+    const res = dbService.updateExam(userId, id, data);
+    return res !== undefined ? res : null;
   }
 
   async deleteExam(userId: string, id: string): Promise<boolean> {

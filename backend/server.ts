@@ -1,12 +1,13 @@
 import express from "express";
 import path from "path";
+import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import { dbService } from "./server/db.js";
 import { routeUserIntent, checkAndMemorize, chatWithNexa, chatWithXenaStream, chatWithXenaLive, generateAILinePlanning, reformulateReminder, transcribeAudioWithGemini } from "./server/gemini.js";
 import { ServerActionEngine } from "./server/ServerActionEngine.js";
 import { normalizeUserInput } from "./server/contextualNormalizer.js";
-import { normalizeTimeString, extractTimeFromText } from "./src/utils/timeUtils.js";
-import { parseFollowUpUpdate, parseEventFollowUpUpdate } from "./src/utils/reminderParser.js";
+import { normalizeTimeString, extractTimeFromText } from "./utils/timeUtils.js";
+import { parseFollowUpUpdate, parseEventFollowUpUpdate } from "./utils/reminderParser.js";
 import {
   reminderController,
   planningController,
@@ -22,6 +23,8 @@ let currentUserId = "user-1";
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  app.use(cors({ origin: '*', credentials: true }));
 
   // Enable JSON request body parsing with higher limit for audio base64 STT payload
   app.use(express.json({ limit: '25mb' }));
@@ -862,16 +865,19 @@ async function startServer() {
 
   // ==================== ASSET/VITE STATIC DELIVERY ====================
   if (process.env.NODE_ENV !== "production") {
+    const frontendDir = path.join(process.cwd(), "frontend");
     const vite = await createViteServer({
+      root: frontendDir,
+      configFile: path.join(frontendDir, "vite.config.ts"),
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = path.join(process.cwd(), "frontend", "dist");
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 

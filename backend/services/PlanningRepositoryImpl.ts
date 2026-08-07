@@ -69,7 +69,8 @@ export class PlanningRepositoryImpl implements PlanningRepository {
   }
 
   async updateTask(userId: string, id: string, data: Partial<PlanningTask>): Promise<PlanningTask | null> {
-    return dbService.updateTask(userId, id, data);
+    const res = dbService.updateTask(userId, id, data);
+    return res !== undefined ? res : null;
   }
 
   async deleteTask(userId: string, id: string): Promise<boolean> {

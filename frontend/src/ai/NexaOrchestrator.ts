@@ -198,7 +198,7 @@ export class NexaOrchestrator implements INexaOrchestrator {
         request.voiceTranscript
       );
 
-      const provider = this.registry.getProvider(request.providerName);
+      const provider = this.registry.getProvider(request.providerName!);
       let providerOutput;
 
       if (provider && provider.generateStreamResponse) {

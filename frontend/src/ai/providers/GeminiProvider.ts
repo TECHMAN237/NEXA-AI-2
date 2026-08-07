@@ -10,7 +10,7 @@ export class GeminiProvider implements IAIProvider {
   public readonly name = 'gemini-flash';
   private apiKey: string | null = null;
   private aiInstance: GoogleGenAI | null = null;
-  private defaultModel = 'gemini-3.6-flash';
+  private defaultModel = 'gemini-2.5-flash';
 
   constructor() {
     this.initKey();

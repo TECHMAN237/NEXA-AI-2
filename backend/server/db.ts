@@ -4,8 +4,8 @@ import {
   User, Profile, Reminder, Task, Plan, Exam, 
   StudySession, Event, Memory, MemoryVaultItem, Message, Conversation, Notification,
   StudyTrackingData, StudySubject
-} from '../src/types.js';
-import { generateSubjectStudyPlan } from '../src/utils/studyPlanGenerator.js';
+} from '../types/index.js';
+import { generateSubjectStudyPlan } from '../utils/studyPlanGenerator.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');

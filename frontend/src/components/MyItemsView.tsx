@@ -1403,11 +1403,11 @@ export default function MyItemsView({
                               {((ex.study_plan && ex.study_plan.length > 0) 
                                 ? ex.study_plan 
                                 : generateStudyPlan(ex.course, ex.study_hours_per_day || 3, ex.preferred_study_time || '20:00 - 23:00', ex.available_days || [])
-                              ).map((dayItem, dIdx) => (
+                              ).map((dayItem: any, dIdx: number) => (
                                 <div key={dIdx} className="bg-white/[0.03] p-1.5 rounded border border-white/5 text-[10px]">
                                   <span className="font-bold text-gray-300 mr-2">{dayItem.day}:</span>
                                   <span className="text-gray-400">
-                                    {dayItem.slots.map(s => `${s.time} (${s.activity})`).join(' | ')}
+                                    {dayItem.slots.map((s: any) => `${s.time} (${s.activity})`).join(' | ')}
                                   </span>
                                 </div>
                               ))}
@@ -1424,7 +1424,7 @@ export default function MyItemsView({
                               {((ex.exam_reminders && ex.exam_reminders.length > 0)
                                 ? ex.exam_reminders
                                 : generateExamReminders(ex.course, ex.exam_date)
-                              ).map((rem, rIdx) => (
+                              ).map((rem: any, rIdx: number) => (
                                 <div key={rIdx} className="bg-amber-950/20 border border-amber-500/20 rounded p-1 text-center">
                                   <span className="text-amber-400 font-bold block text-[8px]">{rem.milestone}</span>
                                   <span className="text-gray-300 font-mono text-[8.5px]">{rem.date}</span>
@@ -1594,7 +1594,7 @@ export default function MyItemsView({
                           <div className="flex items-center space-x-1.5 mt-3 pt-2.5 border-t border-white/5">
                             <span className="text-[8px] text-gray-500 font-bold uppercase">Attendees:</span>
                             <div className="flex -space-x-1.5">
-                              {ev.participants.map((p, idx) => (
+                              {ev.participants.map((p: any, idx: number) => (
                                 <div 
                                   key={idx} 
                                   className="w-5.5 h-5.5 rounded-full bg-nexa-blue border border-[#10141E] text-[8px] text-white flex items-center justify-center font-bold"
@@ -1767,7 +1767,7 @@ export default function MyItemsView({
 
                         {item.tags && item.tags.length > 0 && (
                           <div className="flex flex-wrap gap-1 pt-1">
-                            {item.tags.map((t, idx) => (
+                            {item.tags.map((t: any, idx: number) => (
                               <span key={idx} className="text-[8px] font-mono text-gray-400 bg-gray-800/60 px-1.5 py-0.5 rounded">
                                 #{t}
                               </span>

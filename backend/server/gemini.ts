@@ -1,8 +1,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { dbService } from "./db.js";
-import { IntentClassification } from "../src/types.js";
-import { extractTimeFromText, normalizeTimeString } from "../src/utils/timeUtils.js";
-import { cleanReminderTitle, resolveRelativeDate, extractReminderParams } from "../src/utils/reminderParser.js";
+import { IntentClassification } from "../types/index.js";
+import { extractTimeFromText, normalizeTimeString } from "../utils/timeUtils.js";
+import { cleanReminderTitle, resolveRelativeDate, extractReminderParams } from "../utils/reminderParser.js";
 import { normalizeUserInput, extractVaultContent } from "./contextualNormalizer.js";
 
 // Helper to clean JSON response from markdown code fences or surrounding whitespace
@@ -15,7 +15,17 @@ function cleanJsonResponse(text: string): string {
   return cleaned;
 }
 
-const GEMINI_MODELS = ["gemini-3.5-flash", "gemini-2.0-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3-flash-preview"];
+const GEMINI_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-2.5-pro",
+  "gemini-2.0-flash-lite",
+  "gemini-1.5-flash"
+];
+
+async function delayMs(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 async function generateContentWithFallback(ai: GoogleGenAI, params: any) {
   let lastError: any = null;
@@ -31,6 +41,9 @@ async function generateContentWithFallback(ai: GoogleGenAI, params: any) {
       const isUnavailableOrInternal = err?.status === 503 || err?.status === 500 || err?.status === 504 || err?.message?.includes('UNAVAILABLE') || err?.message?.includes('INTERNAL');
       const isBadRequestOrInvalid = err?.status === 400 || err?.message?.includes('400') || err?.message?.includes('INVALID_ARGUMENT');
       console.warn(`[GEMINI_MODEL_FALLBACK] Model ${model} failed (${err?.status || 'Error'}). Trying next fallback...`, err?.message || err);
+      if (isQuotaOr429) {
+        await delayMs(500);
+      }
       if (!isQuotaOr429 && !isUnavailableOrInternal && !isBadRequestOrInvalid && !err?.message?.includes('not found')) {
         throw err;
       }
@@ -53,6 +66,9 @@ async function generateContentStreamWithFallback(ai: GoogleGenAI, params: any) {
       const isUnavailableOrInternal = err?.status === 503 || err?.status === 500 || err?.status === 504 || err?.message?.includes('UNAVAILABLE') || err?.message?.includes('INTERNAL');
       const isBadRequestOrInvalid = err?.status === 400 || err?.message?.includes('400') || err?.message?.includes('INVALID_ARGUMENT');
       console.warn(`[GEMINI_STREAM_FALLBACK] Model ${model} failed. Trying next...`, err?.message || err);
+      if (isQuotaOr429) {
+        await delayMs(500);
+      }
       if (!isQuotaOr429 && !isUnavailableOrInternal && !isBadRequestOrInvalid && !err?.message?.includes('not found')) {
         throw err;
       }
@@ -660,7 +676,7 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
           location: location || undefined
         }
       }],
-      extractedData: { title: targetTitle, time: explicitTime, date, location },
+      extractedData: { title: targetTitle, time: explicitTime || undefined, date: date || undefined, location: location || undefined },
       explanation: `Updating event "${targetTitle}".`
     };
   }
@@ -1145,7 +1161,7 @@ CRITICAL INSTRUCTIONS:
       }
 
       if (classification.actions) {
-        classification.actions.forEach(act => {
+        classification.actions.forEach((act: any) => {
           if (act.intent === 'REMINDER' && act.payload) {
             const params = extractReminderParams(act.payload, cleanText);
             act.payload.title = params.title;
