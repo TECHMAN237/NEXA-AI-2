@@ -775,6 +775,12 @@ async function startServer() {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (res.flushHeaders) {
+      res.flushHeaders();
+    }
+    // Flush immediate keep-alive comment so proxies (e.g. Render, Vercel) establish connection without waiting for model processing
+    res.write(': ping\n\n');
 
     const conversation = dbService.getOrCreateConversation(currentUserId);
 

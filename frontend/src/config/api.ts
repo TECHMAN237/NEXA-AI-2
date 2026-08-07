@@ -23,10 +23,11 @@ export const API_BASE_URL = getApiBaseUrl();
  */
 export function getApiUrl(endpoint: string): string {
   const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  if (!API_BASE_URL) {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) {
     return path;
   }
-  return `${API_BASE_URL}${path}`;
+  return `${baseUrl}${path}`;
 }
 
 /**
