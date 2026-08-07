@@ -3,9 +3,13 @@
  */
 
 const getApiBaseUrl = (): string => {
-  const envUrl = (import.meta as any).env?.VITE_API_URL;
+  const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
     return envUrl.trim().replace(/\/$/, '');
+  }
+  // Automatic fallback for production deployment (e.g. Vercel) if VITE_API_URL build arg was omitted
+  if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1') && !window.location.hostname.includes('run.app')) {
+    return 'https://nexa-ai-2-eo01.onrender.com';
   }
   return '';
 };
