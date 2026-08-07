@@ -3,7 +3,7 @@
  */
 
 const getApiBaseUrl = (): string => {
-  const envUrl = import.meta.env.VITE_API_URL;
+  const envUrl = (import.meta as any).env?.VITE_API_URL;
   if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
     return envUrl.trim().replace(/\/$/, '');
   }
