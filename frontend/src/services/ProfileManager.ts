@@ -1,5 +1,6 @@
 import { StorageService } from './StorageService.js';
 import { Profile } from '../types.js';
+import { getApiUrl } from '../config/api.js';
 
 export class ProfileManager {
   static async loadProfile(): Promise<Profile | null> {
@@ -46,7 +47,7 @@ export class ProfileManager {
     
     // Propagate changes immediately to the database (local profile API) so that the backend remains synchronized
     try {
-      await fetch('/api/profile', {
+      await fetch(getApiUrl('/api/profile'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fields)

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { ProfileService } from '../services/ProfileService.js';
 import { ProfileManager } from '../services/ProfileManager.js';
+import { getApiUrl } from '../config/api.js';
 
 interface PrivacyViewProps {
   onBack: () => void;
@@ -69,7 +70,7 @@ export default function PrivacyView({ onBack, onNavigate }: PrivacyViewProps) {
 
   const handleDeleteAllData = async () => {
     try {
-      const res = await fetch('/api/chat/clear', { method: 'POST' });
+      const res = await fetch(getApiUrl('/api/chat/clear'), { method: 'POST' });
       if (res.ok) {
         setMessage('Database scrub initiated: All persistent assistant log records have been successfully wiped.');
         setTimeout(() => setMessage(''), 4000);

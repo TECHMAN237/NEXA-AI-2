@@ -5,6 +5,7 @@ import {
   Clock, AlertTriangle, BookOpen, User, CheckSquare, Bell, Volume2, AppWindow, FileText
 } from 'lucide-react';
 import { Plan, Task } from '../types.js';
+import { getApiUrl } from '../config/api.js';
 
 interface PlanningViewProps {
   onBack: () => void;
@@ -128,7 +129,7 @@ export default function PlanningView({ onBack, tasks, onTaskSaved }: PlanningVie
 
   const fetchActivePlan = async () => {
     try {
-      const res = await fetch('/api/plans');
+      const res = await fetch(getApiUrl('/api/plans'));
       if (res.ok) {
         const plans: Plan[] = await res.json();
         const targetDate = `2025-05-${selectedDay}`;
@@ -179,7 +180,7 @@ export default function PlanningView({ onBack, tasks, onTaskSaved }: PlanningVie
 
     try {
       const targetDate = manualDate || `2025-05-${selectedDay}`;
-      const resList = await fetch('/api/plans');
+      const resList = await fetch(getApiUrl('/api/plans'));
       let planForDay: Plan | null = null;
       if (resList.ok) {
         const plans: Plan[] = await resList.json();
@@ -188,7 +189,7 @@ export default function PlanningView({ onBack, tasks, onTaskSaved }: PlanningVie
 
       if (planForDay) {
         const updatedTimeline = [...planForDay.timeline, newBlock];
-        const res = await fetch(`/api/plans/${planForDay.id}`, {
+        const res = await fetch(getApiUrl(`/api/plans/${planForDay.id}`), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ timeline: updatedTimeline })
@@ -201,7 +202,7 @@ export default function PlanningView({ onBack, tasks, onTaskSaved }: PlanningVie
           triggerNotice("Manual planning block appended to schedule.");
         }
       } else {
-        const res = await fetch('/api/plans', {
+        const res = await fetch(getApiUrl('/api/plans'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -236,7 +237,7 @@ export default function PlanningView({ onBack, tasks, onTaskSaved }: PlanningVie
     const updatedTimeline = currentPlan.timeline.filter(item => item.id !== itemId);
     
     try {
-      const res = await fetch(`/api/plans/${currentPlan.id}`, {
+      const res = await fetch(getApiUrl(`/api/plans/${currentPlan.id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ timeline: updatedTimeline })
@@ -256,7 +257,7 @@ export default function PlanningView({ onBack, tasks, onTaskSaved }: PlanningVie
     const targetDate = `2025-05-${selectedDay}`;
 
     try {
-      const res = await fetch('/api/plans/generate', {
+      const res = await fetch(getApiUrl('/api/plans/generate'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -282,7 +283,7 @@ export default function PlanningView({ onBack, tasks, onTaskSaved }: PlanningVie
     if (!taskTitle.trim()) return;
 
     try {
-      const res = await fetch('/api/tasks', {
+      const res = await fetch(getApiUrl('/api/tasks'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -311,7 +312,7 @@ export default function PlanningView({ onBack, tasks, onTaskSaved }: PlanningVie
   const handleDeleteTask = async (taskId: string) => {
     if (confirm('Delete this task?')) {
       try {
-        const res = await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+        const res = await fetch(getApiUrl(`/api/tasks/${taskId}`), { method: 'DELETE' });
         if (res.ok) {
           onTaskSaved();
           handleGeneratePlan(); // Refresh timeline plan

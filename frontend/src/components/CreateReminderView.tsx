@@ -10,6 +10,7 @@ import { SpeechService } from '../services/SpeechService.js';
 import { nexaOrchestrator } from '../ai/NexaOrchestrator.js';
 import { normalizeTimeString, extractTimeFromText } from '../utils/timeUtils.js';
 import { speakHumanVoice } from '../utils/voiceUtils.js';
+import { getApiUrl } from '../config/api.js';
 
 interface CreateReminderViewProps {
   onBack: () => void;
@@ -247,7 +248,7 @@ export default function CreateReminderView({
       });
     }
 
-    const endpoint = reminderToEdit ? `/api/reminders/${reminderToEdit.id}` : '/api/reminders';
+    const endpoint = reminderToEdit ? getApiUrl(`/api/reminders/${reminderToEdit.id}`) : getApiUrl('/api/reminders');
     const method = reminderToEdit ? 'PUT' : 'POST';
 
     try {
@@ -276,7 +277,7 @@ export default function CreateReminderView({
       if (res.ok) {
         if (voiceNotification || actionPlayVoice) {
           try {
-            const reformulateRes = await fetch('/api/reminders/reformulate', {
+            const reformulateRes = await fetch(getApiUrl('/api/reminders/reformulate'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -858,7 +859,7 @@ export default function CreateReminderView({
               type="button"
               onClick={async () => {
                 try {
-                  const res = await fetch('/api/reminders/reformulate', {
+                  const res = await fetch(getApiUrl('/api/reminders/reformulate'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -917,7 +918,7 @@ export default function CreateReminderView({
                 // Play voice alert if enabled
                 if (voiceNotification) {
                   try {
-                    const res = await fetch('/api/reminders/reformulate', {
+                    const res = await fetch(getApiUrl('/api/reminders/reformulate'), {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
@@ -951,7 +952,7 @@ export default function CreateReminderView({
                 const targetId = reminderToEdit?.id || (reminders && reminders.length > 0 ? reminders[reminders.length - 1].id : null);
                 if (targetId) {
                   try {
-                    const res = await fetch(`/api/reminders/${targetId}/complete`, { method: 'PUT' });
+                    const res = await fetch(getApiUrl(`/api/reminders/${targetId}/complete`), { method: 'PUT' });
                     if (res.ok) {
                       onReminderSaved(); // trigger refetch
                       alert("Reminder successfully marked as completed in DB!");
@@ -976,7 +977,7 @@ export default function CreateReminderView({
               onClick={async () => {
                 if (confirm("Clear all reminder logs and activity history? This is irreversible.")) {
                   try {
-                    const res = await fetch('/api/notification-history', { method: 'DELETE' });
+                    const res = await fetch(getApiUrl('/api/notification-history'), { method: 'DELETE' });
                     if (res.ok) {
                       onReminderSaved(); // trigger refetch
                       alert("Ledger activities and reminder history successfully cleared from DB!");

@@ -1,5 +1,6 @@
 import { StorageService } from './StorageService.js';
 import { Task, Plan } from '../types.js';
+import { getApiUrl } from '../config/api.js';
 
 const TASKS_KEY = 'nexa_tasks';
 const PLANS_KEY = 'nexa_plans';
@@ -7,7 +8,7 @@ const PLANS_KEY = 'nexa_plans';
 export class PlanningService {
   static async getTasks(): Promise<Task[]> {
     try {
-      const res = await fetch('/api/tasks');
+      const res = await fetch(getApiUrl('/api/tasks'));
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -52,7 +53,7 @@ export class PlanningService {
     await this.saveTasks(tasks);
 
     try {
-      await fetch('/api/tasks', {
+      await fetch(getApiUrl('/api/tasks'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newTask)
@@ -73,7 +74,7 @@ export class PlanningService {
     await this.saveTasks(tasks);
 
     try {
-      await fetch(`/api/tasks/${id}`, {
+      await fetch(getApiUrl(`/api/tasks/${id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -93,7 +94,7 @@ export class PlanningService {
     await this.saveTasks(filtered);
 
     try {
-      await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+      await fetch(getApiUrl(`/api/tasks/${id}`), { method: 'DELETE' });
     } catch (e) {
       console.error('Failed to sync deleted task to backend:', e);
     }
@@ -103,7 +104,7 @@ export class PlanningService {
 
   static async getPlans(): Promise<Plan[]> {
     try {
-      const res = await fetch('/api/plans');
+      const res = await fetch(getApiUrl('/api/plans'));
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {

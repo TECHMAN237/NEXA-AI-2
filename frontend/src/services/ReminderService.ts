@@ -1,12 +1,13 @@
 import { StorageService } from './StorageService.js';
 import { Reminder } from '../types.js';
+import { getApiUrl } from '../config/api.js';
 
 const STORAGE_KEY = 'nexa_reminders';
 
 export class ReminderService {
   static async getReminders(): Promise<Reminder[]> {
     try {
-      const res = await fetch('/api/reminders');
+      const res = await fetch(getApiUrl('/api/reminders'));
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -55,7 +56,7 @@ export class ReminderService {
     await this.saveReminders(reminders);
 
     try {
-      await fetch('/api/reminders', {
+      await fetch(getApiUrl('/api/reminders'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRem)
@@ -76,7 +77,7 @@ export class ReminderService {
     await this.saveReminders(reminders);
 
     try {
-      await fetch(`/api/reminders/${id}`, {
+      await fetch(getApiUrl(`/api/reminders/${id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -96,7 +97,7 @@ export class ReminderService {
     await this.saveReminders(filtered);
 
     try {
-      await fetch(`/api/reminders/${id}`, { method: 'DELETE' });
+      await fetch(getApiUrl(`/api/reminders/${id}`), { method: 'DELETE' });
     } catch (e) {
       console.error('Failed to sync deleted reminder to backend:', e);
     }

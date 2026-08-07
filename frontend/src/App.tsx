@@ -28,6 +28,7 @@ import FullChatView from './components/FullChatView.js';
 import LanguageView from './components/LanguageView.js';
 import AboutView from './components/AboutView.js';
 import TeamView from './components/TeamView.js';
+import { getApiUrl } from './config/api.js';
 import AuthLayout from './components/AuthLayout.js';
 import { speakHumanVoice } from './utils/voiceUtils.js';
 
@@ -106,13 +107,13 @@ export default function App() {
   const fetchData = async () => {
     try {
       const [remindersRes, tasksRes, examsRes, eventsRes, memoriesRes, profileRes, activitiesRes] = await Promise.all([
-        fetch('/api/reminders'),
-        fetch('/api/tasks'),
-        fetch('/api/exams'),
-        fetch('/api/events'),
-        fetch('/api/memories'),
-        fetch('/api/profile'),
-        fetch('/api/notification-history')
+        fetch(getApiUrl('/api/reminders')),
+        fetch(getApiUrl('/api/tasks')),
+        fetch(getApiUrl('/api/exams')),
+        fetch(getApiUrl('/api/events')),
+        fetch(getApiUrl('/api/memories')),
+        fetch(getApiUrl('/api/profile')),
+        fetch(getApiUrl('/api/notification-history'))
       ]);
 
       const safeJson = async (res: Response) => {
@@ -277,7 +278,7 @@ export default function App() {
 
           // Play Speech Synthesis if voice notification is enabled on the reminder
           if (r.voice_notification !== false) {
-            fetch('/api/reminders/reformulate', {
+            fetch(getApiUrl('/api/reminders/reformulate'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ title: r.title, description: r.description || '' })
@@ -299,7 +300,7 @@ export default function App() {
 
           // Trigger backend endpoint to shift reminder's status to 'triggered' and write History Logs
           try {
-            await fetch(`/api/reminders/${r.id}/trigger`, { method: 'PUT' });
+            await fetch(getApiUrl(`/api/reminders/${r.id}/trigger`), { method: 'PUT' });
           } catch (apiErr) {
             console.error('Error triggering reminder in DB:', apiErr);
           }
@@ -516,7 +517,7 @@ export default function App() {
     setOrbState('thinking');
 
     try {
-      const res = await fetch('/api/chat/message', {
+      const res = await fetch(getApiUrl('/api/chat/message'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, type: 'text' })
@@ -1029,7 +1030,7 @@ export default function App() {
                                            String(snoozedTime.getMinutes()).padStart(2, '0');
                     
                     try {
-                      await fetch(`/api/reminders/${activeTriggeredReminder.id}`, {
+                      await fetch(getApiUrl(`/api/reminders/${activeTriggeredReminder.id}`), {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -1059,7 +1060,7 @@ export default function App() {
                   onClick={async () => {
                     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
                     try {
-                      const res = await fetch(`/api/reminders/${activeTriggeredReminder.id}/complete`, { method: 'PUT' });
+                      const res = await fetch(getApiUrl(`/api/reminders/${activeTriggeredReminder.id}/complete`), { method: 'PUT' });
                       if (res.ok) {
                         playAlertSound('digital_chimes');
                         setActiveTriggeredReminder(null);

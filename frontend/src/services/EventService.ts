@@ -1,12 +1,13 @@
 import { StorageService } from './StorageService.js';
 import { Event } from '../types.js';
+import { getApiUrl } from '../config/api.js';
 
 const STORAGE_KEY = 'nexa_events';
 
 export class EventService {
   static async getEvents(): Promise<Event[]> {
     try {
-      const res = await fetch('/api/events');
+      const res = await fetch(getApiUrl('/api/events'));
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -53,7 +54,7 @@ export class EventService {
     await this.saveEvents(events);
 
     try {
-      await fetch('/api/events', {
+      await fetch(getApiUrl('/api/events'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newEvent)
@@ -74,7 +75,7 @@ export class EventService {
     await this.saveEvents(events);
 
     try {
-      await fetch(`/api/events/${id}`, {
+      await fetch(getApiUrl(`/api/events/${id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -94,7 +95,7 @@ export class EventService {
     await this.saveEvents(filtered);
 
     try {
-      await fetch(`/api/events/${id}`, { method: 'DELETE' });
+      await fetch(getApiUrl(`/api/events/${id}`), { method: 'DELETE' });
     } catch (e) {
       console.error('Failed to sync deleted event to backend:', e);
     }

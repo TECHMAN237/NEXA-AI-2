@@ -6,6 +6,7 @@ import {
 import { Profile } from '../types.js';
 import { ReminderService } from '../services/ReminderService.js';
 import { ProfileManager } from '../services/ProfileManager.js';
+import { getApiUrl } from '../config/api.js';
 
 interface ProfileViewProps {
   profile: Profile | null;
@@ -47,7 +48,7 @@ export default function ProfileView({ profile, onNavigate, onLogout, onRefreshDa
     const nextVal = !notificationsEnabled;
     setNotificationsEnabled(nextVal);
     try {
-      await fetch('/api/profile', {
+      await fetch(getApiUrl('/api/profile'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notifications_enabled: nextVal })

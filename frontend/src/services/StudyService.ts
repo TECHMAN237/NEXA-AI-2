@@ -1,5 +1,6 @@
 import { StorageService } from './StorageService.js';
 import { Exam, StudySession } from '../types.js';
+import { getApiUrl } from '../config/api.js';
 
 const EXAMS_KEY = 'nexa_exams';
 const SESSIONS_KEY = 'nexa_study_sessions';
@@ -7,7 +8,7 @@ const SESSIONS_KEY = 'nexa_study_sessions';
 export class StudyService {
   static async getExams(): Promise<Exam[]> {
     try {
-      const res = await fetch('/api/exams');
+      const res = await fetch(getApiUrl('/api/exams'));
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -57,7 +58,7 @@ export class StudyService {
     await this.saveExams(exams);
 
     try {
-      await fetch('/api/exams', {
+      await fetch(getApiUrl('/api/exams'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newExam)
@@ -78,7 +79,7 @@ export class StudyService {
     await this.saveExams(exams);
 
     try {
-      await fetch(`/api/exams/${id}`, {
+      await fetch(getApiUrl(`/api/exams/${id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -98,7 +99,7 @@ export class StudyService {
     await this.saveExams(filtered);
 
     try {
-      await fetch(`/api/exams/${id}`, { method: 'DELETE' });
+      await fetch(getApiUrl(`/api/exams/${id}`), { method: 'DELETE' });
     } catch (e) {
       console.error('Failed to sync deleted exam to backend:', e);
     }

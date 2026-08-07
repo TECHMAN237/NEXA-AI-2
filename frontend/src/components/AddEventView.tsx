@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { ChevronLeft, MapPin, Users, Calendar, Clock, Bell, AlignLeft, CheckCircle, Sparkles } from 'lucide-react';
 import { Event as NexaEvent } from '../types.js';
+import { getApiUrl } from '../config/api.js';
 
 interface AddEventViewProps {
   onBack: () => void;
@@ -42,7 +43,7 @@ export default function AddEventView({ onBack, onEventSaved }: AddEventViewProps
     setIsSaving(true);
 
     try {
-      const res = await fetch('/api/events', {
+      const res = await fetch(getApiUrl('/api/events'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

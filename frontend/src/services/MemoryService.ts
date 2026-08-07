@@ -1,5 +1,6 @@
 import { StorageService } from './StorageService.js';
 import { Memory } from '../types.js';
+import { getApiUrl } from '../config/api.js';
 
 export class MemoryService {
   static async getMemories(): Promise<Memory[]> {
@@ -24,7 +25,7 @@ export class MemoryService {
 
     // Sync to backend
     try {
-      await fetch('/api/memories', {
+      await fetch(getApiUrl('/api/memories'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, category })
@@ -46,7 +47,7 @@ export class MemoryService {
 
     // Sync to backend
     try {
-      await fetch(`/api/memories/${id}`, {
+      await fetch(getApiUrl(`/api/memories/${id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text })
@@ -63,7 +64,7 @@ export class MemoryService {
 
     // Sync to backend
     try {
-      await fetch(`/api/memories/${id}`, { method: 'DELETE' });
+      await fetch(getApiUrl(`/api/memories/${id}`), { method: 'DELETE' });
     } catch (e) {
       console.error('Error syncing deleted memory to backend:', e);
     }

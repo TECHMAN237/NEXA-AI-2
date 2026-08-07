@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { SpeechService } from '../services/SpeechService.js';
 import MarkdownRenderer from './MarkdownRenderer.js';
+import { getApiUrl } from '../config/api.js';
 
 interface LiveVoiceModalProps {
   isOpen: boolean;
@@ -182,7 +183,7 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
     setMessages(prev => [...prev, userMsg]);
 
     try {
-      const res = await fetch('/api/chat/live', {
+      const res = await fetch(getApiUrl('/api/chat/live'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: userText, type: 'voice' }),

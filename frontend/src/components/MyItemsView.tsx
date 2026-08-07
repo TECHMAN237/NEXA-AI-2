@@ -11,6 +11,7 @@ import { Reminder, Task, Exam, Event as NexaEvent, MemoryVaultItem, Plan } from 
 import { ProfileService } from '../services/ProfileService.js';
 import { MemoryVaultService } from '../services/MemoryVaultService.js';
 import { speakHumanVoice } from '../utils/voiceUtils.js';
+import { getApiUrl } from '../config/api.js';
 import { generateStudyPlan, generateExamReminders } from '../utils/studyPlanGenerator.js';
 
 interface MyItemsViewProps {
@@ -59,7 +60,7 @@ export default function MyItemsView({
 
   const loadPlans = async () => {
     try {
-      const res = await fetch('/api/plans');
+      const res = await fetch(getApiUrl('/api/plans'));
       if (res.ok) {
         const data = await res.json();
         setPlans(data);
@@ -169,7 +170,7 @@ export default function MyItemsView({
   // Helper helper to format log entries
   const logActivityLedger = async (type: string, title: string, description: string, sourceId: string, metadata: any = {}) => {
     try {
-      await fetch('/api/notification-history', {
+      await fetch(getApiUrl('/api/notification-history'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -203,7 +204,7 @@ export default function MyItemsView({
     else if (type === 'vault') endpoint = `/api/memory-vault/${id}`;
 
     try {
-      const res = await fetch(endpoint, { method: 'DELETE' });
+      const res = await fetch(getApiUrl(endpoint), { method: 'DELETE' });
       if (res.ok) {
         // Log delete ledger history before wiping
         await logActivityLedger(
@@ -249,7 +250,7 @@ export default function MyItemsView({
     else if (type === 'events') endpoint = `/api/events/${item.id}`;
 
     try {
-      const res = await fetch(endpoint, {
+      const res = await fetch(getApiUrl(endpoint), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active: nextActive })
@@ -277,7 +278,7 @@ export default function MyItemsView({
 
   const handleLifecycleAction = async (reminderId: string, action: 'trigger' | 'complete' | 'cancel') => {
     try {
-      const res = await fetch(`/api/reminders/${reminderId}/${action}`, {
+      const res = await fetch(getApiUrl(`/api/reminders/${reminderId}/${action}`), {
         method: 'PUT'
       });
       if (res.ok) {
@@ -296,7 +297,7 @@ export default function MyItemsView({
   const fetchItemHistory = async (id: string) => {
     setIsLoadingHistory(true);
     try {
-      const res = await fetch('/api/notification-history');
+      const res = await fetch(getApiUrl('/api/notification-history'));
       if (res.ok) {
         const logs = await res.json();
         const filtered = logs.filter((log: any) => log.source_id === id);
@@ -316,7 +317,7 @@ export default function MyItemsView({
   const handleToggleTaskStatus = async (task: Task) => {
     const nextStatus = task.status === 'completed' ? 'pending' : 'completed';
     try {
-      const res = await fetch(`/api/tasks/${task.id}`, {
+      const res = await fetch(getApiUrl(`/api/tasks/${task.id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus })
@@ -428,7 +429,7 @@ export default function MyItemsView({
     }
 
     try {
-      const res = await fetch(endpoint, {
+      const res = await fetch(getApiUrl(endpoint), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

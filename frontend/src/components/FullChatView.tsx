@@ -8,6 +8,7 @@ import MarkdownRenderer from './MarkdownRenderer.js';
 import { SpeechService } from '../services/SpeechService.js';
 import { ChatComposer } from './ChatComposer.js';
 import { LiveVoiceModal } from './LiveVoiceModal.js';
+import { getApiUrl } from '../config/api.js';
 
 interface FullChatViewProps {
   onBack: () => void;
@@ -39,7 +40,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
 
   const fetchMessages = async () => {
     try {
-      const res = await fetch('/api/chat/messages');
+      const res = await fetch(getApiUrl('/api/chat/messages'));
       const contentType = res.headers.get('content-type');
       if (res.ok && contentType && contentType.includes('application/json')) {
         const data = await res.json();
@@ -73,7 +74,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
     setChatMessages(prev => [...prev, tempUserMsg]);
 
     try {
-      const response = await fetch('/api/chat/stream', {
+      const response = await fetch(getApiUrl('/api/chat/stream'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, type: 'text' })
@@ -128,7 +129,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
         await fetchMessages();
         onRefreshData();
       } else {
-        const res = await fetch('/api/chat/message', {
+        const res = await fetch(getApiUrl('/api/chat/message'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text, type: 'text' })
@@ -158,7 +159,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
   const handleClearHistory = async () => {
     if (confirm('Are you sure you want to permanently clear your chat history logs?')) {
       try {
-        const res = await fetch('/api/chat/clear', { method: 'POST' });
+        const res = await fetch(getApiUrl('/api/chat/clear'), { method: 'POST' });
         if (res.ok) {
           setChatMessages([]);
           setSuccessMsg('History successfully wiped!');
@@ -173,7 +174,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
 
   const handleNewConversation = async () => {
     try {
-      const res = await fetch('/api/chat/new', { method: 'POST' });
+      const res = await fetch(getApiUrl('/api/chat/new'), { method: 'POST' });
       if (res.ok) {
         setChatMessages([]);
         setSuccessMsg('New conversation started!');

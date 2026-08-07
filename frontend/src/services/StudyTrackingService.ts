@@ -1,5 +1,6 @@
 import { StorageService } from './StorageService.js';
 import { StudyTrackingData } from '../types.js';
+import { getApiUrl } from '../config/api.js';
 
 const STUDY_TRACKING_KEY = 'nexa_study_tracking';
 
@@ -21,7 +22,7 @@ const DEFAULT_TRACKING: StudyTrackingData = {
 export class StudyTrackingService {
   static async getStudyTracking(): Promise<StudyTrackingData> {
     try {
-      const res = await fetch('/api/study-tracking');
+      const res = await fetch(getApiUrl('/api/study-tracking'));
       if (res.ok) {
         const data = await res.json();
         if (data && typeof data === 'object' && data.id) {
@@ -39,7 +40,7 @@ export class StudyTrackingService {
 
   static async updateStudyTracking(updates: Partial<StudyTrackingData>): Promise<StudyTrackingData> {
     try {
-      const res = await fetch('/api/study-tracking', {
+      const res = await fetch(getApiUrl('/api/study-tracking'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)

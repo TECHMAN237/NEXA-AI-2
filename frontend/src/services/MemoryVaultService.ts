@@ -1,5 +1,6 @@
 import { StorageService } from './StorageService.js';
 import { MemoryVaultItem } from '../types.js';
+import { getApiUrl } from '../config/api.js';
 
 const STORAGE_KEY = 'nexa_memory_vault';
 
@@ -36,7 +37,7 @@ const DEFAULT_VAULT_ITEMS: MemoryVaultItem[] = [
 export class MemoryVaultService {
   static async getVaultItems(): Promise<MemoryVaultItem[]> {
     try {
-      const res = await fetch('/api/memory-vault');
+      const res = await fetch(getApiUrl('/api/memory-vault'));
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -81,7 +82,7 @@ export class MemoryVaultService {
     await this.saveVaultItems(items);
 
     try {
-      await fetch('/api/memory-vault', {
+      await fetch(getApiUrl('/api/memory-vault'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, content, category, tags })
@@ -107,7 +108,7 @@ export class MemoryVaultService {
     await this.saveVaultItems(items);
 
     try {
-      await fetch(`/api/memory-vault/${id}`, {
+      await fetch(getApiUrl(`/api/memory-vault/${id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -127,7 +128,7 @@ export class MemoryVaultService {
     await this.saveVaultItems(filtered);
 
     try {
-      await fetch(`/api/memory-vault/${id}`, { method: 'DELETE' });
+      await fetch(getApiUrl(`/api/memory-vault/${id}`), { method: 'DELETE' });
     } catch (e) {
       console.error('Failed to sync deleted memory vault note to backend:', e);
     }
@@ -141,7 +142,7 @@ export class MemoryVaultService {
     extra?: { date?: string; time?: string; priority?: 'low' | 'medium' | 'high' }
   ): Promise<any> {
     try {
-      const res = await fetch(`/api/memory-vault/${id}/convert`, {
+      const res = await fetch(getApiUrl(`/api/memory-vault/${id}/convert`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ targetModule, ...extra })

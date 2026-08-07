@@ -5,6 +5,7 @@ import {
   Clock, AlertCircle, Calendar, BookOpen, AlertTriangle, Play, X, RefreshCw
 } from 'lucide-react';
 import { Activity } from '../types.js';
+import { getApiUrl } from '../config/api.js';
 
 interface ActivityViewProps {
   onBack: () => void;
@@ -24,7 +25,7 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
   const fetchActivities = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/notification-history');
+      const res = await fetch(getApiUrl('/api/notification-history'));
       if (res.ok) {
         const data = await res.json();
         // Convert to UI-friendly fields
@@ -53,7 +54,7 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
     if (!confirm('Are you sure you want to delete this activity record from Xena AI memory?')) return;
 
     try {
-      const res = await fetch(`/api/notification-history/${id}`, {
+      const res = await fetch(getApiUrl(`/api/notification-history/${id}`), {
         method: 'DELETE'
       });
       if (res.ok) {
@@ -111,7 +112,7 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
     const payload = simulationPayloads[Math.floor(Math.random() * simulationPayloads.length)];
 
     try {
-      const res = await fetch('/api/notification-history', {
+      const res = await fetch(getApiUrl('/api/notification-history'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -560,7 +561,7 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
                   onClick={async () => {
                     if (confirm('Delete this record now?')) {
                       try {
-                        const res = await fetch(`/api/notification-history/${selectedActivity.id}`, { method: 'DELETE' });
+                        const res = await fetch(getApiUrl(`/api/notification-history/${selectedActivity.id}`), { method: 'DELETE' });
                         if (res.ok) {
                           setActivities(prev => prev.filter(item => item.id !== selectedActivity.id));
                           setSelectedActivity(null);

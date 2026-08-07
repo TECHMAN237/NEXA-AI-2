@@ -1,4 +1,5 @@
 import { ProfileManager } from './ProfileManager.js';
+import { getApiUrl } from '../config/api.js';
 
 function logTelemetry(event: string, details?: any) {
   const now = Date.now();
@@ -401,7 +402,7 @@ export class SpeechService {
         }, 5000);
 
         try {
-          const res = await fetch('/api/stt/transcribe', {
+          const res = await fetch(getApiUrl('/api/stt/transcribe'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ audioBase64, mimeType }),
@@ -479,7 +480,7 @@ export class SpeechService {
       this.activeAbortController = abortController;
       const timeoutId = setTimeout(() => abortController.abort(), 4000); // 4s timeout for non-blocking refinement
 
-      const res = await fetch('/api/stt/transcribe', {
+      const res = await fetch(getApiUrl('/api/stt/transcribe'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ audioBase64, mimeType }),

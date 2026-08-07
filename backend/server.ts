@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import { dbService } from "./server/db.js";
@@ -24,7 +25,25 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(cors({ origin: '*', credentials: true }));
+  const allowedOrigins = [
+    'https://nexa-ai-2.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ];
+
+  app.use(cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, or same-origin)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+      return callback(null, true); // Fallback allow to avoid unexpected blocking
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
 
   // Enable JSON request body parsing with higher limit for audio base64 STT payload
   app.use(express.json({ limit: '25mb' }));
@@ -865,20 +884,36 @@ async function startServer() {
 
   // ==================== ASSET/VITE STATIC DELIVERY ====================
   if (process.env.NODE_ENV !== "production") {
-    const frontendDir = path.join(process.cwd(), "frontend");
-    const vite = await createViteServer({
-      root: frontendDir,
-      configFile: path.join(frontendDir, "vite.config.ts"),
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+    const frontendDir = fs.existsSync(path.join(process.cwd(), "frontend"))
+      ? path.join(process.cwd(), "frontend")
+      : path.resolve(process.cwd(), "..", "frontend");
+    if (fs.existsSync(frontendDir)) {
+      const vite = await createViteServer({
+        root: frontendDir,
+        configFile: path.join(frontendDir, "vite.config.ts"),
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    }
   } else {
-    const distPath = path.join(process.cwd(), "frontend", "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    const candidatePaths = [
+      path.join(process.cwd(), "frontend", "dist"),
+      path.resolve(process.cwd(), "..", "frontend", "dist"),
+      path.join(process.cwd(), "dist")
+    ];
+    const distPath = candidatePaths.find(p => fs.existsSync(p));
+
+    if (distPath) {
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    } else {
+      app.get("/", (req, res) => {
+        res.json({ status: "online", message: "Nexa AI Backend Service is operational" });
+      });
+    }
   }
 
   app.listen(PORT, "0.0.0.0", () => {

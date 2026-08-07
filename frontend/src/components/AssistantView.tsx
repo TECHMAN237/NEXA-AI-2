@@ -8,6 +8,7 @@ import MarkdownRenderer from './MarkdownRenderer.js';
 import { SpeechService } from '../services/SpeechService.js';
 import { ChatComposer } from './ChatComposer.js';
 import { LiveVoiceModal } from './LiveVoiceModal.js';
+import { getApiUrl } from '../config/api.js';
 
 interface AssistantViewProps {
   onNavigate: (view: string) => void;
@@ -53,7 +54,7 @@ export default function AssistantView({
 
   const fetchMessages = async () => {
     try {
-      const res = await fetch('/api/chat/messages');
+      const res = await fetch(getApiUrl('/api/chat/messages'));
       const contentType = res.headers.get('content-type');
       if (res.ok && contentType && contentType.includes('application/json')) {
         const data = await res.json();
@@ -88,7 +89,7 @@ export default function AssistantView({
     setChatMessages(prev => [...prev, tempUserMsg]);
 
     try {
-      const response = await fetch('/api/chat/stream', {
+      const response = await fetch(getApiUrl('/api/chat/stream'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, type: 'text' })
@@ -144,7 +145,7 @@ export default function AssistantView({
         onRefreshData();
       } else {
         // Fallback to non-streaming endpoint
-        const res = await fetch('/api/chat/message', {
+        const res = await fetch(getApiUrl('/api/chat/message'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text, type: 'text' })
@@ -173,7 +174,7 @@ export default function AssistantView({
   const handleClearHistory = async () => {
     if (confirm('Are you sure you want to clear conversation history?')) {
       try {
-        const res = await fetch('/api/chat/clear', { method: 'POST' });
+        const res = await fetch(getApiUrl('/api/chat/clear'), { method: 'POST' });
         if (res.ok) {
           setChatMessages([]);
         }
@@ -185,7 +186,7 @@ export default function AssistantView({
 
   const handleNewConversation = async () => {
     try {
-      const res = await fetch('/api/chat/new', { method: 'POST' });
+      const res = await fetch(getApiUrl('/api/chat/new'), { method: 'POST' });
       if (res.ok) {
         setChatMessages([]);
         onRefreshData();
