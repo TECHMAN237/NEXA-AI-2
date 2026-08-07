@@ -87,6 +87,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
         const tempAssistantId = `temp-a-${Date.now()}`;
         let addedTempMessage = false;
 
+        let buffer = '';
         let doneReading = false;
         while (!doneReading) {
           const { value, done } = await reader.read();
@@ -94,15 +95,38 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
             doneReading = true;
             break;
           }
-          const chunkStr = decoder.decode(value, { stream: true });
-          const lines = chunkStr.split('\n');
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('data: ')) {
               try {
-                const data = JSON.parse(line.slice(6));
+                const data = JSON.parse(trimmed.slice(6));
                 if (data.chunk) {
                   setIsLoading(false);
                   streamingText += data.chunk;
+                  if (!addedTempMessage) {
+                    addedTempMessage = true;
+                    setChatMessages(prev => [
+                      ...prev,
+                      {
+                        id: tempAssistantId,
+                        conversation_id: 'conv-1',
+                        sender: 'assistant',
+                        text: streamingText,
+                        created_at: new Date().toISOString(),
+                        type: 'text'
+                      }
+                    ]);
+                  } else {
+                    setChatMessages(prev =>
+                      prev.map(m => (m.id === tempAssistantId ? { ...m, text: streamingText } : m))
+                    );
+                  }
+                } else if (data.done && data.fullText && !streamingText) {
+                  streamingText = data.fullText;
                   if (!addedTempMessage) {
                     addedTempMessage = true;
                     setChatMessages(prev => [
@@ -140,13 +164,13 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
           onRefreshData();
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error sending message:', e);
       const errorMsg: Message = {
         id: `temp-a-${Date.now()}`,
         conversation_id: 'conv-1',
         sender: 'assistant',
-        text: 'Connection reset. Unable to bridge request to cloud brain.',
+        text: `Connection reset. Unable to bridge request to cloud brain. (${e?.message || 'NetworkError'})`,
         created_at: new Date().toISOString(),
         type: 'text'
       };

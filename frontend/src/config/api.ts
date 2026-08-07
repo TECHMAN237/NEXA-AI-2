@@ -9,11 +9,11 @@ const getApiBaseUrl = (): string => {
     if (clean.endsWith('/api')) {
       clean = clean.slice(0, -4);
     }
+    // On Vercel deployment with vercel.json rewrite, prefer relative paths to avoid cross-origin issues
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('vercel.app')) {
+      return '';
+    }
     return clean;
-  }
-  // Automatic fallback for production deployment (e.g. Vercel) if VITE_API_URL build arg was omitted
-  if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1') && !window.location.hostname.includes('run.app')) {
-    return 'https://nexa-ai-2-eo01.onrender.com';
   }
   return '';
 };
