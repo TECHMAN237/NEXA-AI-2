@@ -1,4 +1,4 @@
-import { extractTimeFromText, normalizeTimeString, extractRelativeTimeOffset } from './timeUtils.js';
+import { extractTimeFromText, normalizeTimeString, extractRelativeTimeOffset, formatReadableDate, formatReadableTime } from './timeUtils.js';
 
 export interface ExtractedReminderInfo {
   title: string;
@@ -209,8 +209,8 @@ export function cleanReminderTitle(rawTitle: string, fullQuery: string): string 
   const timePatterns = [
     /\b(?:in|for)\s+\d+\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)\b(\s*from\s+now)?/gi,
     /\b\d+\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)\s*from\s+now\b/gi,
-    /\bat\s+\d{1,2}(:\d{2})?\s*(a\.?m\.?|p\.?m\.?)?\b/gi,
-    /\b\d{1,2}(:\d{2})?\s*(a\.?m\.?|p\.?m\.?)\b/gi,
+    /\bat\s+\d{1,2}(?::\d{2})?\s*(?:minutes?|mins?|m)?\s*(a\.?m\.?|p\.?m\.?)?\b/gi,
+    /\b\d{1,2}(?::\d{2})?\s*(?:minutes?|mins?|m)?\s*(a\.?m\.?|p\.?m\.?)\b/gi,
     /\b\d{1,2}\s+in the (morning|evening|afternoon)\b/gi,
     /\bin the (morning|evening|afternoon)\b/gi,
     /\bat noon\b/gi,
@@ -398,32 +398,9 @@ export function detectReminderFields(
   if (newRem.active !== false) provided.push('notification');
   if (newRem.voice_notification !== false) provided.push('voice');
 
-  // Format date description
-  const todayStr = new Date().toISOString().split('T')[0];
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
-  let dateDesc = `on ${newRem.date}`;
-  if (newRem.date === todayStr) {
-    dateDesc = 'today';
-  } else if (newRem.date === tomorrowStr) {
-    dateDesc = 'tomorrow';
-  }
-
-  // Format time (e.g. 18:00 -> "6:00 PM" or "18:00")
-  let timeDesc = newRem.time;
-  if (newRem.time && newRem.time.includes(':')) {
-    const [hStr, mStr] = newRem.time.split(':');
-    const h = parseInt(hStr, 10);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const displayH = h % 12 === 0 ? 12 : h % 12;
-    const displayM = mStr ? `:${mStr}` : ':00';
-    timeDesc = `${displayH}${displayM === ':00' ? '' : displayM} ${ampm}`;
-  }
-
-  // Build confirmation line
-  const confirmation = `Done — I've set a reminder for **${newRem.title}** ${dateDesc} at **${timeDesc}**.`;
+  const readableDate = formatReadableDate(newRem.date);
+  const readableTime = formatReadableTime(newRem.time);
+  const confirmation = `## Reminder Created\n\n- **Task:** ${newRem.title}\n- **Date:** ${readableDate}\n- **Time:** ${readableTime}\n- **Notifications:** Voice & Push Enabled`;
 
   return { provided, missing, followUpText: confirmation };
 }

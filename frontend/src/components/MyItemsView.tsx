@@ -38,6 +38,28 @@ export default function MyItemsView({
   setActiveTriggeredReminder
 }: MyItemsViewProps) {
   const [activeTab, setActiveTab] = useState<TabType>('reminders');
+
+  const handleTriggerNow = async (r: Reminder) => {
+    if (setActiveTriggeredReminder) {
+      setActiveTriggeredReminder(r);
+    }
+    if (playAlertSound) {
+      playAlertSound(r.sound_name || 'default');
+    }
+    if (r.voice_notification !== false) {
+      const speechText = `Reminder: It's time to ${r.title.toLowerCase()}.`;
+      try {
+        speakHumanVoice(speechText, { voiceName: r.voice_name, rate: r.voice_speed });
+      } catch (e) {}
+    }
+    try {
+      await fetch(getApiUrl(`/api/reminders/${r.id}/trigger`), { method: 'PUT' });
+      onRefreshData();
+      setFeedback({ type: 'success', message: `Triggered reminder: "${r.title}"` });
+    } catch (err) {
+      console.error(err);
+    }
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -916,6 +938,14 @@ export default function MyItemsView({
 
                           {/* Item Card Actions */}
                           <div className="flex items-center space-x-1.5 flex-shrink-0">
+                            <button 
+                              onClick={() => handleTriggerNow(r)}
+                              className="p-1.5 rounded-lg bg-cyan-950/40 text-cyan-400 hover:bg-cyan-900 hover:text-white transition cursor-pointer"
+                              title="Trigger Now (Test Alarm & Voice)"
+                            >
+                              <Play className="w-3.5 h-3.5" />
+                            </button>
+
                             <button 
                               onClick={() => openDetails('reminders', r)}
                               className="p-1.5 rounded-lg bg-[#141C26] text-cyan-400 hover:bg-[#1A2534] hover:text-white transition cursor-pointer"

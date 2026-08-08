@@ -53,6 +53,8 @@ export class ReminderScheduler {
     }
   }
 
+  private serverBootTime = Date.now();
+
   public async checkPendingReminders() {
     if (this.isProcessing) return;
     this.isProcessing = true;
@@ -77,10 +79,21 @@ export class ReminderScheduler {
         const scheduledDate = parseReminderDateTime(r.date, r.time, r.scheduled_at);
         if (!scheduledDate) continue;
 
-        if (now.getTime() >= scheduledDate.getTime()) {
-          console.log(`[ReminderScheduler] Reminder triggered: "${r.title}" (Scheduled: ${r.date} ${r.time})`);
+        const scheduledTime = scheduledDate.getTime();
+        const isDue = now.getTime() >= scheduledTime;
+        // If a reminder is more than 10 minutes past due upon server startup/boot, mark it as triggered silently to prevent login popup spam
+        const isStale = (now.getTime() - scheduledTime) > 10 * 60 * 1000 && (scheduledTime < this.serverBootTime);
 
+        if (isDue) {
           const userId = r.user_id || 'user-1';
+
+          if (isStale) {
+            console.log(`[ReminderScheduler] Stale overdue reminder skipped on boot: "${r.title}"`);
+            await reminderEngine.triggerReminder(userId, r.id);
+            continue;
+          }
+
+          console.log(`[ReminderScheduler] Reminder triggered: "${r.title}" (Scheduled: ${r.date} ${r.time})`);
 
           // Mark reminder as triggered atomically
           await reminderEngine.triggerReminder(userId, r.id);

@@ -4,7 +4,7 @@ import fs from "fs";
 import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import { dbService } from "./server/db.js";
-import { routeUserIntent, checkAndMemorize, chatWithNexa, chatWithXenaStream, chatWithXenaLive, generateAILinePlanning, reformulateReminder, transcribeAudioWithGemini } from "./server/gemini.js";
+import { routeUserIntent, checkAndMemorize, chatWithNexa, chatWithXenaStream, chatWithXenaLive, generateAILinePlanning, reformulateReminder, transcribeAudioWithGemini, isConversationalText, generateConversationalResponse } from "./server/gemini.js";
 import { ServerActionEngine } from "./server/ServerActionEngine.js";
 import { normalizeUserInput } from "./server/contextualNormalizer.js";
 import { normalizeTimeString, extractTimeFromText } from "./utils/timeUtils.js";
@@ -538,6 +538,23 @@ async function startServer() {
       type: type || 'text'
     });
 
+    // 1.2 Fast conversational path (greetings, well-being, capabilities)
+    if (isConversationalText(cleanedText)) {
+      const profile = dbService.getProfile(currentUserId);
+      const assistantReply = generateConversationalResponse(cleanedText, profile?.full_name);
+      const assistantMsg = dbService.createMessage(conversation.id, {
+        sender: 'assistant',
+        text: assistantReply,
+        type: type || 'text'
+      });
+      return res.json({
+        userMessage: userMsg,
+        assistantMessage: assistantMsg,
+        intent: { intent: 'NORMAL_CHAT' },
+        actionResults: []
+      });
+    }
+
     // 1.5 Check Pending Action Draft resolution first
     const pendingResult = await ServerActionEngine.resolvePendingDraft(currentUserId, cleanedText);
     if (pendingResult) {
@@ -662,6 +679,28 @@ async function startServer() {
       text: cleanedText,
       type: type || 'voice'
     });
+
+    // Fast conversational path (greetings, well-being, capabilities)
+    if (isConversationalText(cleanedText)) {
+      const profile = dbService.getProfile(currentUserId);
+      const assistantReply = generateConversationalResponse(cleanedText, profile?.full_name);
+      const assistantMsg = dbService.createMessage(conversation.id, {
+        sender: 'assistant',
+        text: assistantReply,
+        type: 'voice'
+      });
+      return res.json({
+        userMessage: userMsg,
+        assistantMessage: assistantMsg,
+        intent: { intent: 'NORMAL_CHAT' },
+        actionResults: [],
+        replyText: assistantReply,
+        timings: {
+          totalMs: Date.now() - startTime,
+          aiMs: 0
+        }
+      });
+    }
 
     // Check Pending Action Draft resolution first
     const pendingResult = await ServerActionEngine.resolvePendingDraft(currentUserId, cleanedText);

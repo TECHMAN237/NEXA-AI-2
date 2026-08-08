@@ -265,6 +265,8 @@ export default function App() {
       return isNaN(d.getTime()) ? null : d;
     };
 
+    const sessionStartTime = Date.now();
+
     const checkScheduledReminders = async () => {
       if (reminders.length === 0) return;
       const now = new Date();
@@ -275,10 +277,22 @@ export default function App() {
         }
 
         const scheduledDate = parseReminderDateTime(r);
-        const isDue = scheduledDate && now.getTime() >= scheduledDate.getTime();
+        if (!scheduledDate) continue;
+
+        const scheduledTime = scheduledDate.getTime();
+        const isDue = now.getTime() >= scheduledTime;
+        const isStale = (now.getTime() - scheduledTime) > 10 * 60 * 1000 && (scheduledTime < sessionStartTime);
 
         if (isDue && !triggeredSessionIdsRef.current.has(r.id)) {
           triggeredSessionIdsRef.current.add(r.id);
+
+          if (isStale) {
+            // Silently mark stale overdue reminders as triggered on login
+            try {
+              await fetch(getApiUrl(`/api/reminders/${r.id}/trigger`), { method: 'PUT' });
+            } catch (e) {}
+            continue;
+          }
           
           // Show the fullscreen glowing warning overlay
           setActiveTriggeredReminder(r);
@@ -300,12 +314,20 @@ export default function App() {
               throw new Error("Failed to reformulate");
             })
             .then(data => {
-              speakHumanVoice(data.speechText, { voiceName: r.voice_name, rate: r.voice_speed });
+              try {
+                speakHumanVoice(data.speechText, { voiceName: r.voice_name, rate: r.voice_speed });
+              } catch (voiceErr) {
+                console.warn('[VOICE] Autoplay or TTS execution blocked by browser policy:', voiceErr);
+              }
             })
             .catch(err => {
               console.error('Speech synthesis error, using dynamic fallback:', err);
               const speechText = `Reminder: It's time to ${r.title.toLowerCase()}.`;
-              speakHumanVoice(speechText, { voiceName: r.voice_name, rate: r.voice_speed });
+              try {
+                speakHumanVoice(speechText, { voiceName: r.voice_name, rate: r.voice_speed });
+              } catch (voiceErr) {
+                console.warn('[VOICE] Autoplay or TTS execution blocked by browser policy:', voiceErr);
+              }
             });
           }
 
@@ -321,6 +343,10 @@ export default function App() {
         }
       }
     };
+
+    function isStale(val: boolean) {
+      return val;
+    }
 
     const interval = setInterval(checkScheduledReminders, 2000);
     return () => clearInterval(interval);

@@ -174,19 +174,21 @@ export function extractTimeFromText(text?: string | null): string | null {
   if (/\bnoon\b|\bmidday\b/i.test(lower)) return '12:00';
   if (/\bmidnight\b/i.test(lower)) return '00:00';
 
-  // 1. Explicit 12-hour AM/PM with minutes: e.g. "3:30 pm", "08:15 AM", "9:00 am", "12:00 am"
-  const ampmMinuteMatch = lower.match(/\b(\d{1,2}):(\d{2})\s*(am|pm|a\.m\.|p\.m\.)\b/i);
+  // 1. Explicit 12-hour AM/PM with minutes and optional minute filler words: e.g. "3:30 pm", "6:48 minutes a.m.", "1:22 p.m."
+  const ampmMinuteMatch = lower.match(/\b(\d{1,2}):(\d{2})\s*(?:minutes?|mins?|m)?\s*(am|pm|a\.m\.|p\.m\.)\b/i);
   if (ampmMinuteMatch) {
     let hour = parseInt(ampmMinuteMatch[1], 10);
     const minute = parseInt(ampmMinuteMatch[2], 10);
     const ampm = ampmMinuteMatch[3].replace(/\./g, '').toLowerCase();
-    if (ampm === 'pm' && hour < 12) hour += 12;
-    if (ampm === 'am' && hour === 12) hour = 0;
-    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+    if (minute >= 0 && minute <= 59 && hour >= 1 && hour <= 12) {
+      if (ampm === 'pm' && hour < 12) hour += 12;
+      if (ampm === 'am' && hour === 12) hour = 0;
+      return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+    }
   }
 
-  // 1b. Digit hour and space minutes with AM/PM: e.g. "1 22 PM", "01 22 pm", "3 45 am"
-  const spaceMinuteMatch = lower.match(/\b(\d{1,2})\s+(\d{2})\s*(am|pm|a\.m\.|p\.m\.)\b/i);
+  // 1b. Digit hour and space minutes with AM/PM: e.g. "1 22 PM", "6 48 minutes a.m."
+  const spaceMinuteMatch = lower.match(/\b(\d{1,2})\s+(\d{2})\s*(?:minutes?|mins?|m)?\s*(am|pm|a\.m\.|p\.m\.)\b/i);
   if (spaceMinuteMatch) {
     let hour = parseInt(spaceMinuteMatch[1], 10);
     const minute = parseInt(spaceMinuteMatch[2], 10);
@@ -312,3 +314,35 @@ export function extractTimeFromText(text?: string | null): string | null {
 
   return null;
 }
+
+export function formatReadableDate(dateStr?: string): string {
+  if (!dateStr) return 'Today';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const d = new Date(year, month, day);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    }
+  }
+  return dateStr;
+}
+
+export function formatReadableTime(timeStr?: string): string {
+  if (!timeStr) return '9:00 AM';
+  const clean = timeStr.trim();
+  const parts = clean.split(':');
+  if (parts.length >= 2) {
+    let h = parseInt(parts[0], 10);
+    const m = parts[1];
+    if (!isNaN(h)) {
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const displayH = h % 12 === 0 ? 12 : h % 12;
+      return `${displayH}:${m} ${ampm}`;
+    }
+  }
+  return clean;
+}
+

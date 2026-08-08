@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { dbService } from "./db.js";
 import { IntentClassification } from "../types/index.js";
-import { extractTimeFromText, normalizeTimeString } from "../utils/timeUtils.js";
+import { extractTimeFromText, normalizeTimeString, formatReadableDate, formatReadableTime } from "../utils/timeUtils.js";
 import { cleanReminderTitle, resolveRelativeDate, extractReminderParams } from "../utils/reminderParser.js";
 import { normalizeUserInput, extractVaultContent } from "./contextualNormalizer.js";
 
@@ -16,10 +16,10 @@ function cleanJsonResponse(text: string): string {
 }
 
 const GEMINI_MODELS = [
+  "gemini-3.6-flash",
+  "gemini-2.5-flash",
   "gemini-2.0-flash",
-  "gemini-1.5-flash",
-  "gemini-2.0-flash-lite",
-  "gemini-1.5-pro"
+  "gemini-1.5-flash"
 ];
 
 async function delayMs(ms: number) {
@@ -1262,11 +1262,13 @@ function generateLocalFormattedResponse(
           output += `${res.data.followUpText}\n\n`;
         } else if (res.targetModule === 'Reminder') {
           const d = res.data || {};
-          output += `**Reminder Created**\n\n`;
-          output += `- **Task**: ${d.title || 'Reminder'}\n`;
-          output += `- **Date**: ${d.date || 'Today'}\n`;
-          output += `- **Time**: ${d.time || '09:00'}\n`;
-          output += `- **Notifications**: Voice & Push Enabled\n\n`;
+          const readableDate = formatReadableDate(d.date);
+          const readableTime = formatReadableTime(d.time);
+          output += `## Reminder Created\n\n`;
+          output += `- **Task:** ${d.title || 'Reminder'}\n`;
+          output += `- **Date:** ${readableDate}\n`;
+          output += `- **Time:** ${readableTime}\n`;
+          output += `- **Notifications:** Voice & Push Enabled\n\n`;
         } else if (res.targetModule === 'Event') {
           const d = res.data || {};
           output += `**Event Scheduled**\n\n`;
