@@ -56,6 +56,7 @@ export interface Reminder {
   sound_name?: string;
   voice_speed?: number;
   voice_name?: string;
+  scheduled_at?: string;
 }
 
 export interface Task {

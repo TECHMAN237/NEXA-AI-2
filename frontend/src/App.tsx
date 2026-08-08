@@ -254,22 +254,30 @@ export default function App() {
 
   // Background reminder ticking effect
   useEffect(() => {
+    const parseReminderDateTime = (reminder: Reminder): Date | null => {
+      if (reminder.scheduled_at) {
+        const d = new Date(reminder.scheduled_at);
+        if (!isNaN(d.getTime())) return d;
+      }
+      if (!reminder.date) return null;
+      const timeStr = reminder.time ? (reminder.time.split(':').length === 2 ? `${reminder.time}:00` : reminder.time) : '00:00:00';
+      const d = new Date(`${reminder.date}T${timeStr}`);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
     const checkScheduledReminders = async () => {
       if (reminders.length === 0) return;
       const now = new Date();
-      const localDateStr = now.getFullYear() + '-' + 
-                           String(now.getMonth() + 1).padStart(2, '0') + '-' + 
-                           String(now.getDate()).padStart(2, '0');
-      const localTimeStr = String(now.getHours()).padStart(2, '0') + ':' + 
-                           String(now.getMinutes()).padStart(2, '0');
 
       for (const r of reminders) {
         if (!r.active || r.status === 'completed' || r.status === 'cancelled' || r.status === 'archived' || r.status === 'triggered') {
           continue;
         }
 
-        const isExactTimeReached = r.date === localDateStr && r.time === localTimeStr;
-        if (isExactTimeReached && !triggeredSessionIdsRef.current.has(r.id)) {
+        const scheduledDate = parseReminderDateTime(r);
+        const isDue = scheduledDate && now.getTime() >= scheduledDate.getTime();
+
+        if (isDue && !triggeredSessionIdsRef.current.has(r.id)) {
           triggeredSessionIdsRef.current.add(r.id);
           
           // Show the fullscreen glowing warning overlay
@@ -296,8 +304,7 @@ export default function App() {
             })
             .catch(err => {
               console.error('Speech synthesis error, using dynamic fallback:', err);
-              const nameSalutation = profile?.full_name ? `Hello ${profile.full_name.trim().split(' ')[0]}.` : "Hello.";
-              const speechText = `${nameSalutation} This is Xena AI. I'm reminding you that you have scheduled "${r.title}" now.`;
+              const speechText = `Reminder: It's time to ${r.title.toLowerCase()}.`;
               speakHumanVoice(speechText, { voiceName: r.voice_name, rate: r.voice_speed });
             });
           }
@@ -315,7 +322,7 @@ export default function App() {
       }
     };
 
-    const interval = setInterval(checkScheduledReminders, 4000);
+    const interval = setInterval(checkScheduledReminders, 2000);
     return () => clearInterval(interval);
   }, [reminders]);
 
