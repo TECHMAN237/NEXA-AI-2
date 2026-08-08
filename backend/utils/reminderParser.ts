@@ -1,4 +1,4 @@
-import { extractTimeFromText, normalizeTimeString } from './timeUtils.js';
+import { extractTimeFromText, normalizeTimeString, extractRelativeTimeOffset } from './timeUtils.js';
 
 export interface ExtractedReminderInfo {
   title: string;
@@ -205,8 +205,10 @@ export function cleanReminderTitle(rawTitle: string, fullQuery: string): string 
     extractedAction = extractedAction.replace(pattern, '');
   }
 
-  // 5. Strip time expressions from title
+  // 5. Strip time & relative offset expressions from title
   const timePatterns = [
+    /\b(?:in|for)\s+\d+\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)\b(\s*from\s+now)?/gi,
+    /\b\d+\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)\s*from\s+now\b/gi,
     /\bat\s+\d{1,2}(:\d{2})?\s*(a\.?m\.?|p\.?m\.?)?\b/gi,
     /\b\d{1,2}(:\d{2})?\s*(a\.?m\.?|p\.?m\.?)\b/gi,
     /\b\d{1,2}\s+in the (morning|evening|afternoon)\b/gi,
@@ -266,8 +268,13 @@ export function extractReminderParams(
 
   const lowerText = queryText.toLowerCase();
 
-  // Date resolution & explicit check
-  const isDateExplicit = !!(
+  // Check for relative time offsets (e.g. "in 30 seconds", "in 2 minutes", "in 1 hour")
+  const relOffset = extractRelativeTimeOffset(queryText, refDate);
+
+  let date = resolveRelativeDate(payload?.date, queryText, refDate);
+  let parsedTime = '';
+  let isTimeExplicit = false;
+  let isDateExplicit = !!(
     payload?.date ||
     lowerText.includes('today') ||
     lowerText.includes('tomorrow') ||
@@ -279,22 +286,24 @@ export function extractReminderParams(
     /\b\d{4}-\d{2}-\d{2}\b/.test(lowerText) ||
     /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\b/i.test(lowerText)
   );
-  const date = resolveRelativeDate(payload?.date, queryText, refDate);
 
-  // Time resolution & explicit check
-  const rawTimeMatch = normalizeTimeString(payload?.time) || extractTimeFromText(queryText);
-  let isTimeExplicit = false;
-  let parsedTime = '';
-
-  if (rawTimeMatch && !rawTimeMatch.startsWith('AMBIGUOUS')) {
+  if (relOffset) {
+    date = relOffset.date;
+    parsedTime = relOffset.time;
     isTimeExplicit = true;
-    parsedTime = rawTimeMatch;
-  } else if (lowerText.includes('at noon') || lowerText.includes('noon')) {
-    isTimeExplicit = true;
-    parsedTime = '12:00';
-  } else if (lowerText.includes('at midnight') || lowerText.includes('midnight')) {
-    isTimeExplicit = true;
-    parsedTime = '00:00';
+    isDateExplicit = true;
+  } else {
+    const rawTimeMatch = normalizeTimeString(payload?.time) || extractTimeFromText(queryText);
+    if (rawTimeMatch && !rawTimeMatch.startsWith('AMBIGUOUS')) {
+      isTimeExplicit = true;
+      parsedTime = rawTimeMatch;
+    } else if (lowerText.includes('at noon') || lowerText.includes('noon')) {
+      isTimeExplicit = true;
+      parsedTime = '12:00';
+    } else if (lowerText.includes('at midnight') || lowerText.includes('midnight')) {
+      isTimeExplicit = true;
+      parsedTime = '00:00';
+    }
   }
 
   // Recurrence

@@ -17,6 +17,7 @@ import {
   actionController,
   notificationController
 } from "./utils/container.js";
+import { reminderScheduler } from "./services/ReminderScheduler.js";
 
 // Global user session state (default to user-1 for instant friction-free UX)
 let currentUserId = "user-1";
@@ -924,6 +925,7 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Xena AI full-stack backend running on port ${PORT}`);
+    reminderScheduler.start();
   });
 }
 

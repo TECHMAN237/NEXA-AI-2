@@ -1,15 +1,80 @@
 export function normalizeTimeString(timeStr?: string | null): string | null {
   if (!timeStr || typeof timeStr !== 'string') return null;
   const trimmed = timeStr.trim();
-  const m = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  const m = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (m) {
     const h = parseInt(m[1], 10);
     const min = parseInt(m[2], 10);
-    if (h >= 0 && h <= 23 && min >= 0 && min <= 59) {
+    const sec = m[3] ? parseInt(m[3], 10) : 0;
+    if (h >= 0 && h <= 23 && min >= 0 && min <= 59 && sec >= 0 && sec <= 59) {
+      if (m[3]) {
+        return `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+      }
       return `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
     }
   }
   return null;
+}
+
+/**
+ * Extracts relative time offsets like "in 30 seconds", "in 2 minutes", "in 1 hour", "30s from now".
+ */
+export function extractRelativeTimeOffset(
+  text?: string | null,
+  refDate: Date = new Date()
+): { date: string; time: string; scheduledAt: string } | null {
+  if (!text || typeof text !== 'string') return null;
+  const lower = text.toLowerCase().trim();
+
+  // 1. Seconds: "in 30 seconds", "in 30 secs", "in 30s", "for 30 seconds", "30 seconds from now"
+  const secMatch = lower.match(/\b(?:in|for)\s+(\d+)\s*(?:seconds?|secs?|s)\b/i) ||
+                   lower.match(/\b(\d+)\s*(?:seconds?|secs?|s)\s*(?:from\s+now)?\b/i);
+  if (secMatch) {
+    const secs = parseInt(secMatch[1], 10);
+    if (secs > 0 && secs <= 86400) {
+      const target = new Date(refDate.getTime() + secs * 1000);
+      return formatDateAndTime(target);
+    }
+  }
+
+  // 2. Minutes: "in 2 minutes", "in 5 mins", "in 10m", "5 minutes from now"
+  const minMatch = lower.match(/\b(?:in|for)\s+(\d+)\s*(?:minutes?|mins?|m)\b/i) ||
+                   lower.match(/\b(\d+)\s*(?:minutes?|mins?|m)\s*(?:from\s+now)?\b/i);
+  if (minMatch) {
+    const mins = parseInt(minMatch[1], 10);
+    if (mins > 0 && mins <= 1440) {
+      const target = new Date(refDate.getTime() + mins * 60 * 1000);
+      return formatDateAndTime(target);
+    }
+  }
+
+  // 3. Hours: "in 1 hour", "in 2 hours", "in 3 hrs"
+  const hrMatch = lower.match(/\b(?:in|for)\s+(\d+)\s*(?:hours?|hrs?|h)\b/i) ||
+                  lower.match(/\b(\d+)\s*(?:hours?|hrs?|h)\s*(?:from\s+now)?\b/i);
+  if (hrMatch) {
+    const hrs = parseInt(hrMatch[1], 10);
+    if (hrs > 0 && hrs <= 168) {
+      const target = new Date(refDate.getTime() + hrs * 3600 * 1000);
+      return formatDateAndTime(target);
+    }
+  }
+
+  return null;
+}
+
+function formatDateAndTime(d: Date): { date: string; time: string; scheduledAt: string } {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const seconds = String(d.getSeconds()).padStart(2, '0');
+
+  return {
+    date: `${year}-${month}-${day}`,
+    time: `${hours}:${minutes}:${seconds}`,
+    scheduledAt: d.toISOString()
+  };
 }
 
 export interface DurationResult {

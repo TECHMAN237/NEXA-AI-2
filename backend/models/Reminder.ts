@@ -18,4 +18,5 @@ export interface Reminder {
   voice_speed?: number;
   voice_name?: string;
   source_id?: string;
+  scheduled_at?: string;
 }
