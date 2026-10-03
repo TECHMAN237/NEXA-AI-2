@@ -113,7 +113,7 @@
       "user_id": "user-1",
       "title": "Main Chat Assistant",
       "created_at": "2026-10-03T04:32:49.666Z",
-      "updated_at": "2026-10-03T19:05:30.169Z"
+      "updated_at": "2026-10-03T19:23:11.359Z"
     }
   ],
   "messages": [
@@ -964,6 +964,118 @@
       "id": "msg-1791054330169-uxvs4o",
       "conversation_id": "conv-1791001969666-pc1zo0",
       "created_at": "2026-10-03T19:05:30.169Z"
+    },
+    {
+      "sender": "user",
+      "text": "Swimming dinner song Hello please I want to know what is your goal in this app.",
+      "type": "voice",
+      "id": "msg-1791055089256-u7aume",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:18:09.256Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Hello! My goal is to act as your intelligent student companion, helping you manage your schedule, organize your study sessions, and keep track of your academic goals. I am here to simplify your daily routine so you can focus on learning and succeeding in your courses.",
+      "type": "voice",
+      "id": "msg-1791055106928-1p185i",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:18:26.928Z"
+    },
+    {
+      "sender": "user",
+      "text": "It's okay it's okay please okay now you fell out tell me what you can do completely.",
+      "type": "voice",
+      "id": "msg-1791055134193-bm3a8q",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:18:54.193Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "I can manage your academic schedule by setting reminders for classes and exams, and I can help you organize your study time into productive blocks. I am also able to track your personal events and meetings to ensure you stay on top of your daily commitments. If you have questions about your coursework or need help planning your day, I can provide clear, actionable guidance to keep you on track.",
+      "type": "voice",
+      "id": "msg-1791055160590-dewk9y",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:19:20.590Z"
+    },
+    {
+      "sender": "user",
+      "text": "Hello please can you tell me what is your goal and in this app and please give me a very brief answer.",
+      "type": "voice",
+      "id": "msg-1791055203133-zkahtr",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:20:03.133Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "My goal is to be your personal student companion, helping you organize your academic schedule, manage your reminders, and stay on top of your daily goals.",
+      "type": "voice",
+      "id": "msg-1791055224810-zmzc1l",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:20:24.810Z"
+    },
+    {
+      "sender": "user",
+      "text": "Okay please now tell me what you.",
+      "type": "voice",
+      "id": "msg-1791055233672-y75v7r",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:20:33.672Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "I help you manage your daily schedule, organize your study sessions, and keep track of your academic deadlines and personal reminders.",
+      "type": "voice",
+      "id": "msg-1791055245105-fw1zpu",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:20:45.105Z"
+    },
+    {
+      "sender": "user",
+      "text": "This objective.",
+      "type": "voice",
+      "id": "msg-1791055251834-fujht2",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:20:51.834Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "This objective means I'm here to support your academic success by organizing your schedule, managing your deadlines, and keeping your daily routines running smoothly.",
+      "type": "voice",
+      "id": "msg-1791055265715-8rrglo",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:21:05.715Z"
+    },
+    {
+      "sender": "user",
+      "text": "Okay please so does it mean that you can help me and create a reminder to study chemistry at 4:00 p.m. today.",
+      "type": "voice",
+      "id": "msg-1791055278141-xv56ed",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:21:18.141Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Got it! I've set a reminder to Study chemistry on October 3, 2026 at 4:00 PM.",
+      "type": "voice",
+      "id": "msg-1791055280482-ygswbp",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:21:20.482Z"
+    },
+    {
+      "sender": "user",
+      "text": "when a m i writting mt exam?",
+      "type": "text",
+      "id": "msg-1791055384254-3cz8id",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:23:04.254Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "## Exam Schedule\n\nYour **Computer Architecture** exam is scheduled for **August 20, 2025**. \n\nPlease note that this date has already passed. If you have an updated date for a future exam, let me know and I will update your **Vault Memory** and **Exam Tracking**.",
+      "type": "text",
+      "id": "msg-1791055391359-bagl2o",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:23:11.359Z"
     }
   ],
   "reminders": [
@@ -1311,6 +1423,21 @@
       "id": "rem-1791054960549-nmkhyu",
       "user_id": "user-1",
       "created_at": "2026-10-03T19:16:00.549Z"
+    },
+    {
+      "title": "Study chemistry",
+      "description": "",
+      "date": "2026-10-03",
+      "time": "16:00",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "triggered",
+      "id": "rem-1791055278157-2do8ek",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T19:21:18.157Z"
     }
   ],
   "tasks": [
@@ -1984,6 +2111,13 @@
       "id": "mem-1791054334743-x615yt",
       "user_id": "user-1",
       "created_at": "2026-10-03T19:05:34.743Z"
+    },
+    {
+      "text": "I want to study chemistry at 4:00 p.m. today.",
+      "category": "Schedule",
+      "id": "mem-1791055283986-7ycwax",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T19:21:23.986Z"
     }
   ],
   "memory_vault": [
@@ -2614,6 +2748,50 @@
       "status": "completed",
       "metadata": {},
       "created_at": "2026-10-03T19:16:01.877Z"
+    },
+    {
+      "id": "act-1791055032354-ewp7eo",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Call my academic advisor\"",
+      "source_id": "rem-1791054960549-nmkhyu",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:17:12.354Z"
+    },
+    {
+      "id": "act-1791055278177-kn6if2",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Study chemistry\"",
+      "description": "Scheduled for 2026-10-03 at 16:00",
+      "source_id": "rem-1791055278157-2do8ek",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:21:18.177Z"
+    },
+    {
+      "id": "act-1791055278747-fcgt55",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Study chemistry\"",
+      "source_id": "rem-1791055278157-2do8ek",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:21:18.747Z"
+    },
+    {
+      "id": "act-1791055297020-g7m58h",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Study chemistry\"",
+      "source_id": "rem-1791055278157-2do8ek",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:21:37.020Z"
     }
   ],
   "smart_actions": [],

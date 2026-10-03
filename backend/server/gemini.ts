@@ -44,10 +44,18 @@ export function isModelQuarantined(model: string): boolean {
   return true;
 }
 
-export function quarantineModel(model: string, retryDelaySec?: number) {
-  const durationMs = retryDelaySec && !isNaN(retryDelaySec) ? retryDelaySec * 1000 : 3600 * 1000;
+export function quarantineModel(model: string, retryInfo?: number | string) {
+  let durationSec = 3600;
+  if (typeof retryInfo === 'number' && !isNaN(retryInfo) && retryInfo > 0) {
+    durationSec = retryInfo;
+  } else if (typeof retryInfo === 'string') {
+    const secMatch = retryInfo.match(/(\d+)\s*s\b/);
+    if (secMatch) {
+      durationSec = parseInt(secMatch[1], 10);
+    }
+  }
+  const durationMs = durationSec * 1000;
   modelExhaustionMap.set(model, Date.now() + durationMs);
-  console.warn(`[GEMINI_CIRCUIT_BREAKER] Quarantining exhausted model "${model}" for ${Math.round(durationMs / 1000)}s`);
 }
 
 function getActiveModels(): string[] {
@@ -114,23 +122,67 @@ async function generateContentStreamWithFallback(ai: GoogleGenAI, params: any) {
   throw lastError;
 }
 
+function repairTruncatedJson(input: string): string {
+  let str = input.trim().replace(/,\s*([}\]])/g, '$1');
+  let inString = false;
+  let escape = false;
+  const stack: string[] = [];
+
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === '\\' && inString) {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (!inString) {
+      if (ch === '{') stack.push('}');
+      else if (ch === '[') stack.push(']');
+      else if (ch === '}' || ch === ']') {
+        if (stack.length > 0 && stack[stack.length - 1] === ch) {
+          stack.pop();
+        }
+      }
+    }
+  }
+
+  if (inString) {
+    // Remove trailing孤 backslash if any before closing quote
+    if (escape) str = str.slice(0, -1);
+    str += '"';
+  }
+
+  // Strip trailing comma or colon before closing brackets
+  str = str.replace(/[,:\s]+$/, '');
+  // If truncated right after an object key `"key"` without `: value`, strip the dangling key
+  str = str.replace(/,\s*"[^"]*"\s*$/, '');
+
+  while (stack.length > 0) {
+    const closer = stack.pop()!;
+    str = str.replace(/[,:\s]+$/, '');
+    str += closer;
+  }
+
+  return str;
+}
+
 function safeJsonParse<T>(text: string, fallback: T): T {
   if (!text) return fallback;
   const cleaned = cleanJsonResponse(text);
   try {
     return JSON.parse(cleaned) as T;
-  } catch (e) {
-    console.warn("[SAFE_JSON_PARSE_WARN] Failed to parse JSON, attempting repair...", e);
+  } catch {
     try {
-      let repaired = cleaned
-        .replace(/,\s*([}\]])/g, '$1')
-        .replace(/\\"/g, '"');
-      if (!repaired.endsWith('}')) {
-        repaired += '}';
-      }
+      const repaired = repairTruncatedJson(cleaned);
       return JSON.parse(repaired) as T;
-    } catch (e2) {
-      console.error("[SAFE_JSON_PARSE_ERROR] JSON parsing failed permanently:", e2);
+    } catch {
       return fallback;
     }
   }
@@ -181,18 +233,43 @@ export async function transcribeAudioWithGemini(
   const ai = getGemini();
 
   try {
-    const cleanMime = mimeType.split(';')[0] || 'audio/webm';
+    let cleanMime = (mimeType || 'audio/webm').split(';')[0].trim().toLowerCase() || 'audio/webm';
     const cleanBase64 = (audioBase64 || '')
       .replace(/^data:[^;]+;base64,/i, '')
       .replace(/[\r\n\s]/g, '')
       .trim();
 
-    if (!cleanBase64 || cleanBase64.length < 20) {
-      console.warn('[GEMINI_STT] Audio payload empty or too short. Skipping cloud STT.');
+    if (!cleanBase64 || cleanBase64.length < 2000) {
       return '';
     }
 
-    console.log(`[GEMINI_STT] Transcribing audio chunk. Mime: ${cleanMime}, Base64 length: ${cleanBase64.length}`);
+    const audioBuffer = Buffer.from(cleanBase64, 'base64');
+    if (audioBuffer.length < 1500) {
+      return '';
+    }
+
+    // Detect & verify true audio container format from magic bytes to prevent Gemini 400 INVALID_ARGUMENT
+    const b0 = audioBuffer[0];
+    const b1 = audioBuffer[1];
+    const b2 = audioBuffer[2];
+    const b3 = audioBuffer[3];
+    const magic4 = audioBuffer.subarray(0, 4).toString('ascii');
+    const magic4to8 = audioBuffer.subarray(4, 8).toString('ascii');
+
+    if (b0 === 0x1a && b1 === 0x45 && b2 === 0xdf && b3 === 0xa3) {
+      cleanMime = 'audio/webm';
+    } else if (magic4 === 'RIFF') {
+      cleanMime = 'audio/wav';
+    } else if (magic4 === 'OggS') {
+      cleanMime = 'audio/ogg';
+    } else if (magic4to8 === 'ftyp') {
+      cleanMime = 'audio/mp4';
+    } else if (magic4.startsWith('ID3') || (b0 === 0xff && (b1 & 0xe0) === 0xe0)) {
+      cleanMime = 'audio/mp3';
+    } else {
+      // Unrecognized or headerless raw fragment (e.g., partial MediaRecorder chunk without EBML header)
+      return '';
+    }
 
     const contextStr = userContextTerms && userContextTerms.length > 0
       ? `Known User Entities, Course Codes & Reminders: ${userContextTerms.filter(Boolean).join(', ')}`
@@ -249,7 +326,6 @@ CRITICAL RULES:
 
     const sttModels = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'];
     let response: any = null;
-    let sttError: any = null;
 
     for (const model of sttModels) {
       if (isModelQuarantined(model)) continue;
@@ -260,21 +336,24 @@ CRITICAL RULES:
         });
         if (response) break;
       } catch (mErr: any) {
-        sttError = mErr;
-        const isQuotaOr429 = mErr?.status === 429 || mErr?.message?.includes('429') || mErr?.message?.includes('RESOURCE_EXHAUSTED');
-        if (isQuotaOr429) {
-          quarantineModel(model);
+        const status = mErr?.status || mErr?.code;
+        const msg = String(mErr?.message || '');
+        // Do not retry other models if the audio payload itself is rejected as 400 INVALID_ARGUMENT
+        if (status === 400 || msg.includes('INVALID_ARGUMENT')) {
+          return '';
         }
-        console.warn(`[GEMINI_STT_MODEL_FALLBACK] Model ${model} failed for STT (${mErr?.status || 'Error'}). Trying next...`, mErr?.message || mErr);
+        const isQuotaOr429 = status === 429 || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
+        if (isQuotaOr429) {
+          quarantineModel(model, msg);
+        }
       }
     }
 
-    if (!response && sttError) {
-      throw sttError;
+    if (!response) {
+      return '';
     }
 
     const resultText = (response.text || "").trim();
-    console.log(`[GEMINI_STT] Result: "${resultText}"`);
 
     if (resultText === "[SILENCE]" || !resultText) {
       return "";
@@ -282,8 +361,7 @@ CRITICAL RULES:
 
     const normalized = normalizeUserInput(resultText);
     return normalized.finalTranscript;
-  } catch (err) {
-    console.error("[GEMINI_STT_ERROR]", err);
+  } catch {
     return "";
   }
 }
@@ -1268,7 +1346,7 @@ CRITICAL INSTRUCTIONS:
 8. CONTEXTUAL COMMANDS: If the user says "Save the event I just told you" or "Save that", set intent="EVENT", action="CREATE". Do not invent the title; it will be resolved from the conversation context.
 9. IDENTITY, GOAL & CAPABILITY INQUIRIES: When user asks about Xena ("Who are you?", "What is your goal?", "What is your purpose?", "What can you do?", "Are you just a chatbot?", "Can you update events?"), intent MUST be "NORMAL_CHAT" with action "NO_OP". NEVER classify identity, goal, purpose, or capability questions as action tools.`,
         responseMimeType: "application/json",
-        maxOutputTokens: 500,
+        maxOutputTokens: 1500,
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -1799,13 +1877,13 @@ export function generateLocalVoiceResponse(
 ): string {
   // 1. Action Results Summaries
   if (actionResults && actionResults.length > 0) {
-    const successful = actionResults.filter(a => a.success || a.status === 'success');
+    const successful = actionResults.filter(a => a.success);
     if (successful.length > 0) {
       const parts: string[] = [];
       for (const res of successful) {
         if (res.data?.pending && res.summary) {
           parts.push(res.summary);
-        } else if (res.targetModule === 'Reminder' || res.intent === 'REMINDER') {
+        } else if (res.targetModule === 'Reminder') {
           const d = res.data || {};
           const readableDate = formatReadableDate(d.date);
           const readableTime = formatReadableTime(d.time).replace(/^0(\d:)/, '$1');
@@ -2177,7 +2255,37 @@ const ttsAudioCache = new Map<string, CachedTtsAudio>();
 const MAX_TTS_CACHE_SIZE = 80;
 
 /**
- * Unary Gemini 3.8 Neural Text-to-Speech (returns complete 24kHz 16-bit WAV base64)
+ * Helper to wrap raw 16-bit 24kHz mono little-endian PCM bytes in a standard 44-byte RIFF WAV header
+ */
+function pcm16ToWavBase64(pcmBuffer: Buffer, sampleRate: number = 24000): string {
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+  const blockAlign = (numChannels * bitsPerSample) / 8;
+  const dataSize = pcmBuffer.length;
+  const wavBuffer = Buffer.alloc(44 + dataSize);
+
+  wavBuffer.write('RIFF', 0);
+  wavBuffer.writeUInt32LE(36 + dataSize, 4);
+  wavBuffer.write('WAVE', 8);
+  wavBuffer.write('fmt ', 12);
+  wavBuffer.writeUInt32LE(16, 16); // Subchunk1Size (16 for PCM)
+  wavBuffer.writeUInt16LE(1, 20);  // AudioFormat (1 = PCM)
+  wavBuffer.writeUInt16LE(numChannels, 22);
+  wavBuffer.writeUInt32LE(sampleRate, 24);
+  wavBuffer.writeUInt32LE(byteRate, 28);
+  wavBuffer.writeUInt16LE(blockAlign, 32);
+  wavBuffer.writeUInt16LE(bitsPerSample, 34);
+  wavBuffer.write('data', 36);
+  wavBuffer.writeUInt32LE(dataSize, 40);
+  pcmBuffer.copy(wavBuffer, 44);
+
+  return wavBuffer.toString('base64');
+}
+
+/**
+ * Unary Gemini Neural Text-to-Speech (returns complete 24kHz 16-bit WAV base64).
+ * Uses Gemini Live (gemini-3.8-live) as primary high-quota neural synthesizer so it never hits the 10-req/day free-tier limit of flash-lite-tts.
  */
 export async function synthesizeSpeechWithGemini(
   rawText: string,
@@ -2185,7 +2293,6 @@ export async function synthesizeSpeechWithGemini(
 ): Promise<{ audioBase64: string; mimeType: string; voiceName: string; spokenText: string; cached: boolean }> {
   const spokenText = formatTextForNaturalSpeech(rawText);
   const voiceName = resolveGeminiVoiceName(options?.voiceName);
-  const style = options?.style || 'Warm, natural, friendly, intelligent personal companion with realistic intonation and fluid conversational pacing';
 
   if (!spokenText) {
     throw new Error('Empty text for speech synthesis');
@@ -2203,71 +2310,42 @@ export async function synthesizeSpeechWithGemini(
     };
   }
 
-  const ai = getGemini();
-  const ttsModels = ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts'];
-  let lastError: any = null;
-
-  for (const model of ttsModels) {
-    if (isModelQuarantined(model)) continue;
-    try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: spokenText,
-                // @ts-ignore - speechMetadata is supported on Gemini 3.8 TTS models
-                speechMetadata: {
-                  style
-                }
-              }
-            ]
-          }
-        ],
-        config: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName }
-            }
-          }
-        }
-      });
-
-      const inlineData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-      if (inlineData?.data) {
-        const result = {
-          audioBase64: inlineData.data,
-          mimeType: inlineData.mimeType || 'audio/wav',
-          voiceName,
-          spokenText,
-          cached: false
-        };
-
-        if (ttsAudioCache.size >= MAX_TTS_CACHE_SIZE) {
-          const oldestKey = ttsAudioCache.keys().next().value;
-          if (oldestKey) ttsAudioCache.delete(oldestKey);
-        }
-        ttsAudioCache.set(cacheKey, { ...result, timestamp: Date.now() });
-        return result;
+  const pcmChunks: Buffer[] = [];
+  await streamSpeechWithGemini(
+    spokenText,
+    (base64Chunk) => {
+      if (base64Chunk) {
+        pcmChunks.push(Buffer.from(base64Chunk, 'base64'));
       }
-    } catch (err: any) {
-      lastError = err;
-      const status = err?.status || err?.code;
-      console.warn(`[GEMINI_TTS_FALLBACK] Model ${model} failed (${status || err?.message}). Trying next...`);
-      if (status === 429 || String(err?.message || '').includes('429')) {
-        quarantineModel(model, err?.message);
-      }
+    },
+    { voiceName, style: options?.style }
+  );
+
+  if (pcmChunks.length > 0) {
+    const combinedPcm = Buffer.concat(pcmChunks);
+    const wavBase64 = pcm16ToWavBase64(combinedPcm, 24000);
+    const result = {
+      audioBase64: wavBase64,
+      mimeType: 'audio/wav',
+      voiceName,
+      spokenText,
+      cached: false
+    };
+
+    if (ttsAudioCache.size >= MAX_TTS_CACHE_SIZE) {
+      const oldestKey = ttsAudioCache.keys().next().value;
+      if (oldestKey) ttsAudioCache.delete(oldestKey);
     }
+    ttsAudioCache.set(cacheKey, { ...result, timestamp: Date.now() });
+    return result;
   }
 
-  throw lastError || new Error('Gemini TTS synthesis failed');
+  throw new Error('Neural TTS synthesis produced no audio');
 }
 
 /**
- * Streaming Gemini 3.8 Neural TTS (yields raw 24kHz 16-bit little-endian PCM base64 chunks)
+ * Streaming Gemini Neural Speech (yields raw 24kHz 16-bit little-endian PCM base64 chunks).
+ * Uses Gemini Live (gemini-3.8-live) directly for real-time 24kHz audio without 10-req/day rate limits.
  */
 export async function streamSpeechWithGemini(
   rawText: string,
@@ -2276,57 +2354,77 @@ export async function streamSpeechWithGemini(
 ): Promise<{ spokenText: string; voiceName: string; chunksSent: number }> {
   const spokenText = formatTextForNaturalSpeech(rawText);
   const voiceName = resolveGeminiVoiceName(options?.voiceName);
-  const style = options?.style || 'Warm, natural, friendly, intelligent personal companion with realistic intonation and fluid conversational pacing';
 
   if (!spokenText) {
     return { spokenText: '', voiceName, chunksSent: 0 };
   }
 
   const ai = getGemini();
-  const ttsModels = ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts'];
   let chunksSent = 0;
 
-  for (const model of ttsModels) {
-    if (isModelQuarantined(model)) continue;
-    try {
-      const responseStream = await ai.models.generateContentStream({
-        model,
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: spokenText,
-                // @ts-ignore
-                speechMetadata: { style }
+  try {
+    await new Promise<void>(async (resolve, reject) => {
+      let settled = false;
+      const timeoutId = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      }, 9000);
+
+      try {
+        const session = await ai.live.connect({
+          model: 'gemini-3.8-live',
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName }
               }
-            ]
-          }
-        ],
-        config: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName }
+            },
+            systemInstruction:
+              'You are the neural voice synthesizer for Xena AI. Speak the exact text provided by the user aloud with warm, natural human intonation, realistic pacing, and friendly clarity. Do not add, omit, or alter any words.'
+          },
+          callbacks: {
+            onmessage: (message: any) => {
+              const data = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+              if (data) {
+                chunksSent++;
+                onPcmChunk(data);
+              }
+              if (message.serverContent?.turnComplete) {
+                clearTimeout(timeoutId);
+                if (!settled) {
+                  settled = true;
+                  try { session.close(); } catch {}
+                  resolve();
+                }
+              }
+            },
+            onerror: (err: any) => {
+              clearTimeout(timeoutId);
+              if (!settled) {
+                settled = true;
+                reject(err);
+              }
             }
           }
-        }
-      });
+        });
 
-      for await (const chunk of responseStream) {
-        const data = chunk.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-        if (data) {
-          chunksSent++;
-          onPcmChunk(data);
+        session.sendClientContent({
+          turns: [{ role: 'user', parts: [{ text: `Read this aloud verbatim: ${spokenText}` }] }],
+          turnComplete: true
+        });
+      } catch (connectErr) {
+        clearTimeout(timeoutId);
+        if (!settled) {
+          settled = true;
+          reject(connectErr);
         }
       }
-
-      if (chunksSent > 0) {
-        return { spokenText, voiceName, chunksSent };
-      }
-    } catch (err: any) {
-      console.warn(`[GEMINI_TTS_STREAM_FALLBACK] Model ${model} failed:`, err?.message);
-    }
+    });
+  } catch {
+    // Graceful silent fallback if Live session fails
   }
 
   return { spokenText, voiceName, chunksSent };

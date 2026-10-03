@@ -398,6 +398,10 @@ export class SpeechService {
 
     const speechDetected = hasWebSpeech || this.peakVolume > 15;
 
+    // Capture recorded mimeType and chunks before cleanupMediaStream nulls out mediaRecorder
+    const recordedMimeType = this.mediaRecorder?.mimeType || 'audio/webm';
+    const recordedChunks = [...this.audioChunks];
+
     // PHASE 1: INSTANT DELIVERY IF WEBSPEECH WAS ACTIVE & PRODUCED TEXT
     if (hasWebSpeech) {
       const totalLatency = Date.now() - (this.sessionStopTime || audioReadyTime);
@@ -417,16 +421,20 @@ export class SpeechService {
       // Stop audio tracks so mic turns off immediately
       this.cleanupMediaStream();
 
-      // PHASE 2: OPTIONAL NON-BLOCKING BACKGROUND CLOUD REFINEMENT
-      if (this.audioChunks.length > 0) {
-        this.triggerBackgroundRefinement(sessionId, normalizedWebSpeech);
+      // PHASE 2: OPTIONAL NON-BLOCKING BACKGROUND CLOUD REFINEMENT (only when caller subscribes to refinement and not in auto-stop Live Voice loop)
+      if (
+        recordedChunks.length > 0 &&
+        this.callbacks?.onFinalizedRefinement &&
+        !this.callbacks?.autoStopOnSilence
+      ) {
+        this.triggerBackgroundRefinement(sessionId, normalizedWebSpeech, recordedChunks, recordedMimeType);
       }
       return;
     }
 
     // PHASE 1 FALLBACK: NO WEBSPEECH AVAILABLE -> CLOUD STT REQUIRED AS PRIMARY
-    if (this.audioChunks.length > 0) {
-      await this.performCloudStt(sessionId, speechDetected);
+    if (recordedChunks.length > 0) {
+      await this.performCloudStt(sessionId, speechDetected, recordedChunks, recordedMimeType);
     } else {
       logTelemetry('final_transcript_ready', { sessionId, source: 'none', transcript: '' });
       if (this.callbacks?.onEnd && sessionId === this.activeSessionId) {
@@ -439,7 +447,12 @@ export class SpeechService {
   /**
    * Perform Cloud Gemini Speech-To-Text as primary engine with 5s hard timeout
    */
-  private static async performCloudStt(sessionId: number, speechDetectedByVolume: boolean): Promise<void> {
+  private static async performCloudStt(
+    sessionId: number,
+    speechDetectedByVolume: boolean,
+    chunks?: Blob[],
+    recordedMime?: string
+  ): Promise<void> {
     const sttStartTime = Date.now();
     logTelemetry('transcription_started', { sessionId });
 
@@ -447,11 +460,11 @@ export class SpeechService {
     let success = false;
 
     try {
-      const mimeType = this.mediaRecorder?.mimeType || 'audio/webm';
-      const audioBlob = new Blob(this.audioChunks, { type: mimeType });
+      const mimeType = recordedMime || this.mediaRecorder?.mimeType || 'audio/webm';
+      const audioBlob = new Blob(chunks || this.audioChunks, { type: mimeType });
       logTelemetry('audio_ready', { sessionId, sizeBytes: audioBlob.size, mimeType });
 
-      if (audioBlob.size > 800) {
+      if (audioBlob.size > 2000) {
         const audioBase64 = await this.blobToBase64(audioBlob);
 
         const abortController = new AbortController();
@@ -489,7 +502,7 @@ export class SpeechService {
         }
       }
     } catch (e) {
-      console.error(`[VOICE] Session ${sessionId} audio conversion error:`, e);
+      console.warn(`[VOICE] Session ${sessionId} audio conversion warning:`, e);
     }
 
     if (sessionId !== this.activeSessionId) {
@@ -526,14 +539,19 @@ export class SpeechService {
   /**
    * Optional background contextual refinement pass (non-blocking)
    */
-  private static async triggerBackgroundRefinement(sessionId: number, currentTranscript: string): Promise<void> {
+  private static async triggerBackgroundRefinement(
+    sessionId: number,
+    currentTranscript: string,
+    chunks?: Blob[],
+    recordedMime?: string
+  ): Promise<void> {
     logTelemetry('refinement_started', { sessionId });
     const refStartTime = Date.now();
 
     try {
-      const mimeType = this.mediaRecorder?.mimeType || 'audio/webm';
-      const audioBlob = new Blob(this.audioChunks, { type: mimeType });
-      if (audioBlob.size <= 800) return;
+      const mimeType = recordedMime || this.mediaRecorder?.mimeType || 'audio/webm';
+      const audioBlob = new Blob(chunks || this.audioChunks, { type: mimeType });
+      if (audioBlob.size <= 2500) return;
 
       const audioBase64 = await this.blobToBase64(audioBlob);
 
