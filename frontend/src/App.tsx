@@ -661,107 +661,111 @@ export default function App() {
       </header>
 
       {/* Main Responsive Routing Canvas Stage */}
-      <main className="flex-1 w-full max-w-5xl mx-auto flex flex-col bg-[#0B0E14] md:border-x border-nexa-border shadow-2xl relative overflow-hidden min-h-[calc(100vh-140px)] pb-28">
+      <main className={`flex-1 w-full max-w-5xl mx-auto flex flex-col bg-[#0B0E14] md:border-x border-nexa-border shadow-2xl relative overflow-hidden ${
+        activeView === 'full-chat' ? 'h-[calc(100vh-73px)] max-h-[calc(100vh-73px)] pb-0' : 'min-h-[calc(100vh-140px)] pb-28'
+      }`}>
         <div className="flex-1 h-full overflow-hidden">
           {renderCurrentView()}
         </div>
       </main>
 
-      {/* Floating Bottom Glass Navigation Bar with central NEXA Orb */}
-      <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 w-full max-w-md px-4 z-40">
-        <div className="bg-[#0F131A]/95 border border-nexa-border/90 rounded-2xl py-2.5 px-6 flex justify-between items-center backdrop-blur-xl shadow-[0_15px_35px_rgba(0,0,0,0.7)]">
-          
-          {/* Left Buttons Group */}
-          <div className="flex space-x-8">
-            <button 
-              onClick={() => setActiveView('assistant')}
-              className={`flex flex-col items-center justify-center cursor-pointer transition-all duration-300 py-1 ${
-                activeView === 'assistant' ? 'text-nexa-glow scale-105' : 'text-gray-500 hover:text-white'
-              }`}
-            >
-              <MessageSquare className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px] font-bold tracking-tight font-display">Assistant</span>
-            </button>
+      {/* Floating Bottom Glass Navigation Bar with central NEXA Orb (hidden in full-chat to maximize input space) */}
+      {activeView !== 'full-chat' && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 w-full max-w-md px-4 z-40">
+          <div className="bg-[#0F131A]/95 border border-nexa-border/90 rounded-2xl py-2.5 px-6 flex justify-between items-center backdrop-blur-xl shadow-[0_15px_35px_rgba(0,0,0,0.7)]">
+            
+            {/* Left Buttons Group */}
+            <div className="flex space-x-8">
+              <button 
+                onClick={() => setActiveView('assistant')}
+                className={`flex flex-col items-center justify-center cursor-pointer transition-all duration-300 py-1 ${
+                  activeView === 'assistant' ? 'text-nexa-glow scale-105' : 'text-gray-500 hover:text-white'
+                }`}
+              >
+                <MessageSquare className="w-5 h-5 mb-0.5" />
+                <span className="text-[10px] font-bold tracking-tight font-display">Assistant</span>
+              </button>
 
-            <button 
-              onClick={() => setActiveView('organizer')}
-              className={`flex flex-col items-center justify-center cursor-pointer transition-all duration-300 py-1 ${
-                ['organizer', 'create-reminder', 'planning', 'study', 'add-event'].includes(activeView) ? 'text-nexa-glow scale-105' : 'text-gray-500 hover:text-white'
-              }`}
-            >
-              <LayoutGrid className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px] font-bold tracking-tight font-display">Organizer</span>
-            </button>
-          </div>
-
-          {/* Center: THE NEXA ORB Floating Button (Futuristic Glass Core Design) */}
-          <div className="relative -top-6">
-            <motion.button 
-              onMouseDown={handleOrbLongPressStart}
-              onMouseUp={handleOrbLongPressEnd}
-              onTouchStart={handleOrbLongPressStart}
-              onTouchEnd={handleOrbLongPressEnd}
-              onClick={handleOrbClick}
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.95 }}
-              className={`w-16 h-16 rounded-full bg-gradient-to-tr from-nexa-blue/80 via-nexa-purple/75 to-cyan-400/90 flex items-center justify-center cursor-pointer border border-cyan-400/80 relative shadow-[0_0_25px_rgba(0,229,255,0.6)] group overflow-hidden ${
-                orbState === 'listening' ? 'ring-4 ring-nexa-glow animate-pulse' :
-                orbState === 'thinking' ? 'ring-4 ring-nexa-purple' :
-                orbState === 'completed' ? 'ring-4 ring-emerald-500' : ''
-              }`}
-            >
-              {/* Floating ambient transparent glass reflection layer */}
-              <div className="absolute inset-0.5 rounded-full bg-gradient-to-b from-white/25 to-transparent backdrop-blur-[2px] z-10 pointer-events-none"></div>
-              
-              {/* Internal energy core glowing bubble */}
-              <div className="absolute w-10 h-10 rounded-full bg-cyan-400/35 filter blur-md animate-pulse"></div>
-              
-              {/* Cyan border ring overlay */}
-              <div className="absolute inset-0 rounded-full border border-cyan-300/30"></div>
-
-              {/* Wave pulse/ring during active states */}
-              {orbState === 'listening' && (
-                <div className="absolute inset-0 bg-nexa-glow/30 animate-ping rounded-full"></div>
-              )}
-              {orbState === 'thinking' && (
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-cyan-400/40 to-transparent animate-spin rounded-full"></div>
-              )}
-
-              {/* Central logo with high contrast depth shadow */}
-              <span className="text-2xl font-black text-white font-display tracking-widest select-none z-20 drop-shadow-[0_2px_8px_rgba(0,229,255,0.8)]">X</span>
-            </motion.button>
-            <div className="text-[8px] text-gray-500 mt-1.5 text-center font-mono tracking-wider uppercase font-semibold select-none">
-              {orbState === 'listening' ? "Speak Now" : 
-               orbState === 'thinking' ? "Thinking" : 
-               orbState === 'completed' ? "Completed" : "Xena Orb"}
+              <button 
+                onClick={() => setActiveView('organizer')}
+                className={`flex flex-col items-center justify-center cursor-pointer transition-all duration-300 py-1 ${
+                  ['organizer', 'create-reminder', 'planning', 'study', 'add-event'].includes(activeView) ? 'text-nexa-glow scale-105' : 'text-gray-500 hover:text-white'
+                }`}
+              >
+                <LayoutGrid className="w-5 h-5 mb-0.5" />
+                <span className="text-[10px] font-bold tracking-tight font-display">Organizer</span>
+              </button>
             </div>
+
+            {/* Center: THE NEXA ORB Floating Button (Futuristic Glass Core Design) */}
+            <div className="relative -top-6">
+              <motion.button 
+                onMouseDown={handleOrbLongPressStart}
+                onMouseUp={handleOrbLongPressEnd}
+                onTouchStart={handleOrbLongPressStart}
+                onTouchEnd={handleOrbLongPressEnd}
+                onClick={handleOrbClick}
+                whileHover={{ scale: 1.15 }}
+                whileTap={{ scale: 0.95 }}
+                className={`w-16 h-16 rounded-full bg-gradient-to-tr from-nexa-blue/80 via-nexa-purple/75 to-cyan-400/90 flex items-center justify-center cursor-pointer border border-cyan-400/80 relative shadow-[0_0_25px_rgba(0,229,255,0.6)] group overflow-hidden ${
+                  orbState === 'listening' ? 'ring-4 ring-nexa-glow animate-pulse' :
+                  orbState === 'thinking' ? 'ring-4 ring-nexa-purple' :
+                  orbState === 'completed' ? 'ring-4 ring-emerald-500' : ''
+                }`}
+              >
+                {/* Floating ambient transparent glass reflection layer */}
+                <div className="absolute inset-0.5 rounded-full bg-gradient-to-b from-white/25 to-transparent backdrop-blur-[2px] z-10 pointer-events-none"></div>
+                
+                {/* Internal energy core glowing bubble */}
+                <div className="absolute w-10 h-10 rounded-full bg-cyan-400/35 filter blur-md animate-pulse"></div>
+                
+                {/* Cyan border ring overlay */}
+                <div className="absolute inset-0 rounded-full border border-cyan-300/30"></div>
+
+                {/* Wave pulse/ring during active states */}
+                {orbState === 'listening' && (
+                  <div className="absolute inset-0 bg-nexa-glow/30 animate-ping rounded-full"></div>
+                )}
+                {orbState === 'thinking' && (
+                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-cyan-400/40 to-transparent animate-spin rounded-full"></div>
+                )}
+
+                {/* Central logo with high contrast depth shadow */}
+                <span className="text-2xl font-black text-white font-display tracking-widest select-none z-20 drop-shadow-[0_2px_8px_rgba(0,229,255,0.8)]">X</span>
+              </motion.button>
+              <div className="text-[8px] text-gray-500 mt-1.5 text-center font-mono tracking-wider uppercase font-semibold select-none">
+                {orbState === 'listening' ? "Speak Now" : 
+                 orbState === 'thinking' ? "Thinking" : 
+                 orbState === 'completed' ? "Completed" : "Xena Orb"}
+              </div>
+            </div>
+
+            {/* Right Buttons Group */}
+            <div className="flex space-x-8">
+              <button 
+                onClick={() => setActiveView('my-items')}
+                className={`flex flex-col items-center justify-center cursor-pointer transition-all duration-300 py-1 ${
+                  activeView === 'my-items' ? 'text-nexa-glow scale-105' : 'text-gray-500 hover:text-white'
+                }`}
+              >
+                <ClipboardList className="w-5 h-5 mb-0.5" />
+                <span className="text-[10px] font-bold tracking-tight font-display">My Items</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveView('profile')}
+                className={`flex flex-col items-center justify-center cursor-pointer transition-all duration-300 py-1 ${
+                  ['profile', 'account', 'permissions', 'connected-apps', 'privacy', 'memory'].includes(activeView) ? 'text-nexa-glow scale-105' : 'text-gray-500 hover:text-white'
+                }`}
+              >
+                <User className="w-5 h-5 mb-0.5" />
+                <span className="text-[10px] font-bold tracking-tight font-display">Profile</span>
+              </button>
+            </div>
+
           </div>
-
-          {/* Right Buttons Group */}
-          <div className="flex space-x-8">
-            <button 
-              onClick={() => setActiveView('my-items')}
-              className={`flex flex-col items-center justify-center cursor-pointer transition-all duration-300 py-1 ${
-                activeView === 'my-items' ? 'text-nexa-glow scale-105' : 'text-gray-500 hover:text-white'
-              }`}
-            >
-              <ClipboardList className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px] font-bold tracking-tight font-display">My Items</span>
-            </button>
-
-            <button 
-              onClick={() => setActiveView('profile')}
-              className={`flex flex-col items-center justify-center cursor-pointer transition-all duration-300 py-1 ${
-                ['profile', 'account', 'permissions', 'connected-apps', 'privacy', 'memory'].includes(activeView) ? 'text-nexa-glow scale-105' : 'text-gray-500 hover:text-white'
-              }`}
-            >
-              <User className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px] font-bold tracking-tight font-display">Profile</span>
-            </button>
-          </div>
-
         </div>
-      </div>
+      )}
 
       {/* Voice Recording overlay simulation */}
       <AnimatePresence>

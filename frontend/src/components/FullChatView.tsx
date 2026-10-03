@@ -64,7 +64,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
 
     // Add user message optimistically
     const tempUserMsg: Message = {
-      id: `temp-u-${Date.now()}`,
+      id: `temp-u-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       conversation_id: 'conv-1',
       sender: 'user',
       text,
@@ -84,7 +84,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let streamingText = '';
-        const tempAssistantId = `temp-a-${Date.now()}`;
+        const tempAssistantId = `temp-a-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
         let addedTempMessage = false;
 
         let buffer = '';
@@ -167,7 +167,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
     } catch (e: any) {
       console.error('Error sending message:', e);
       const errorMsg: Message = {
-        id: `temp-a-${Date.now()}`,
+        id: `temp-a-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         conversation_id: 'conv-1',
         sender: 'assistant',
         text: `Connection reset. Unable to bridge request to cloud brain. (${e?.message || 'NetworkError'})`,
@@ -277,13 +277,15 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#0B0E14] text-white px-4 pt-4 pb-24 overflow-hidden">
-      {/* Header Bar */}
-      <div className="flex items-center justify-between pb-4 border-b border-nexa-border mb-4">
+    <div className="flex flex-col h-full w-full max-h-full overflow-hidden bg-[#0B0E14] text-white relative">
+      {/* Persistently Accessible Sticky Header Bar */}
+      <header className="sticky top-0 z-30 bg-[#0B0E14]/95 backdrop-blur-md px-4 py-3 border-b border-nexa-border flex items-center justify-between shadow-sm flex-shrink-0">
         <div className="flex items-center space-x-3">
           <button 
             onClick={onBack}
-            className="p-2 rounded-lg bg-nexa-card hover:bg-nexa-border text-gray-400 hover:text-white transition cursor-pointer"
+            className="p-2 rounded-xl bg-nexa-card hover:bg-nexa-border text-gray-400 hover:text-white transition cursor-pointer active:scale-95"
+            title="Back to Dashboard"
+            aria-label="Back to Dashboard"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -292,40 +294,46 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
               <span>Xena AI Agent</span>
               <span className="w-1.5 h-1.5 rounded-full bg-nexa-glow animate-ping"></span>
             </h1>
-            <p className="text-[9px] text-gray-400 font-mono">SECURE AGENT DIRECT ENVELOPE</p>
+            <p className="text-[9px] text-gray-400 font-mono tracking-wider">STUDENT COMPANION ACTIVE</p>
           </div>
         </div>
 
         <div className="flex items-center space-x-2">
+          {/* New Conversation Button - Persistently Accessible Across All Scroll Depths */}
           <button
             onClick={handleNewConversation}
-            className="px-3 py-1.5 bg-nexa-card hover:bg-nexa-border border border-nexa-border text-gray-200 hover:text-white rounded-xl text-[10px] font-bold uppercase font-mono tracking-wider flex items-center space-x-1.5 cursor-pointer"
-            title="Start a new conversation"
+            className="px-3 py-1.5 bg-gradient-to-r from-nexa-blue/20 to-nexa-purple/20 hover:from-nexa-blue/30 hover:to-nexa-purple/30 border border-nexa-blue/40 hover:border-nexa-glow text-gray-100 hover:text-white rounded-xl text-[11px] font-bold font-mono tracking-wider flex items-center space-x-1.5 transition shadow-sm cursor-pointer active:scale-95"
+            title="Start a new conversation (+ New Chat)"
+            aria-label="Start a new conversation"
           >
-            <span>+ New Conversation</span>
+            <Sparkles className="w-3.5 h-3.5 text-nexa-glow" />
+            <span>+ New Chat</span>
           </button>
           <button
             onClick={() => setIsLiveVoiceOpen(true)}
-            className="px-3 py-1.5 bg-gradient-to-r from-nexa-blue to-nexa-purple hover:opacity-90 text-white rounded-xl text-[10px] font-bold uppercase font-mono tracking-wider flex items-center space-x-1.5 shadow-md cursor-pointer"
+            className="px-3 py-1.5 bg-gradient-to-r from-nexa-blue to-nexa-purple hover:opacity-90 text-white rounded-xl text-[11px] font-bold font-mono tracking-wider flex items-center space-x-1.5 shadow-md cursor-pointer transition active:scale-95"
+            title="Open Live Voice interaction"
+            aria-label="Open Live Voice"
           >
             <Radio className="w-3.5 h-3.5 text-white animate-pulse" />
-            <span>Live Voice</span>
+            <span className="hidden sm:inline">Live Voice</span>
             <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>
           </button>
           {chatMessages.length > 0 && (
             <button 
               onClick={handleClearHistory}
-              className="p-2 rounded-lg bg-nexa-card hover:bg-red-950/20 text-gray-400 hover:text-red-400 transition cursor-pointer"
-              title="Clear conversation log"
+              className="p-2 rounded-xl bg-nexa-card hover:bg-red-950/30 text-gray-400 hover:text-red-400 border border-nexa-border/60 transition cursor-pointer active:scale-95"
+              title="Clear current conversation messages"
+              aria-label="Clear current conversation messages"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
-          <span className="text-[9px] font-mono tracking-widest text-nexa-glow bg-nexa-blue/10 border border-nexa-blue/20 px-2 py-0.5 rounded-full uppercase">
+          <span className="hidden md:inline-block text-[9px] font-mono tracking-widest text-nexa-glow bg-nexa-blue/10 border border-nexa-blue/20 px-2 py-0.5 rounded-full uppercase">
             ONLINE
           </span>
         </div>
-      </div>
+      </header>
 
       <LiveVoiceModal
         isOpen={isLiveVoiceOpen}
@@ -335,7 +343,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
 
       {/* Success Notification */}
       {successMsg && (
-        <div className="mb-3 p-2.5 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-400 text-[11px] flex items-center space-x-1.5">
+        <div className="mx-4 mt-3 p-2.5 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-400 text-[11px] flex items-center space-x-1.5 animate-fadeIn flex-shrink-0">
           <Check className="w-3.5 h-3.5" />
           <span>{successMsg}</span>
         </div>
@@ -348,7 +356,7 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="mb-3 p-3.5 rounded-xl bg-gradient-to-r from-nexa-blue/20 to-nexa-purple/20 border border-nexa-blue/40 flex items-center justify-between shadow-[0_0_20px_rgba(0,229,255,0.15)]"
+            className="mx-4 mt-3 p-3.5 rounded-xl bg-gradient-to-r from-nexa-blue/20 to-nexa-purple/20 border border-nexa-blue/40 flex items-center justify-between shadow-[0_0_20px_rgba(0,229,255,0.15)] flex-shrink-0"
           >
             <div className="flex items-center space-x-3 max-w-[75%]">
               <Mic className="w-5 h-5 text-nexa-glow animate-pulse flex-shrink-0" />
@@ -389,17 +397,17 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
         )}
       </AnimatePresence>
 
-      {/* Core Message Stream View */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 mb-4 pr-1">
+      {/* Core Message Stream View - Independent Scroll Container */}
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-4 py-4 space-y-4">
         {chatMessages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
+          <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center p-6 space-y-4">
             <div className="w-12 h-12 rounded-full bg-nexa-blue/10 border border-nexa-blue/30 flex items-center justify-center text-nexa-glow shadow-[0_0_15px_rgba(0,229,255,0.1)]">
               <Cpu className="w-6 h-6 animate-pulse" />
             </div>
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wider text-white font-display">Begin Interactive Dialogue</h3>
               <p className="text-[10.5px] text-gray-400 mt-1 max-w-xs leading-relaxed">
-                Xena AI listens, schedules, and categorizes goals using standard schema definitions. Try typing a direct instruction:
+                Xena AI is ready to assist with your study schedules, reminders, exams, and academic questions:
               </p>
             </div>
 
@@ -423,9 +431,9 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
         ) : (
           chatMessages
             .filter(msg => msg.text && msg.text.trim().length > 0)
-            .map((msg) => (
+            .map((msg, idx) => (
             <div 
-              key={msg.id} 
+              key={msg.id ? `${msg.id}-${idx}` : `msg-${idx}`} 
               className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div className={`max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed text-xs shadow-md ${
@@ -487,14 +495,14 @@ export default function FullChatView({ onBack, onRefreshData }: FullChatViewProp
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Multiline Input Form Composer */}
-      <div className="pt-2">
+      {/* Multiline Input Form Composer - Sticky Bottom */}
+      <div className="sticky bottom-0 z-20 bg-[#0B0E14]/95 backdrop-blur-md border-t border-nexa-border/60 px-4 py-3 flex-shrink-0">
         <ChatComposer
           inputText={inputText}
           setInputText={setInputText}
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
-          placeholder="Type or speak deep instruction..."
+          placeholder="Type or speak to Xena..."
         />
       </div>
     </div>

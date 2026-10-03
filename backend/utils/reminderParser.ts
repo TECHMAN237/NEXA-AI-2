@@ -1,4 +1,5 @@
 import { extractTimeFromText, normalizeTimeString, extractRelativeTimeOffset, formatReadableDate, formatReadableTime } from './timeUtils.js';
+import { classifyIdentityOrCapability, isQuestionOrInquiry } from '../server/XenaIdentity.js';
 
 export interface ExtractedReminderInfo {
   title: string;
@@ -209,8 +210,9 @@ export function cleanReminderTitle(rawTitle: string, fullQuery: string): string 
   const timePatterns = [
     /\b(?:in|for)\s+\d+\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)\b(\s*from\s+now)?/gi,
     /\b\d+\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)\s*from\s+now\b/gi,
-    /\bat\s+\d{1,2}(?::\d{2})?\s*(?:minutes?|mins?|m)?\s*(a\.?m\.?|p\.?m\.?)?\b/gi,
-    /\b\d{1,2}(?::\d{2})?\s*(?:minutes?|mins?|m)?\s*(a\.?m\.?|p\.?m\.?)\b/gi,
+    /\bat\s+\d{1,2}(?::\d{2})?\s*(?:minutes?|mins?|m)?\s*(a\.?m\.?|p\.?m\.?)(?!\w)/gi,
+    /\b\d{1,2}(?::\d{2})?\s*(?:minutes?|mins?|m)?\s*(a\.?m\.?|p\.?m\.?)(?!\w)/gi,
+    /\bat\s+\d{1,2}(?::\d{2})?\b/gi,
     /\b\d{1,2}\s+in the (morning|evening|afternoon)\b/gi,
     /\bin the (morning|evening|afternoon)\b/gi,
     /\bat noon\b/gi,
@@ -416,8 +418,26 @@ export function parseFollowUpUpdate(
 
   const lower = queryText.toLowerCase().trim();
 
-  // If query is an explicit action/creation/query command, don't treat as follow-up
-  if (/^(remind|create|set|add|schedule|what|when|where|how|do i|list|show|view|check|tell me|i have)/i.test(lower)) {
+  // STRICT RULE: Requests containing creation/addition/save/schedule/planning keywords MUST NEVER update an existing reminder.
+  const hasCreationIntent = /\b(save|add|create|register|schedule|remind|put\s+this|put\s+it|another|new|plan|organize|timetable)\b/i.test(lower) ||
+    lower.includes('a reminder') ||
+    lower.includes('me a reminder') ||
+    lower.includes('new reminder') ||
+    lower.includes('remind me') ||
+    lower.includes('plan my') ||
+    lower.includes('help me plan') ||
+    lower.includes('for one hour') ||
+    lower.includes('for two hours') ||
+    lower.includes('for 2 hours') ||
+    lower.includes('for 1 hour');
+
+  if (hasCreationIntent) {
+    return null;
+  }
+
+  // Strip conversational prefixes and check for query/creation actions
+  const stripped = lower.replace(/^(please|can you|could you|would you|i want you to|help me|go ahead and)\s+/i, '');
+  if (/^(remind|create|set|add|schedule|what|when|where|how|do i|list|show|view|check|tell me|i have)/i.test(stripped)) {
     return null;
   }
 
@@ -508,9 +528,26 @@ export function parseFollowUpUpdate(
 }
 
 export function parseEventFollowUpUpdate(queryText: string, lastEvent: any) {
-  if (!lastEvent) return null;
+  if (!lastEvent || !queryText) return null;
 
   const lower = queryText.toLowerCase().trim();
+
+  // STRICT GUARD 1: Identity, purpose, role, and capability questions MUST NEVER update an event
+  if (classifyIdentityOrCapability(queryText).isMatch) {
+    return null;
+  }
+
+  // STRICT GUARD 2: General questions or inquiries are NOT action commands or event parameter answers
+  if (isQuestionOrInquiry(queryText)) {
+    return null;
+  }
+
+  // STRICT GUARD 3: Greetings, gratitude, and casual remarks are NOT event updates
+  if (
+    /^(hi|hello|hey|good morning|good afternoon|good evening|thanks|thank you|cool|great|nice|ok|okay|bye|see you)\b/i.test(lower)
+  ) {
+    return null;
+  }
 
   // STRICT RULE: Requests containing creation/addition/save/schedule keywords MUST NEVER update an existing event.
   const hasCreationIntent = /\b(save|add|create|register|schedule|remind|put\s+this|put\s+it|another|new)\b/i.test(lower) ||
@@ -522,12 +559,12 @@ export function parseEventFollowUpUpdate(queryText: string, lastEvent: any) {
     return null;
   }
 
-  // Check for explicit update intent
-  const hasExplicitUpdateIntent = /\b(update|change|modify|edit|move|reschedule|change\s+the\s+time|change\s+the\s+date|change\s+the\s+location|make\s+it)\b/i.test(lower);
+  // Check for explicit update intent (e.g. "update event location to library", "change date to Friday")
+  const hasExplicitUpdateIntent = /\b(update|change|modify|edit|move|reschedule|change\s+the\s+time|change\s+the\s+date|change\s+the\s+location|make\s+it\s+at)\b/i.test(lower);
 
   // If NOT an explicit update command, it MUST be a short direct response (e.g., "At the university chapel") answering a missing field prompt.
   if (!hasExplicitUpdateIntent) {
-    if (queryText.length > 60) return null;
+    if (queryText.length > 50) return null;
   }
 
   const isMissingDate = !lastEvent.date || lastEvent.date === 'Not specified';
@@ -555,16 +592,23 @@ export function parseEventFollowUpUpdate(queryText: string, lastEvent: any) {
   }
 
   if (isMissingLoc || hasExplicitUpdateIntent) {
-    const locMatch = queryText.match(/\b(at|in)\s+([A-Z0-9][a-zA-Z0-9\s,]{2,30})/i) || queryText.match(/\b(university|hall|room|office|church|center|centre|hub|building|campus|park|stadium|hotel|house)\b/i);
+    // 1. Explicit location prepositions like "at the library", "in Room 204"
+    const locMatch = queryText.match(/\b(?:at|in)\s+([A-Za-z0-9][a-zA-Z0-9\s,.'-]{2,40})/i);
+    // 2. Recognized educational/campus location nouns
+    const placeWordMatch = queryText.match(/\b(university|library|hall|room|office|church|chapel|center|centre|hub|building|campus|park|stadium|hotel|house|lab|auditorium|classroom|zoom|google meet|online)\b/i);
+
     if (locMatch) {
-      let locStr = locMatch[0].replace(/^(at|in)\s+/i, '').trim();
-      if (locStr && !/saturday|sunday|monday|tuesday|wednesday|thursday|friday|today|tomorrow/i.test(locStr)) {
-        updates.location = locStr.charAt(0).toUpperCase() + locStr.slice(1);
+      const candidate = locMatch[1].replace(/^(the\s+|a\s+|an\s+)/i, '').trim();
+      const isTimeOrDate = /^\d{1,2}(:\d{2})?\s*(am|pm|a\.m\.|p\.m\.)?$/i.test(candidate) ||
+                           /\b(am|pm|noon|midnight)\b/i.test(candidate) ||
+                           /\b(saturday|sunday|monday|tuesday|wednesday|thursday|friday|today|tomorrow|events|my events)\b/i.test(candidate);
+      if (!isTimeOrDate && candidate.length >= 2) {
+        updates.location = candidate.charAt(0).toUpperCase() + candidate.slice(1);
       }
-    } else if (!isMissingDate || !isMissingTime) {
-      const cleaned = queryText.replace(/(saturday|sunday|monday|tuesday|wednesday|thursday|friday|today|tomorrow|\d{1,2}(:\d{2})?\s*(am|pm)?|at|in|on|,)/gi, '').trim();
-      if (cleaned.length > 2 && !/\b(event|meeting|bootcamp|conference|workshop)\b/i.test(cleaned)) {
-        updates.location = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+    } else if (placeWordMatch) {
+      const candidate = queryText.replace(/^(the\s+|it's\s+at\s+|it\s+is\s+at\s+|at\s+|in\s+)/i, '').trim();
+      if (candidate.length >= 2 && candidate.length <= 40) {
+        updates.location = candidate.charAt(0).toUpperCase() + candidate.slice(1);
       }
     }
   }

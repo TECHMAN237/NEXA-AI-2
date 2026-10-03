@@ -19,7 +19,7 @@ export default function RobotHero() {
 
         {/* The actual premium generated Xena AI Robot avatar */}
         <img 
-          src="/src/assets/images/nexa_robot_avatar_1784050933373.jpg" 
+          src="/src/assets/images/xena_ai_avatar_1790999646755.jpg" 
           alt="Xena AI Companion" 
           className="w-full h-full object-cover rounded-full select-none"
           referrerPolicy="no-referrer"

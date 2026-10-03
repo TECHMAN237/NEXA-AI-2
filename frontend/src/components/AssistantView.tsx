@@ -79,7 +79,7 @@ export default function AssistantView({
 
     // Optimistically add user message
     const tempUserMsg: Message = {
-      id: `temp-u-${Date.now()}`,
+      id: `temp-u-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       conversation_id: 'conv-1',
       sender: 'user',
       text,
@@ -99,7 +99,7 @@ export default function AssistantView({
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let streamingText = '';
-        const tempAssistantId = `temp-a-${Date.now()}`;
+        const tempAssistantId = `temp-a-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
         let addedTempMessage = false;
 
         let buffer = '';
@@ -182,7 +182,7 @@ export default function AssistantView({
     } catch (e: any) {
       console.error('Error sending message:', e);
       const errorMsg: Message = {
-        id: `temp-a-${Date.now()}`,
+        id: `temp-a-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         conversation_id: 'conv-1',
         sender: 'assistant',
         text: `Sorry, I faced a network issue connecting to my core brain. (${e?.message || 'NetworkError'})`,
@@ -342,7 +342,7 @@ export default function AssistantView({
           {/* Realistic 3D Robot Avatar Image */}
           <div className="w-34 h-34 rounded-full bg-slate-900 overflow-hidden border-2 border-nexa-blue/80 relative z-10 flex items-center justify-center">
             <img 
-              src="/src/assets/images/nexa_robot_avatar_1784050933373.jpg" 
+              src="/src/assets/images/xena_ai_avatar_1790999646755.jpg" 
               alt="Xena AI Companion" 
               referrerPolicy="no-referrer"
               className="w-full h-full object-cover select-none"
@@ -481,9 +481,9 @@ export default function AssistantView({
           ) : (
             chatMessages
               .filter(msg => msg.text && msg.text.trim().length > 0)
-              .map((msg) => (
+              .map((msg, idx) => (
               <div 
-                key={msg.id} 
+                key={msg.id ? `${msg.id}-${idx}` : `msg-${idx}`} 
                 className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div className={`max-w-[85%] rounded-xl px-3 py-2 leading-relaxed text-xs ${

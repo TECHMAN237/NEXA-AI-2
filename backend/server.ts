@@ -4,11 +4,17 @@ import fs from "fs";
 import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import { dbService } from "./server/db.js";
-import { routeUserIntent, checkAndMemorize, chatWithNexa, chatWithXenaStream, chatWithXenaLive, generateAILinePlanning, reformulateReminder, transcribeAudioWithGemini, isConversationalText, generateConversationalResponse } from "./server/gemini.js";
+import { routeUserIntent, checkAndMemorize, chatWithNexa, chatWithXenaStream, chatWithXenaLive, generateAILinePlanning, reformulateReminder, transcribeAudioWithGemini, isConversationalText, isSimpleGreeting, generateConversationalResponse } from "./server/gemini.js";
 import { ServerActionEngine } from "./server/ServerActionEngine.js";
 import { normalizeUserInput } from "./server/contextualNormalizer.js";
 import { normalizeTimeString, extractTimeFromText } from "./utils/timeUtils.js";
 import { parseFollowUpUpdate, parseEventFollowUpUpdate } from "./utils/reminderParser.js";
+import { 
+  classifyIdentityOrCapability, 
+  generateAuthoritativeIdentityResponse, 
+  XENA_OFFICIAL_IDENTITY, 
+  XENA_CAPABILITY_REGISTRY 
+} from "./server/XenaIdentity.js";
 import {
   reminderController,
   planningController,
@@ -497,6 +503,14 @@ async function startServer() {
     actionController.execute(req, res, currentUserId);
   });
 
+  // ==================== XENA AUTHORITATIVE IDENTITY & CAPABILITIES API ====================
+  app.get("/api/identity", (req, res) => {
+    res.json({
+      identity: XENA_OFFICIAL_IDENTITY,
+      capabilities: XENA_CAPABILITY_REGISTRY
+    });
+  });
+
   // ==================== INTELLIGENT AI CHAT & ASSISTANT ACTION ENGINE ====================
   app.get("/api/chat/messages", (req, res) => {
     if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
@@ -518,7 +532,7 @@ async function startServer() {
     res.json({ conversation: newConv, success: true });
   });
 
-  app.post("/api/chat/message", async (req, res) => {
+  app.post(["/api/chat", "/api/chat/message"], async (req, res) => {
     if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
     const { text, type } = req.body;
     if (!text) return res.status(400).json({ error: "Message text is required" });
@@ -538,8 +552,8 @@ async function startServer() {
       type: type || 'text'
     });
 
-    // 1.2 Fast conversational path (greetings, well-being, capabilities)
-    if (isConversationalText(cleanedText)) {
+    // 1.2 Fast conversational path (pure greetings, well-being, gratitude)
+    if (isSimpleGreeting(cleanedText)) {
       const profile = dbService.getProfile(currentUserId);
       const assistantReply = generateConversationalResponse(cleanedText, profile?.full_name);
       const assistantMsg = dbService.createMessage(conversation.id, {
@@ -551,6 +565,25 @@ async function startServer() {
         userMessage: userMsg,
         assistantMessage: assistantMsg,
         intent: { intent: 'NORMAL_CHAT' },
+        actionResults: []
+      });
+    }
+
+    // 1.3 Dedicated Authoritative Identity, Purpose & Capability Path (NEVER execute tools)
+    const identityCheck = classifyIdentityOrCapability(cleanedText);
+    if (identityCheck.isMatch) {
+      console.log(`[ROUTING_DECISION] Category: IDENTITY_CAPABILITY | Type: ${identityCheck.category} | Query: "${cleanedText}" | Route: DIRECT_IDENTITY_PIPELINE | Action: NONE`);
+      const profile = dbService.getProfile(currentUserId);
+      const assistantReply = generateAuthoritativeIdentityResponse(cleanedText, profile?.full_name);
+      const assistantMsg = dbService.createMessage(conversation.id, {
+        sender: 'assistant',
+        text: assistantReply,
+        type: type || 'text'
+      });
+      return res.json({
+        userMessage: userMsg,
+        assistantMessage: assistantMsg,
+        intent: { intent: 'IDENTITY_CAPABILITIES', category: identityCheck.category },
         actionResults: []
       });
     }
@@ -680,8 +713,8 @@ async function startServer() {
       type: type || 'voice'
     });
 
-    // Fast conversational path (greetings, well-being, capabilities)
-    if (isConversationalText(cleanedText)) {
+    // Fast conversational path (pure greetings, well-being, gratitude)
+    if (isSimpleGreeting(cleanedText)) {
       const profile = dbService.getProfile(currentUserId);
       const assistantReply = generateConversationalResponse(cleanedText, profile?.full_name);
       const assistantMsg = dbService.createMessage(conversation.id, {
@@ -693,6 +726,30 @@ async function startServer() {
         userMessage: userMsg,
         assistantMessage: assistantMsg,
         intent: { intent: 'NORMAL_CHAT' },
+        actionResults: [],
+        replyText: assistantReply,
+        timings: {
+          totalMs: Date.now() - startTime,
+          aiMs: 0
+        }
+      });
+    }
+
+    // Dedicated Authoritative Identity & Capability Inquiry Path for Live Mode
+    const identityCheck = classifyIdentityOrCapability(cleanedText);
+    if (identityCheck.isMatch) {
+      console.log(`[ROUTING_DECISION_LIVE] Category: IDENTITY_CAPABILITY | Type: ${identityCheck.category} | Query: "${cleanedText}" | Route: LIVE_IDENTITY_PIPELINE`);
+      const profile = dbService.getProfile(currentUserId);
+      const assistantReply = generateAuthoritativeIdentityResponse(cleanedText, profile?.full_name);
+      const assistantMsg = dbService.createMessage(conversation.id, {
+        sender: 'assistant',
+        text: assistantReply,
+        type: 'voice'
+      });
+      return res.json({
+        userMessage: userMsg,
+        assistantMessage: assistantMsg,
+        intent: { intent: 'IDENTITY_CAPABILITIES', category: identityCheck.category },
         actionResults: [],
         replyText: assistantReply,
         timings: {
@@ -832,6 +889,38 @@ async function startServer() {
       type: type || 'text'
     });
 
+    // 1. Fast conversational path for greetings in stream
+    if (isSimpleGreeting(cleanedText)) {
+      const profile = dbService.getProfile(currentUserId);
+      const assistantReply = generateConversationalResponse(cleanedText, profile?.full_name);
+      res.write(`data: ${JSON.stringify({ chunk: assistantReply })}\n\n`);
+      const assistantMsg = dbService.createMessage(conversation.id, {
+        sender: 'assistant',
+        text: assistantReply,
+        type: type || 'text'
+      });
+      res.write(`data: ${JSON.stringify({ done: true, message: assistantMsg, intent: { intent: 'NORMAL_CHAT' }, actionResults: [] })}\n\n`);
+      res.end();
+      return;
+    }
+
+    // 2. Dedicated Authoritative Identity & Capability Inquiry Path for Streaming Mode
+    const identityCheck = classifyIdentityOrCapability(cleanedText);
+    if (identityCheck.isMatch) {
+      console.log(`[ROUTING_DECISION_STREAM] Category: IDENTITY_CAPABILITY | Type: ${identityCheck.category} | Query: "${cleanedText}" | Route: STREAM_IDENTITY_PIPELINE`);
+      const profile = dbService.getProfile(currentUserId);
+      const assistantReply = generateAuthoritativeIdentityResponse(cleanedText, profile?.full_name);
+      res.write(`data: ${JSON.stringify({ chunk: assistantReply })}\n\n`);
+      const assistantMsg = dbService.createMessage(conversation.id, {
+        sender: 'assistant',
+        text: assistantReply,
+        type: type || 'text'
+      });
+      res.write(`data: ${JSON.stringify({ done: true, message: assistantMsg, intent: { intent: 'IDENTITY_CAPABILITIES', category: identityCheck.category }, actionResults: [] })}\n\n`);
+      res.end();
+      return;
+    }
+
     let actionResults: any[] = [];
     try {
       const reminders = dbService.getReminders(currentUserId);
@@ -840,7 +929,17 @@ async function startServer() {
 
       const events = dbService.getEvents(currentUserId);
       const lastIncompleteEvent = events.slice().reverse().find(e => e.date === 'Not specified' || e.time === 'Not specified' || e.location === 'Not specified');
-      const eventFollowUp = parseEventFollowUpUpdate(cleanedText, lastIncompleteEvent);
+      
+      const recentAssistantMsg = dbService.getMessages(conversation.id).slice().reverse().find(m => m.sender === 'assistant');
+      const wasAskedForEventField = recentAssistantMsg && (
+        recentAssistantMsg.text.includes('Where will it take place?') ||
+        recentAssistantMsg.text.includes('What date should I set for this event?') ||
+        recentAssistantMsg.text.includes('What time will this event start?')
+      );
+      const hasExplicitEventUpdate = /\b(update|change|modify|edit|move|reschedule|change\s+the\s+time|change\s+the\s+date|change\s+the\s+location|make\s+it\s+at)\b/i.test(cleanedText.toLowerCase());
+      const shouldCheckEventFollowUp = wasAskedForEventField || hasExplicitEventUpdate;
+
+      const eventFollowUp = shouldCheckEventFollowUp && lastIncompleteEvent ? parseEventFollowUpUpdate(cleanedText, lastIncompleteEvent) : null;
 
       let actionsToRun: any[] = [];
 

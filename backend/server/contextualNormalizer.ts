@@ -48,6 +48,28 @@ export function normalizeUserInput(rawInput: string, userContext?: any): Normali
     wasCorrected = true;
   }
 
+  // 2b. Natural Speech Time Artifact Normalization
+  // Handles speech artifacts such as "6:48 minutes a.m." -> "6:48 AM"
+  const timeArtifactRegex = /\b(\d{1,2}:\d{2})\s*(?:minutes?|mins?|m)\s*(am|pm|a\.?m\.?|p\.?m\.?)(?!\w)/gi;
+  if (timeArtifactRegex.test(text)) {
+    text = text.replace(timeArtifactRegex, (match, timePart, meridian) => {
+      const cleanMeridian = meridian.replace(/\./g, '').toUpperCase();
+      return `${timePart} ${cleanMeridian}`;
+    });
+    wasCorrected = true;
+    correctionReason = 'Normalized speech artifact in time expression';
+  }
+
+  const spaceTimeArtifactRegex = /\b(\d{1,2})\s+(\d{2})\s*(?:minutes?|mins?|m)\s*(am|pm|a\.?m\.?|p\.?m\.?)(?!\w)/gi;
+  if (spaceTimeArtifactRegex.test(text)) {
+    text = text.replace(spaceTimeArtifactRegex, (match, hr, min, meridian) => {
+      const cleanMeridian = meridian.replace(/\./g, '').toUpperCase();
+      return `${hr}:${min} ${cleanMeridian}`;
+    });
+    wasCorrected = true;
+    correctionReason = 'Normalized space-separated speech artifact in time expression';
+  }
+
   // 3. Application Vocabulary & Phonetic Normalization (Vault Memory context)
   // Examples: "Volt", "Volts", "Vaults", "Valts", "Bolts", "Faults" -> "Vault"
   // Rule: If word sounds like Vault and occurs in Memory Vault contexts

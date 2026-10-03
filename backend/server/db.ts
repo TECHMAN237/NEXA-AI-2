@@ -50,6 +50,11 @@ const DEFAULT_DB: Schema = {
       theme: 'Dark',
       notifications_enabled: true,
       connected_apps: ['Google Calendar', 'Spotify', 'Notion'],
+      academic_level: 'Undergraduate Senior',
+      institution: 'Massachusetts Institute of Technology (MIT)',
+      field_of_study: 'Computer Science & Software Engineering',
+      bio: 'Focused on AI systems, constraint optimization, and high-performance engineering.',
+      timezone: 'UTC-7',
       created_at: '2025-05-01T08:00:00Z'
     }
   ],
@@ -358,7 +363,29 @@ const DEFAULT_DB: Schema = {
   study_tracking: []
 };
 
+function generateUniqueId(prefix: string): string {
+  const rand = Math.random().toString(36).substring(2, 8);
+  const time = Date.now();
+  return `${prefix}-${time}-${rand}`;
+}
+
 // Ensure data folder and file exists
+function sanitizeCollection(items: any[], prefix: string): boolean {
+  if (!Array.isArray(items)) return false;
+  const seen = new Set<string>();
+  let modified = false;
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (!item) continue;
+    if (!item.id || seen.has(item.id)) {
+      item.id = generateUniqueId(prefix);
+      modified = true;
+    }
+    seen.add(item.id);
+  }
+  return modified;
+}
+
 function initDb() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -366,10 +393,21 @@ function initDb() {
   if (!fs.existsSync(DB_FILE)) {
     fs.writeFileSync(DB_FILE, JSON.stringify(DEFAULT_DB, null, 2));
   } else {
-    // Merge potential schema updates
+    // Merge potential schema updates and deduplicate IDs
     try {
       const current = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
       const updated = { ...DEFAULT_DB, ...current };
+      let changed = false;
+      changed = sanitizeCollection(updated.messages, 'msg') || changed;
+      changed = sanitizeCollection(updated.notification_history, 'act') || changed;
+      changed = sanitizeCollection(updated.reminders, 'rem') || changed;
+      changed = sanitizeCollection(updated.tasks, 'task') || changed;
+      changed = sanitizeCollection(updated.plans, 'plan') || changed;
+      changed = sanitizeCollection(updated.exams, 'exam') || changed;
+      changed = sanitizeCollection(updated.events, 'event') || changed;
+      changed = sanitizeCollection(updated.memories, 'mem') || changed;
+      changed = sanitizeCollection(updated.memory_vault, 'vault') || changed;
+      changed = sanitizeCollection(updated.notifications, 'notif') || changed;
       fs.writeFileSync(DB_FILE, JSON.stringify(updated, null, 2));
     } catch (e) {
       fs.writeFileSync(DB_FILE, JSON.stringify(DEFAULT_DB, null, 2));
@@ -382,7 +420,22 @@ initDb();
 function readDb(): Schema {
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    let changed = false;
+    changed = sanitizeCollection(parsed.messages, 'msg') || changed;
+    changed = sanitizeCollection(parsed.notification_history, 'act') || changed;
+    changed = sanitizeCollection(parsed.reminders, 'rem') || changed;
+    changed = sanitizeCollection(parsed.tasks, 'task') || changed;
+    changed = sanitizeCollection(parsed.plans, 'plan') || changed;
+    changed = sanitizeCollection(parsed.exams, 'exam') || changed;
+    changed = sanitizeCollection(parsed.events, 'event') || changed;
+    changed = sanitizeCollection(parsed.memories, 'mem') || changed;
+    changed = sanitizeCollection(parsed.memory_vault, 'vault') || changed;
+    changed = sanitizeCollection(parsed.notifications, 'notif') || changed;
+    if (changed) {
+      fs.writeFileSync(DB_FILE, JSON.stringify(parsed, null, 2));
+    }
+    return parsed;
   } catch (e) {
     return DEFAULT_DB;
   }
@@ -414,7 +467,7 @@ export const dbService = {
     if (existing) return existing;
 
     const newUser: User = {
-      id: `user-${Date.now()}`,
+      id: generateUniqueId('user'),
       email,
       full_name,
       created_at: new Date().toISOString()
@@ -424,7 +477,7 @@ export const dbService = {
 
     // Create profile
     const newProfile: Profile = {
-      id: `profile-${Date.now()}`,
+      id: generateUniqueId('profile'),
       user_id: newUser.id,
       email: newUser.email,
       full_name: newUser.full_name,
@@ -446,7 +499,7 @@ export const dbService = {
     let profile = db.profiles.find(p => p.user_id === userId);
     if (!profile) {
       profile = {
-        id: `profile-${Date.now()}`,
+        id: generateUniqueId('profile'),
         user_id: userId,
         email: 'steevezali@gmail.com',
         full_name: 'Alex T.',
@@ -469,7 +522,7 @@ export const dbService = {
     let idx = db.profiles.findIndex(p => p.user_id === userId);
     if (idx === -1) {
       const newProfile: Profile = {
-        id: `profile-${Date.now()}`,
+        id: generateUniqueId('profile'),
         user_id: userId,
         email: 'steevezali@gmail.com',
         full_name: 'Alex T.',
@@ -511,7 +564,7 @@ export const dbService = {
     const db = readDb();
     const newReminder: Reminder = {
       ...r,
-      id: `rem-${Date.now()}`,
+      id: generateUniqueId('rem'),
       user_id: userId,
       created_at: new Date().toISOString()
     };
@@ -551,7 +604,7 @@ export const dbService = {
     const db = readDb();
     const newTask: Task = {
       ...t,
-      id: `task-${Date.now()}`,
+      id: generateUniqueId('task'),
       user_id: userId,
       created_at: new Date().toISOString()
     };
@@ -593,7 +646,7 @@ export const dbService = {
     const db = readDb();
     const newPlan: Plan = {
       ...p,
-      id: `plan-${Date.now()}`,
+      id: generateUniqueId('plan'),
       user_id: userId,
       created_at: new Date().toISOString()
     };
@@ -612,7 +665,7 @@ export const dbService = {
     const db = readDb();
     const newExam: Exam = {
       ...ex,
-      id: `exam-${Date.now()}`,
+      id: generateUniqueId('exam'),
       user_id: userId,
       created_at: new Date().toISOString()
     };
@@ -726,7 +779,7 @@ export const dbService = {
     const db = readDb();
     const newSession: StudySession = {
       ...s,
-      id: `session-${Date.now()}`,
+      id: generateUniqueId('session'),
       user_id: userId,
       created_at: new Date().toISOString()
     };
@@ -745,7 +798,7 @@ export const dbService = {
     const db = readDb();
     const newEvent: Event = {
       ...ev,
-      id: `event-${Date.now()}`,
+      id: generateUniqueId('event'),
       user_id: userId,
       created_at: new Date().toISOString()
     };
@@ -785,7 +838,7 @@ export const dbService = {
     const db = readDb();
     const newMemory: Memory = {
       ...m,
-      id: `mem-${Date.now()}`,
+      id: generateUniqueId('mem'),
       user_id: userId,
       created_at: new Date().toISOString()
     };
@@ -827,7 +880,7 @@ export const dbService = {
     if (!db.memory_vault) db.memory_vault = [];
     const newItem: MemoryVaultItem = {
       ...mv,
-      id: `vault-${Date.now()}`,
+      id: generateUniqueId('vault'),
       user_id: userId,
       created_at: new Date().toISOString()
     };
@@ -841,7 +894,7 @@ export const dbService = {
     if (!db.memory_vault) db.memory_vault = [];
     const newItem: MemoryVaultItem = {
       ...mv,
-      id: `vault-${Date.now()}`,
+      id: generateUniqueId('vault'),
       user_id: userId,
       created_at: new Date().toISOString()
     };
@@ -885,11 +938,13 @@ export const dbService = {
 
   getOrCreateConversation: (userId: string): Conversation => {
     const db = readDb();
-    const existing = db.conversations.find(c => c.user_id === userId);
-    if (existing) return existing;
+    const userConvs = db.conversations
+      .filter(c => c.user_id === userId)
+      .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
+    if (userConvs.length > 0) return userConvs[0];
 
     const newConv: Conversation = {
-      id: `conv-${Date.now()}`,
+      id: generateUniqueId('conv'),
       user_id: userId,
       title: 'Main Chat Assistant',
       created_at: new Date().toISOString(),
@@ -902,9 +957,8 @@ export const dbService = {
 
   createNewConversation: (userId: string): Conversation => {
     const db = readDb();
-    db.conversations = db.conversations.filter(c => c.user_id !== userId);
     const newConv: Conversation = {
-      id: `conv-${Date.now()}`,
+      id: generateUniqueId('conv'),
       user_id: userId,
       title: 'Main Chat Assistant',
       created_at: new Date().toISOString(),
@@ -924,7 +978,7 @@ export const dbService = {
     const db = readDb();
     const newMessage: Message = {
       ...m,
-      id: `msg-${Date.now()}`,
+      id: generateUniqueId('msg'),
       conversation_id: conversationId,
       created_at: new Date().toISOString()
     };
@@ -955,7 +1009,7 @@ export const dbService = {
   createNotification: (userId: string, title: string, text: string): Notification => {
     const db = readDb();
     const newNotif: Notification = {
-      id: `notif-${Date.now()}`,
+      id: generateUniqueId('notif'),
       user_id: userId,
       title,
       text,
@@ -989,7 +1043,7 @@ export const dbService = {
     const db = readDb();
     if (!db.notification_history) db.notification_history = [];
     const newItem = {
-      id: `act-${Date.now()}`,
+      id: generateUniqueId('act'),
       user_id: userId,
       type: item.type,
       title: item.title,

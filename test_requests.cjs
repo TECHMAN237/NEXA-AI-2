@@ -1,5 +1,3 @@
-const fetch = require('node-fetch');
-
 async function main() {
   const userId = 'test_user_123';
   

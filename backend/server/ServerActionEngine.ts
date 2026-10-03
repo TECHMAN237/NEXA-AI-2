@@ -5,6 +5,7 @@ import { generateStudyPlan, generateExamReminders } from '../utils/studyPlanGene
 import { StudyTrackingData } from '../types/index.js';
 import { extractVaultContent } from './contextualNormalizer.js';
 import { isConversationalText } from './gemini.js';
+import { DailyScheduleEngine, ExtractedTaskConstraint } from '../services/DailyScheduleEngine.js';
 
 export interface ServerActionPayload {
   intent: string;
@@ -531,12 +532,17 @@ Details:        ${details || 'N/A'}
       });
 
       let followUpQuestion = '';
-      if (missingFields.includes('title')) {
+      if (missingFields.includes('title') && missingFields.includes('time')) {
+        followUpQuestion = 'What would you like me to remind you about, and what time should I set it for?';
+      } else if (missingFields.includes('title')) {
         followUpQuestion = 'What would you like me to remind you about?';
-      } else if (missingFields.includes('time') && missingFields.includes('date')) {
-        followUpQuestion = 'When should I remind you?';
       } else if (missingFields.includes('time')) {
-        followUpQuestion = 'Sure. What time should I remind you?';
+        if (params.time && params.time.startsWith('AMBIGUOUS:')) {
+          const ambHour = params.time.split(':')[1];
+          followUpQuestion = `Did you mean ${ambHour}:00 AM or ${ambHour}:00 PM?`;
+        } else {
+          followUpQuestion = 'What time should I set the reminder for?';
+        }
       } else {
         followUpQuestion = 'What date should I set for this reminder?';
       }
@@ -679,255 +685,192 @@ Details:        ${details || 'N/A'}
 
     // Default: CREATE
     const date = resolveRelativeDate(payload.date, rawQuery);
-    const lowerQuery = rawQuery.toLowerCase();
 
-    const isMetaChunk = (text: string): boolean => {
-      const lower = text.trim().toLowerCase();
-      if (!lower || lower.length < 2) return true;
-      if (/^(help me|plan my day|generate my plan|generate my plan for that|create my plan|make a schedule|organize these tasks|schedule them|for that|plan it|make a plan)$/i.test(lower)) return true;
-      if (/^can\s+you\s+create\s+a\s+plan/i.test(lower)) return true;
-      if (/^i\s+want\s+you\s+to\s+help\s+me/i.test(lower)) return true;
-      if (/^generate\s+(my|a)?\s*plan/i.test(lower)) return true;
-      if (/^create\s+(my|a)?\s*plan/i.test(lower)) return true;
-      if (/^plan\s+my\s+day/i.test(lower)) return true;
-      if (/^help\s+me\s+plan/i.test(lower)) return true;
-      if (/^organize\s+(these\s+tasks|my\s+day|my\s+schedule|my\s+tasks)/i.test(lower)) return true;
-      if (/^arrange\s+(these\s+activities|my\s+tasks)/i.test(lower)) return true;
-      if (/^for\s+that\??$/i.test(lower)) return true;
-      return false;
-    };
+    // 1. Extract constraints from raw query
+    let taskConstraints = DailyScheduleEngine.parseTaskConstraints(rawQuery, date);
 
-    // Helper: Stage 1 - Task Extraction
-    const parseAndExtractTasks = (query: string) => {
-      let cleaned = query
-        .replace(/i\s+want\s+you\s+to\s+help\s+me\s+(to\s+)?plan\s+my\s+day\.?/gi, '')
-        .replace(/can\s+you\s+create\s+a\s+plan\s+for\s+that\??/gi, '')
-        .replace(/can\s+you\s+create\s+a\s+plan\??/gi, '')
-        .replace(/generate\s+my\s+plan\s+for\s+that/gi, '')
-        .replace(/generate\s+my\s+plan/gi, '')
-        .replace(/generate\s+a\s+plan/gi, '')
-        .replace(/create\s+my\s+plan/gi, '')
-        .replace(/create\s+a\s+plan/gi, '')
-        .replace(/help\s+me\s+plan\s+my\s+day/gi, '')
-        .replace(/plan\s+my\s+day/gi, '')
-        .replace(/make\s+a\s+schedule/gi, '')
-        .replace(/organize\s+these\s+tasks/gi, '')
-        .replace(/organize\s+my\s+day/gi, '')
-        .replace(/schedule\s+them/gi, '')
-        .replace(/for\s+that\??$/gi, '')
-        .replace(/^(help\s+me|please|can\s+you|i\s+want\s+to)\s+/gi, '')
-        .replace(/\b(for\s+)?(tomorrow|today|this\s+weekend|next\s+week)\b/gi, '')
-        .trim();
-
-      cleaned = cleaned.replace(/^[^a-zA-Z0-9]+/, '').trim();
-
-      const rawChunks = cleaned
-        .split(/\.|\n|\r|;|\band\s+then\b|\band\s+after\s+that\b|\bafter\s+that\b|\bthen\b/i)
-        .flatMap(chunk => chunk.split(/,|\band\b/i))
-        .map(c => c.trim())
-        .filter(c => c.length > 2);
-
-      const results: Array<{ title: string; durationHours: number; durationLabel: string; fixedTime: string | null }> = [];
-
-      for (const chunk of rawChunks) {
-        if (isMetaChunk(chunk)) {
-          continue;
-        }
-
-        let durationHours = 1.5;
-        let durationLabel = '1.5h';
-
-        const extDur = extractDurationFromText(chunk);
-        if (extDur) {
-          durationHours = extDur.durationHours;
-          durationLabel = extDur.durationLabel;
-        }
-
-        let fixedTime: string | null = null;
-        const timeMatch = extractTimeFromText(chunk);
-        if (timeMatch && !timeMatch.startsWith('AMBIGUOUS:') && (/\b(at|from|starts?\s+at)\b/i.test(chunk) || /\b(am|pm)\b/i.test(chunk))) {
-          fixedTime = timeMatch;
-        }
-
-        let title = chunk
-          .replace(/\b(for\s+)?(\d+(\.\d+)?)\s*(hours?|hrs?|h|minutes?|mins?|m)\b/gi, '')
-          .replace(/\b(for\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty)\s*(hours?|hrs?|h|minutes?|mins?|m)\b/gi, '')
-          .replace(/\b(at|from|starts?\s+at)\s+\d{1,2}(:\d{2})?\s*(am|pm)?\b/gi, '')
-          .replace(/\b\d{1,2}(:\d{2})?\s*(am|pm)\b/gi, '')
-          .replace(/^(i\s+need\s+to|i\s+have\s+to|i\s+want\s+to|need\s+to|have\s+to|i\s+must|make\s+this\s+activity|create\s+a)\s+/i, '')
-          .replace(/^(tomorrow|today|for\s+tomorrow|for\s+today)\s+/i, '')
-          .replace(/[^a-zA-Z0-9\s-]/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-
-        if (title) {
-          // Capitalize words cleanly while preserving acronyms like CSC305
-          title = title.split(' ').map(w => {
-            if (w.length === 0) return '';
-            if (/^[A-Z0-9]+$/.test(w)) return w; // Keep uppercase terms like CSC305, CS101
-            return w[0].toUpperCase() + w.slice(1);
-          }).join(' ');
-        }
-
-        if (!title || isMetaChunk(title)) {
-          continue;
-        }
-
-        results.push({
-          title,
-          durationHours,
-          durationLabel,
-          fixedTime
-        });
-      }
-
-      return results;
-    };
-
-    // STAGE 1: Extract real user tasks
-    let taskSpecs = parseAndExtractTasks(rawQuery);
-
-    if (taskSpecs.length === 0 && Array.isArray(payload.tasks) && payload.tasks.length > 0) {
-      taskSpecs = payload.tasks
-        .map((t: any) => {
-          const ext = typeof t === 'string' ? extractDurationFromText(t) : null;
-          const durHours = t.durationHours || (ext ? ext.durationHours : 1.5);
-          const durLabel = t.durationLabel || (ext ? ext.durationLabel : `${durHours}h`);
-          return {
-            title: typeof t === 'string' ? t : t.title || 'Task',
-            durationHours: durHours,
-            durationLabel: durLabel,
-            fixedTime: t.fixedTime || null
-          };
-        })
-        .filter((t: any) => !isMetaChunk(t.title));
+    // If query was short or payload passed explicit tasks
+    if (taskConstraints.length === 0 && Array.isArray(payload.tasks) && payload.tasks.length > 0) {
+      taskConstraints = payload.tasks.map((t: any, idx: number) => {
+        const title = typeof t === 'string' ? t : t.title || 'Task';
+        const rawT = typeof t === 'string' ? t : `${t.title || 'Task'} ${t.time || ''} ${t.duration || ''}`;
+        const parsedList = DailyScheduleEngine.parseTaskConstraints(rawT, date);
+        if (parsedList.length > 0) return parsedList[0];
+        return {
+          id: `constraint-${idx + 1}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          rawSnippet: title,
+          title: DailyScheduleEngine.cleanTaskTitle(title) || title,
+          constraintType: (t.fixedTime || t.time ? 'fixed_time' : 'flexible') as any,
+          fixedStartTimeStr: t.fixedTime || t.time || null,
+          fixedEndTimeStr: null,
+          fixedStartTimeMin: t.fixedTime || t.time ? DailyScheduleEngine.timeStringToMinutes(t.fixedTime || t.time) : null,
+          fixedEndTimeMin: null,
+          durationMinutes: Math.round((t.durationHours || 1.0) * 60),
+          durationHours: t.durationHours || 1.0,
+          durationLabel: `${t.durationHours || 1.0}h`,
+          deadlineMin: null,
+          deadlineStr: null,
+          priority: (t.priority || 'medium') as any,
+          isFlexible: !(t.fixedTime || t.time),
+          hasExplicitDuration: !!t.durationHours,
+          hasExplicitStartTime: !!(t.fixedTime || t.time),
+          originalOrder: idx
+        };
+      }).filter((t: any) => !DailyScheduleEngine.isMetaInstruction(t.title));
     }
 
-    // Check available time constraint in raw query (e.g., "3 hours available")
-    const availMatch = rawQuery.match(/(\d+(\.\d+)?)\s*(hours?|hrs?|h)\s*(available|free|total)/i) ||
-                      rawQuery.match(/(available|free|have)\s*(\d+(\.\d+)?)\s*(hours?|hrs?|h)/i);
-    if (availMatch && taskSpecs.length > 0) {
-      const availVal = parseFloat(availMatch[1] || availMatch[2]);
-      if (availVal > 0) {
-        const perTaskDuration = parseFloat((availVal / taskSpecs.length).toFixed(1));
-        taskSpecs.forEach(t => {
-          if (!t.fixedTime) {
-            t.durationHours = perTaskDuration;
-            t.durationLabel = `${perTaskDuration}h`;
-          }
-        });
-      }
-    }
-
-    // If still empty, check existing items for the date
-    if (taskSpecs.length === 0) {
+    // If still empty, check existing tasks & calendar events for the date
+    if (taskConstraints.length === 0) {
       const existingDbTasks = dbService.getTasks(userId).filter(t => t.date === date);
       const existingDbEvents = dbService.getEvents(userId).filter(e => e.date === date);
-      existingDbTasks.forEach(t => taskSpecs.push({ title: t.title, durationHours: 1.5, durationLabel: '1.5h', fixedTime: t.time || null }));
-      existingDbEvents.forEach(e => taskSpecs.push({ title: e.title, durationHours: 1.5, durationLabel: '1.5h', fixedTime: e.time || null }));
+      existingDbTasks.forEach((t, idx) => {
+        const startMin = t.time ? DailyScheduleEngine.timeStringToMinutes(t.time) : null;
+        taskConstraints.push({
+          id: `db-task-${idx + 1}-${Date.now()}`,
+          rawSnippet: t.title,
+          title: DailyScheduleEngine.cleanTaskTitle(t.title) || t.title,
+          constraintType: startMin !== null ? 'fixed_time' : 'flexible',
+          fixedStartTimeStr: t.time || null,
+          fixedEndTimeStr: null,
+          fixedStartTimeMin: startMin,
+          fixedEndTimeMin: startMin !== null ? startMin + 60 : null,
+          durationMinutes: 60,
+          durationHours: 1.0,
+          durationLabel: '1h',
+          deadlineMin: null,
+          deadlineStr: null,
+          priority: (t.priority || 'medium') as any,
+          isFlexible: startMin === null,
+          hasExplicitDuration: false,
+          hasExplicitStartTime: startMin !== null,
+          originalOrder: idx
+        });
+      });
+      existingDbEvents.forEach((e, idx) => {
+        const startMin = e.time ? DailyScheduleEngine.timeStringToMinutes(e.time) : null;
+        taskConstraints.push({
+          id: `db-event-${idx + 1}-${Date.now()}`,
+          rawSnippet: e.title,
+          title: DailyScheduleEngine.cleanTaskTitle(e.title) || e.title,
+          constraintType: 'fixed_time',
+          fixedStartTimeStr: e.time || null,
+          fixedEndTimeStr: null,
+          fixedStartTimeMin: startMin,
+          fixedEndTimeMin: startMin !== null ? startMin + 60 : null,
+          durationMinutes: 60,
+          durationHours: 1.0,
+          durationLabel: '1h',
+          deadlineMin: null,
+          deadlineStr: null,
+          priority: 'high',
+          isFlexible: false,
+          hasExplicitDuration: false,
+          hasExplicitStartTime: true,
+          originalOrder: 100 + idx
+        });
+      });
     }
 
-    // Fallback ONLY if zero tasks specified and zero existing DB tasks/events
-    if (taskSpecs.length === 0) {
-      taskSpecs = [
-        { title: 'Core Focus Session', durationHours: 2, durationLabel: '2h', fixedTime: null },
-        { title: 'Project Assignments', durationHours: 1.5, durationLabel: '1.5h', fixedTime: null },
-        { title: 'Review & Reflection', durationHours: 1, durationLabel: '1h', fixedTime: null }
+    // Fallback ONLY if zero tasks specified and zero existing items
+    if (taskConstraints.length === 0) {
+      taskConstraints = [
+        {
+          id: `default-1-${Date.now()}`,
+          rawSnippet: 'Core Focus Session',
+          title: 'Core Focus Session',
+          constraintType: 'duration_only',
+          durationMinutes: 120,
+          durationHours: 2.0,
+          durationLabel: '2h',
+          priority: 'high',
+          isFlexible: true,
+          hasExplicitDuration: true,
+          hasExplicitStartTime: false,
+          originalOrder: 0
+        },
+        {
+          id: `default-2-${Date.now()}`,
+          rawSnippet: 'Project Assignments',
+          title: 'Project Assignments',
+          constraintType: 'duration_only',
+          durationMinutes: 90,
+          durationHours: 1.5,
+          durationLabel: '1.5h',
+          priority: 'medium',
+          isFlexible: true,
+          hasExplicitDuration: true,
+          hasExplicitStartTime: false,
+          originalOrder: 1
+        },
+        {
+          id: `default-3-${Date.now()}`,
+          rawSnippet: 'Review & Reflection',
+          title: 'Review & Reflection',
+          constraintType: 'duration_only',
+          durationMinutes: 60,
+          durationHours: 1.0,
+          durationLabel: '1h',
+          priority: 'low',
+          isFlexible: true,
+          hasExplicitDuration: true,
+          hasExplicitStartTime: false,
+          originalOrder: 2
+        }
       ];
     }
 
-    // STAGE 2: Generate Chronological Daily Schedule
-    const helperFormatTime = (decimalHours: number): string => {
-      const totalMins = Math.round(decimalHours * 60);
-      const h = Math.floor(totalMins / 60) % 24;
-      const m = totalMins % 60;
-      const hStr = h < 10 ? `0${h}` : `${h}`;
-      const mStr = m < 10 ? `0${m}` : `${m}`;
-      return `${hStr}:${mStr}`;
-    };
+    // Fetch existing calendar events for date to enforce hard collision protection
+    const existingEventsForDate = dbService.getEvents(userId).filter(e => e.date === date);
 
-    const parseTimeToDecimal = (timeStr: string): number => {
-      if (!timeStr) return 9;
-      const [hStr, mStr] = timeStr.split(':');
-      const h = parseInt(hStr, 10) || 9;
-      const m = parseInt(mStr, 10) || 0;
-      return h + m / 60;
-    };
+    // Run deterministic constraint scheduler
+    const scheduleResult = DailyScheduleEngine.scheduleDailyPlan(
+      taskConstraints,
+      existingEventsForDate,
+      date
+    );
 
-    let clock = 8.0; // Start at 8:00 AM
-    const blocks: Array<{ startTimeDec: number; endTimeDec: number; timeLabel: string; title: string; durationLabel: string }> = [];
-
-    const fixedTasks = taskSpecs.filter(t => t.fixedTime !== null);
-    const flexibleTasks = taskSpecs.filter(t => t.fixedTime === null);
-
-    // Schedule flexible tasks
-    for (let i = 0; i < flexibleTasks.length; i++) {
-      const task = flexibleTasks[i];
-
-      const startDec = clock;
-      const endDec = startDec + task.durationHours;
-      const startStr = helperFormatTime(startDec);
-      const endStr = helperFormatTime(endDec);
-
-      blocks.push({
-        startTimeDec: startDec,
-        endTimeDec: endDec,
-        timeLabel: `${startStr} – ${endStr}`,
-        title: task.title,
-        durationLabel: task.durationLabel
-      });
-
-      clock = endDec + 0.25; // 15 min break between tasks
-      if (clock >= 12.5 && clock < 13.5) clock = 13.5; // Lunch break
+    // If hard conflict detected, do NOT persist invalid schedule!
+    if (scheduleResult.hasConflict) {
+      this.logDebugTrace(intent, action, 'Planning', 'DailyScheduleEngine.scheduleDailyPlan', 'FAILED', 'FAILED', 'FAILED', `Conflict: ${scheduleResult.conflictReport?.reason}`);
+      return {
+        intent,
+        targetModule: 'Planning',
+        action: 'CREATE',
+        success: false,
+        error: scheduleResult.conflictReport?.reason || 'Scheduling conflict detected.',
+        data: {
+          hasConflict: true,
+          conflictReport: scheduleResult.conflictReport,
+          followUpText: scheduleResult.clarificationMessage
+        },
+        summary: scheduleResult.clarificationMessage || (scheduleResult.conflictReport?.reason || 'A scheduling conflict was detected.')
+      };
     }
 
-    // Schedule fixed tasks
-    for (const ft of fixedTasks) {
-      const startDec = parseTimeToDecimal(ft.fixedTime!);
-      const endDec = startDec + ft.durationHours;
-      const startStr = helperFormatTime(startDec);
-      const endStr = helperFormatTime(endDec);
-
-      if (!blocks.some(b => b.title === ft.title)) {
-        blocks.push({
-          startTimeDec: startDec,
-          endTimeDec: endDec,
-          timeLabel: `${startStr} – ${endStr}`,
-          title: ft.title,
-          durationLabel: ft.durationLabel
-        });
-      }
-    }
-
-    // Sort all blocks chronologically
-    blocks.sort((a, b) => a.startTimeDec - b.startTimeDec);
-
-    const timelineBlocks: any[] = [];
-
-    blocks.forEach((b, idx) => {
-      timelineBlocks.push({
-        id: `block-${idx + 1}-${Date.now()}`,
-        time: b.timeLabel,
-        title: b.title,
-        duration: b.durationLabel,
-        priority: idx === 0 ? 'high' : 'medium',
-        reminder_enabled: true
-      });
-    });
-
-    const suggestions = `Daily plan structured around your actual tasks for ${date}. High-priority focus blocks assigned chronologically.`;
+    // Persistence: Save validated timeline
+    const timelineBlocks = scheduleResult.timeline.map((b, idx) => ({
+      id: `block-${idx + 1}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      time: b.time,
+      title: b.title,
+      duration: b.duration,
+      durationHours: b.durationHours,
+      durationMinutes: b.durationMinutes,
+      startTime: b.startTime,
+      endTime: b.endTime,
+      priority: b.priority,
+      reminder_enabled: true
+    }));
 
     const newPlan = dbService.createPlan(userId, {
       date,
       timeline: timelineBlocks,
-      suggestions
+      suggestions: scheduleResult.suggestions
     });
 
-    const scheduleLines = timelineBlocks
-      .map(b => `${b.time}\n${b.title}`)
-      .join('\n\n');
-
-    const followUpText = `MY PLAN FOR ${date === todayStr ? 'TODAY' : 'TOMORROW'} (${date}):\n\n${scheduleLines}`;
+    let followUpText = scheduleResult.cleanPlanSummary;
+    if (scheduleResult.unscheduledTasks && scheduleResult.unscheduledTasks.length > 0) {
+      followUpText += `\n\n*Note:* ${scheduleResult.unscheduledTasks.map(u => `• **${u.title}**: ${u.reason}`).join('\n')}`;
+    }
 
     dbService.createNotificationHistory(userId, {
       type: 'PLANNING',
@@ -1100,8 +1043,12 @@ Details:        ${details || 'N/A'}
     // Default: CREATE
     let rawTitle = payload.title || payload.content || rawQuery;
     let title = rawTitle;
-    if (typeof rawTitle === 'string') {
+    const calledMatch = (typeof rawTitle === 'string' ? rawTitle : rawQuery).match(/(?:called|named)\s+([^.!?\n]+)/i);
+    if (calledMatch && calledMatch[1]) {
+      title = calledMatch[1].replace(/[.]$/, '').trim();
+    } else if (typeof rawTitle === 'string') {
       title = rawTitle
+        .replace(/^(I\s+(have|got)\s+(an\s+)?(event|meeting|appointment|gathering)\s+)/i, '')
         .replace(/^(I\s+(would\s+like|want)\s+(you\s+)?to\s+)?(remind\s+me\s+of\s+the|remind\s+me\s+about\s+the|remind\s+me\s+of|remind\s+me\s+about|remind\s+me\s+to|remind\s+me|save\s+my|save\s+the|save\s+it\s+in|save\s+in|save\s+to|save|add\s+my|add\s+the|add|schedule\s+my|schedule\s+the|schedule|create\s+my|create\s+the|create)\s+/i, '')
         .replace(/\s+(that\s+will\s+happen|which\s+is\s+happening|happening|taking\s+place).*$/i, '')
         .replace(/\s+(and\s+)?(save\s+it\s+(inside|in)|add\s+it\s+to|save\s+to)\s+(my\s+)?events.*$/i, '')
@@ -1128,11 +1075,17 @@ Details:        ${details || 'N/A'}
     let location = payload.location;
     if (!location) {
       const locMatch = rawQuery.match(/\b(at|in)\s+([A-Z0-9][a-zA-Z0-9\s,]{2,30})/);
-      if (locMatch && !/saturday|sunday|monday|tuesday|wednesday|thursday|friday|today|tomorrow|events|my events/i.test(locMatch[2])) {
-        location = locMatch[2].trim();
+      if (locMatch) {
+        const candidate = locMatch[2].trim();
+        const isTimeOrDate = /^\d{1,2}(:\d{2})?\s*(am|pm|a\.m\.|p\.m\.)?$/i.test(candidate) ||
+                             /\b(am|pm|noon|midnight)\b/i.test(candidate) ||
+                             /\b(saturday|sunday|monday|tuesday|wednesday|thursday|friday|today|tomorrow|events|my events)\b/i.test(candidate);
+        if (!isTimeOrDate) {
+          location = candidate;
+        }
       }
     }
-    if (!location || location === 'Tech Hub, Buea') {
+    if (!location || location === 'Tech Hub, Buea' || /^\d{1,2}(:\d{2})?\s*(am|pm|a\.m\.|p\.m\.)?$/i.test(location)) {
       location = 'Not specified';
     }
 

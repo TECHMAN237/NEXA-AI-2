@@ -44,7 +44,7 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
     if (isOpen) {
       setMessages([
         {
-          id: `welcome-${Date.now()}`,
+          id: `welcome-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           sender: 'xena',
           text: `Hi ${profileName ? profileName.split(' ')[0] : 'there'}, I'm listening. How can I help you today?`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -175,7 +175,7 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
 
     // Append user message to live history
     const userMsg: LiveMessage = {
-      id: `u-${Date.now()}`,
+      id: `u-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       sender: 'user',
       text: userText,
       timestamp: timeStr
@@ -207,7 +207,7 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
 
         // Append Xena message
         const xenaMsg: LiveMessage = {
-          id: `x-${Date.now()}`,
+          id: `x-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           sender: 'xena',
           text: replyText,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -271,7 +271,7 @@ Summary Metrics:
 
       const fallbackReply = "I had a connection issue. Could you please say that again?";
       const xenaMsg: LiveMessage = {
-        id: `x-${Date.now()}`,
+        id: `x-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         sender: 'xena',
         text: fallbackReply,
         timestamp: timeStr
@@ -413,7 +413,7 @@ Summary Metrics:
             {/* 3D Robot Image Core */}
             <div className="w-32 h-32 sm:w-38 sm:h-38 rounded-full bg-slate-900 overflow-hidden border-2 border-cyan-400/80 relative z-10 flex items-center justify-center shadow-2xl">
               <img
-                src="/src/assets/images/nexa_robot_avatar_1784050933373.jpg"
+                src="/src/assets/images/xena_ai_avatar_1790999646755.jpg"
                 alt="Xena Live Companion"
                 referrerPolicy="no-referrer"
                 className={`w-full h-full object-cover select-none transition-transform duration-500 ${
@@ -499,9 +499,9 @@ Summary Metrics:
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-1 text-xs">
-            {messages.map((m) => (
+            {messages.map((m, idx) => (
               <div
-                key={m.id}
+                key={m.id ? `${m.id}-${idx}` : `live-msg-${idx}`}
                 className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div

@@ -321,7 +321,7 @@ export default function ActivityView({ onBack }: ActivityViewProps) {
           <div className="relative w-28 h-28 rounded-full p-0.5 bg-gradient-to-tr from-nexa-blue/30 to-nexa-purple/30 shadow-[0_0_20px_rgba(0,229,255,0.15)] overflow-hidden flex items-center justify-center mb-5">
             <div className="absolute inset-0.5 rounded-full bg-slate-900/90 -z-10"></div>
             <img 
-              src="/src/assets/images/nexa_robot_avatar_1784050933373.jpg" 
+              src="/src/assets/images/xena_ai_avatar_1790999646755.jpg" 
               alt="Xena AI Companion" 
               className="w-full h-full object-cover rounded-full select-none opacity-40 mix-blend-screen"
               referrerPolicy="no-referrer"

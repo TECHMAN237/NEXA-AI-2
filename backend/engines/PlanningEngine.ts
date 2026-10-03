@@ -3,6 +3,8 @@ import { Planning } from '../models/Planning.js';
 import { PlanningTask } from '../models/PlanningTask.js';
 import { NotificationEngine } from './NotificationEngine.js';
 import { ReminderEngine } from './ReminderEngine.js';
+import { DailyScheduleEngine } from '../services/DailyScheduleEngine.js';
+import { dbService } from '../server/db.js';
 
 export class PlanningEngine {
   constructor(
@@ -29,28 +31,97 @@ export class PlanningEngine {
   }
 
   async generatePlanning(userId: string, date: string, promptInfo?: string): Promise<Planning> {
-    console.log(`[PlanningEngine] Requesting AI-optimised study block schedule for user ${userId} on ${date}`);
+    console.log(`[PlanningEngine] Requesting constraint-aware daily schedule for user ${userId} on ${date}`);
     
-    // Simulate smart timeline item creation based on active tasks and standard structures
-    const mockTimeline = [
-      { id: 'time-1', time: '08:00 - 09:30', title: 'Deep Work: High Priority Tasks', duration: '90m', color: 'border-l-red-500', reminder_enabled: true, priority: 'high', description: 'Focus on core challenging concepts.' },
-      { id: 'time-2', time: '10:00 - 11:30', title: 'Review Chapter 4 Microcontrollers', duration: '90m', color: 'border-l-cyan-500', reminder_enabled: true, priority: 'medium', description: 'Active recall and micro-control architectures.' },
-      { id: 'time-3', time: '13:00 - 14:00', title: 'Quiz Prep & Practice Questions', duration: '60m', color: 'border-l-purple-500', reminder_enabled: false },
-      { id: 'time-4', time: '16:00 - 17:30', title: 'Peer Sync & Study Group Review', duration: '90m', color: 'border-l-emerald-500', reminder_enabled: false }
-    ];
+    const rawQuery = promptInfo || '';
+    let constraints = DailyScheduleEngine.parseTaskConstraints(rawQuery, date);
 
-    const suggestions = promptInfo || "Focus on Advanced Microcontrollers chapter 4 in the morning. Rest in the afternoon, then do peer review on CSC301 questions.";
+    if (constraints.length === 0) {
+      const dbTasks = await this.planningRepo.listTasks(userId);
+      const dateTasks = dbTasks.filter(t => t.date === date);
+      dateTasks.forEach((t, idx) => {
+        const startMin = t.time ? DailyScheduleEngine.timeStringToMinutes(t.time) : null;
+        constraints.push({
+          id: `db-task-${idx + 1}-${Date.now()}`,
+          rawSnippet: t.title,
+          title: DailyScheduleEngine.cleanTaskTitle(t.title) || t.title,
+          constraintType: startMin !== null ? 'fixed_time' : 'flexible',
+          fixedStartTimeStr: t.time || null,
+          fixedEndTimeStr: null,
+          fixedStartTimeMin: startMin,
+          fixedEndTimeMin: startMin !== null ? startMin + 60 : null,
+          durationMinutes: Math.round((t.duration_hours || 1.0) * 60),
+          durationHours: t.duration_hours || 1.0,
+          durationLabel: `${t.duration_hours || 1.0}h`,
+          deadlineMin: null,
+          deadlineStr: null,
+          priority: (t.priority || 'medium') as any,
+          isFlexible: startMin === null,
+          hasExplicitDuration: !!t.duration_hours,
+          hasExplicitStartTime: startMin !== null,
+          originalOrder: idx
+        });
+      });
+    }
+
+    if (constraints.length === 0) {
+      constraints = [
+        {
+          id: `def-1-${Date.now()}`,
+          rawSnippet: 'Core Focus Session',
+          title: 'Core Focus Session',
+          constraintType: 'duration_only',
+          durationMinutes: 90,
+          durationHours: 1.5,
+          durationLabel: '1.5h',
+          priority: 'high',
+          isFlexible: true,
+          hasExplicitDuration: true,
+          hasExplicitStartTime: false,
+          originalOrder: 0
+        },
+        {
+          id: `def-2-${Date.now()}`,
+          rawSnippet: 'Review & Assignments',
+          title: 'Review & Assignments',
+          constraintType: 'duration_only',
+          durationMinutes: 90,
+          durationHours: 1.5,
+          durationLabel: '1.5h',
+          priority: 'medium',
+          isFlexible: true,
+          hasExplicitDuration: true,
+          hasExplicitStartTime: false,
+          originalOrder: 1
+        }
+      ];
+    }
+
+    const existingEvents = dbService.getEvents(userId).filter(e => e.date === date);
+    const schedResult = DailyScheduleEngine.scheduleDailyPlan(constraints, existingEvents, date);
+
+    const timeline = schedResult.timeline.map((item, index) => ({
+      id: `time-${index + 1}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      time: item.time,
+      title: item.title,
+      duration: item.duration,
+      color: item.priority === 'high' ? 'border-l-red-500' : 'border-l-cyan-500',
+      reminder_enabled: true,
+      priority: item.priority
+    }));
+
+    const suggestions = schedResult.suggestions || (promptInfo || "Daily plan structured around your actual tasks.");
 
     const generatedPlan = await this.planningRepo.createPlan(userId, {
       date,
-      timeline: mockTimeline as any,
+      timeline: timeline as any,
       suggestions
     });
 
     await this.notificationEngine.createHistoryLog(userId, {
       type: 'PLANNING',
       title: `AI Plan Generated`,
-      description: `NEXA AI analyzed your curriculum workload and structured a daily study schedule.`,
+      description: `Xena AI structured a daily schedule based on your constraints.`,
       source_id: generatedPlan.id,
       status: 'completed',
       metadata: { suggestions, date }

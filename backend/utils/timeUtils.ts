@@ -18,6 +18,7 @@ export function normalizeTimeString(timeStr?: string | null): string | null {
 
 /**
  * Extracts relative time offsets like "in 30 seconds", "in 2 minutes", "in 1 hour", "30s from now".
+ * NEVER matches absolute clock times like "at 6:48 minutes a.m." or numbers without explicit relative keywords.
  */
 export function extractRelativeTimeOffset(
   text?: string | null,
@@ -26,9 +27,22 @@ export function extractRelativeTimeOffset(
   if (!text || typeof text !== 'string') return null;
   const lower = text.toLowerCase().trim();
 
-  // 1. Seconds: "in 30 seconds", "in 30 secs", "in 30s", "for 30 seconds", "30 seconds from now"
-  const secMatch = lower.match(/\b(?:in|for)\s+(\d+)\s*(?:seconds?|secs?|s)\b/i) ||
-                   lower.match(/\b(\d+)\s*(?:seconds?|secs?|s)\s*(?:from\s+now)?\b/i);
+  // If text contains an explicit clock indicator like "at 6:48", "6:48 am", "14:00",
+  // it is an absolute clock time, NOT a relative offset unless preceded by "in X minutes".
+  const hasAbsoluteClockPattern = /\b(?:at|à)\s+\d{1,2}(?::\d{2})?\b/i.test(lower) || 
+                                  /\b\d{1,2}:\d{2}\b/.test(lower) || 
+                                  /\b\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)\b/i.test(lower);
+
+  const hasExplicitRelativeKeywords = /\b(?:in|after)\s+(\d+)\s*(?:seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)\b/i.test(lower) ||
+                                      /(?<![:\d])\b(\d+)\s*(?:seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)\s+from\s+now\b/i.test(lower);
+
+  if (hasAbsoluteClockPattern && !hasExplicitRelativeKeywords) {
+    return null;
+  }
+
+  // 1. Seconds: "in 30 seconds", "in 30 secs", "30 seconds from now", "after 30s"
+  const secMatch = lower.match(/\b(?:in|after)\s+(\d+)\s*(?:seconds?|secs?|s)\b/i) ||
+                   lower.match(/(?<![:\d])\b(\d+)\s*(?:seconds?|secs?|s)\s+from\s+now\b/i);
   if (secMatch) {
     const secs = parseInt(secMatch[1], 10);
     if (secs > 0 && secs <= 86400) {
@@ -37,9 +51,9 @@ export function extractRelativeTimeOffset(
     }
   }
 
-  // 2. Minutes: "in 2 minutes", "in 5 mins", "in 10m", "5 minutes from now"
-  const minMatch = lower.match(/\b(?:in|for)\s+(\d+)\s*(?:minutes?|mins?|m)\b/i) ||
-                   lower.match(/\b(\d+)\s*(?:minutes?|mins?|m)\s*(?:from\s+now)?\b/i);
+  // 2. Minutes: "in 2 minutes", "in 5 mins", "5 minutes from now", "after 10 minutes"
+  const minMatch = lower.match(/\b(?:in|after)\s+(\d+)\s*(?:minutes?|mins?|m)\b/i) ||
+                   lower.match(/(?<![:\d])\b(\d+)\s*(?:minutes?|mins?|m)\s+from\s+now\b/i);
   if (minMatch) {
     const mins = parseInt(minMatch[1], 10);
     if (mins > 0 && mins <= 1440) {
@@ -48,9 +62,9 @@ export function extractRelativeTimeOffset(
     }
   }
 
-  // 3. Hours: "in 1 hour", "in 2 hours", "in 3 hrs"
-  const hrMatch = lower.match(/\b(?:in|for)\s+(\d+)\s*(?:hours?|hrs?|h)\b/i) ||
-                  lower.match(/\b(\d+)\s*(?:hours?|hrs?|h)\s*(?:from\s+now)?\b/i);
+  // 3. Hours: "in 1 hour", "in 2 hours", "1 hour from now", "after 3 hrs"
+  const hrMatch = lower.match(/\b(?:in|after)\s+(\d+)\s*(?:hours?|hrs?|h)\b/i) ||
+                  lower.match(/(?<![:\d])\b(\d+)\s*(?:hours?|hrs?|h)\s+from\s+now\b/i);
   if (hrMatch) {
     const hrs = parseInt(hrMatch[1], 10);
     if (hrs > 0 && hrs <= 168) {
@@ -84,9 +98,19 @@ export interface DurationResult {
 }
 
 const wordNumberMap: Record<string, number> = {
-  'one': 1, 'a': 1, 'an': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
-  'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
-  'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
+  'one': 1, 'a': 1, 'an': 1, 'une': 1, 'un': 1,
+  'two': 2, 'deux': 2,
+  'three': 3, 'trois': 3,
+  'four': 4, 'quatre': 4,
+  'five': 5, 'cinq': 5,
+  'six': 6,
+  'seven': 7, 'sept': 7,
+  'eight': 8, 'huit': 8,
+  'nine': 9, 'neuf': 9,
+  'ten': 10, 'dix': 10,
+  'eleven': 11, 'onze': 11,
+  'twelve': 12, 'douze': 12,
+  'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
   'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19, 'twenty': 20,
   'twenty-five': 25, 'thirty': 30, 'forty': 40, 'forty-five': 45, 'fifty': 50
 };
@@ -101,8 +125,13 @@ export function extractDurationFromText(text?: string | null): DurationResult | 
   if (!text || typeof text !== 'string') return null;
   const lower = text.toLowerCase().trim();
 
+  // Strip explicit clock indicators ("à 15h", "at 18h", "à 6h48") so they aren't parsed as duration
+  const durTarget = lower
+    .replace(/(?:^|\s|[.,;])(?:at|à|from|de|starts?\s+at|commençant\s+à)\s+\d{1,2}(?:h\d{0,2}|:\d{2})?\b/gi, ' ')
+    .replace(/\b\d{1,2}h\d{2}\b/gi, '');
+
   // 1. Digit minutes: "3 minutes", "17 mins", "30m", "45 min"
-  const digitMinMatch = lower.match(/\b(\d+(\.\d+)?)\s*(minutes?|mins?|m)\b/i);
+  const digitMinMatch = durTarget.match(/\b(\d+(\.\d+)?)\s*(minutes?|mins?|m)\b/i);
   if (digitMinMatch) {
     const mins = parseFloat(digitMinMatch[1]);
     if (mins > 0) {
@@ -114,8 +143,8 @@ export function extractDurationFromText(text?: string | null): DurationResult | 
     }
   }
 
-  // 2. Digit hours: "1.5 hours", "2 hrs", "3h", "1 hour"
-  const digitHrMatch = lower.match(/\b(\d+(\.\d+)?)\s*(hours?|hrs?|h)\b/i);
+  // 2. Digit hours: "1.5 hours", "2 hrs", "3h", "1 hour", "2 heures"
+  const digitHrMatch = durTarget.match(/\b(\d+(\.\d+)?)\s*(hours?|hrs?|heures?|h)\b/i);
   if (digitHrMatch) {
     const hrs = parseFloat(digitHrMatch[1]);
     if (hrs > 0) {
@@ -123,7 +152,7 @@ export function extractDurationFromText(text?: string | null): DurationResult | 
       return {
         durationHours: hrs,
         durationMinutes: mins,
-        durationLabel: hrs === 1 ? '1h' : (hrs % 1 === 0 ? `${hrs}h` : `${hrs}h`)
+        durationLabel: hrs === 1 ? '1h' : `${hrs}h`
       };
     }
   }
@@ -131,7 +160,7 @@ export function extractDurationFromText(text?: string | null): DurationResult | 
   // 3. Word-number minutes: "three minutes", "seventeen minutes", "thirty minutes"
   const wordKeys = Object.keys(wordNumberMap).join('|');
   const wordMinRegex = new RegExp(`\\b(${wordKeys})\\s*(minutes?|mins?)\\b`, 'i');
-  const wordMinMatch = lower.match(wordMinRegex);
+  const wordMinMatch = durTarget.match(wordMinRegex);
   if (wordMinMatch) {
     const word = wordMinMatch[1].toLowerCase();
     const mins = wordNumberMap[word];
@@ -144,9 +173,9 @@ export function extractDurationFromText(text?: string | null): DurationResult | 
     }
   }
 
-  // 4. Word-number hours: "one hour", "two hours", "three hours"
-  const wordHrRegex = new RegExp(`\\b(${wordKeys})\\s*(hours?|hrs?)\\b`, 'i');
-  const wordHrMatch = lower.match(wordHrRegex);
+  // 4. Word-number hours: "one hour", "two hours", "pendant deux heures", "une heure"
+  const wordHrRegex = new RegExp(`\\b(${wordKeys})\\s*(hours?|hrs?|heures?)\\b`, 'i');
+  const wordHrMatch = durTarget.match(wordHrRegex);
   if (wordHrMatch) {
     const word = wordHrMatch[1].toLowerCase();
     const hrs = wordNumberMap[word];
@@ -175,7 +204,7 @@ export function extractTimeFromText(text?: string | null): string | null {
   if (/\bmidnight\b/i.test(lower)) return '00:00';
 
   // 1. Explicit 12-hour AM/PM with minutes and optional minute filler words: e.g. "3:30 pm", "6:48 minutes a.m.", "1:22 p.m."
-  const ampmMinuteMatch = lower.match(/\b(\d{1,2}):(\d{2})\s*(?:minutes?|mins?|m)?\s*(am|pm|a\.m\.|p\.m\.)\b/i);
+  const ampmMinuteMatch = lower.match(/\b(\d{1,2}):(\d{2})\s*(?:minutes?|mins?|m)?\s*(am|pm|a\.?m\.?|p\.?m\.?)(?!\w)/i);
   if (ampmMinuteMatch) {
     let hour = parseInt(ampmMinuteMatch[1], 10);
     const minute = parseInt(ampmMinuteMatch[2], 10);
@@ -188,7 +217,7 @@ export function extractTimeFromText(text?: string | null): string | null {
   }
 
   // 1b. Digit hour and space minutes with AM/PM: e.g. "1 22 PM", "6 48 minutes a.m."
-  const spaceMinuteMatch = lower.match(/\b(\d{1,2})\s+(\d{2})\s*(?:minutes?|mins?|m)?\s*(am|pm|a\.m\.|p\.m\.)\b/i);
+  const spaceMinuteMatch = lower.match(/\b(\d{1,2})\s+(\d{2})\s*(?:minutes?|mins?|m)?\s*(am|pm|a\.?m\.?|p\.?m\.?)(?!\w)/i);
   if (spaceMinuteMatch) {
     let hour = parseInt(spaceMinuteMatch[1], 10);
     const minute = parseInt(spaceMinuteMatch[2], 10);
@@ -201,7 +230,7 @@ export function extractTimeFromText(text?: string | null): string | null {
   }
 
   // 1c. Spoken word hours and minutes: e.g. "one twenty-two pm", "one twenty two pm", "three fifteen pm"
-  const spokenWordMatch = lower.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+((?:twenty|thirty|forty|fifty)(?:[\s-](?:one|two|three|four|five|six|seven|eight|nine))?|fifteen|ten|five)\s*(am|pm|a\.m\.|p\.m\.)\b/i);
+  const spokenWordMatch = lower.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+((?:twenty|thirty|forty|fifty)(?:[\s-](?:one|two|three|four|five|six|seven|eight|nine))?|fifteen|ten|five)\s*(am|pm|a\.?m\.?|p\.?m\.?)(?!\w)/i);
   if (spokenWordMatch) {
     const hWord = spokenWordMatch[1].toLowerCase();
     const mWord = spokenWordMatch[2].toLowerCase().replace('-', ' ');
@@ -224,7 +253,7 @@ export function extractTimeFromText(text?: string | null): string | null {
   }
 
   // 2. Explicit 12-hour AM/PM without minutes: e.g. "3 pm", "3pm", "8am", "8 am", "12 pm", "12 am"
-  const ampmHourMatch = lower.match(/\b(\d{1,2})\s*(am|pm|a\.m\.|p\.m\.)\b/i);
+  const ampmHourMatch = lower.match(/\b(\d{1,2})\s*(am|pm|a\.?m\.?|p\.?m\.?)(?!\w)/i);
   if (ampmHourMatch) {
     let hour = parseInt(ampmHourMatch[1], 10);
     const ampm = ampmHourMatch[2].replace(/\./g, '').toLowerCase();
@@ -235,7 +264,7 @@ export function extractTimeFromText(text?: string | null): string | null {
 
   // 3. Word numbers with AM/PM: e.g. "three pm", "eight am", "twelve pm"
   const wordKeys = Object.keys(wordNumberMap).join('|');
-  const wordAmpmMatch = lower.match(new RegExp(`\\b(${wordKeys})\\s*(am|pm|a\\.m\\.|p\\.m\\.)\\b`, 'i'));
+  const wordAmpmMatch = lower.match(new RegExp(`\\b(${wordKeys})\\s*(am|pm|a\\.?m\\.?|p\\.?m\\.?)(?!\\w)`, 'i'));
   if (wordAmpmMatch) {
     const word = wordAmpmMatch[1].toLowerCase();
     let hour = wordNumberMap[word];
@@ -331,16 +360,16 @@ export function formatReadableDate(dateStr?: string): string {
 }
 
 export function formatReadableTime(timeStr?: string): string {
-  if (!timeStr) return '9:00 AM';
+  if (!timeStr) return '09:00 AM';
   const clean = timeStr.trim();
   const parts = clean.split(':');
   if (parts.length >= 2) {
     let h = parseInt(parts[0], 10);
-    const m = parts[1];
+    const m = parts[1].padStart(2, '0');
     if (!isNaN(h)) {
       const ampm = h >= 12 ? 'PM' : 'AM';
       const displayH = h % 12 === 0 ? 12 : h % 12;
-      return `${displayH}:${m} ${ampm}`;
+      return `${displayH.toString().padStart(2, '0')}:${m} ${ampm}`;
     }
   }
   return clean;

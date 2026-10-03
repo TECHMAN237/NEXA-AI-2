@@ -1,0 +1,2041 @@
+{
+  "users": [
+    {
+      "id": "user-1",
+      "email": "steevezali@gmail.com",
+      "full_name": "Alex T.",
+      "created_at": "2025-05-01T08:00:00Z"
+    },
+    {
+      "id": "user-1790997735418-q91qis",
+      "email": "test_conv@example.com",
+      "full_name": "Alex Student",
+      "created_at": "2026-10-03T03:22:15.418Z"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "profile-1",
+      "user_id": "user-1",
+      "email": "steevezali@gmail.com",
+      "full_name": "Alex T.",
+      "avatar_url": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+      "premium": true,
+      "language": "English",
+      "theme": "Dark",
+      "notifications_enabled": true,
+      "connected_apps": [
+        "Google Calendar",
+        "Spotify",
+        "Notion"
+      ],
+      "created_at": "2025-05-01T08:00:00Z",
+      "institution": "Massachusetts Institute of Technology (MIT)",
+      "field_of_study": "Computer Science & Software Engineering"
+    },
+    {
+      "id": "profile-1790997735419-7p0dt9",
+      "user_id": "user-1790997735418-q91qis",
+      "email": "test_conv@example.com",
+      "full_name": "Alex Student",
+      "premium": true,
+      "language": "English",
+      "theme": "Dark",
+      "notifications_enabled": true,
+      "connected_apps": [
+        "Google Calendar"
+      ],
+      "created_at": "2026-10-03T03:22:15.419Z"
+    },
+    {
+      "id": "profile-1790999365585-zdsvlm",
+      "user_id": "user-2-test",
+      "email": "steevezali@gmail.com",
+      "full_name": "Alex T.",
+      "avatar_url": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+      "premium": true,
+      "language": "English",
+      "theme": "Dark",
+      "notifications_enabled": true,
+      "connected_apps": [
+        "Google Calendar",
+        "Spotify",
+        "Notion"
+      ],
+      "created_at": "2026-10-03T03:49:25.586Z"
+    }
+  ],
+  "conversations": [
+    {
+      "id": "conv-1790997060285",
+      "user_id": "user-1",
+      "title": "Main Chat Assistant",
+      "created_at": "2026-10-03T03:11:00.285Z",
+      "updated_at": "2026-10-03T03:52:55.467Z"
+    },
+    {
+      "id": "conv-1790997744201-79c2qr",
+      "user_id": "test_conv_user",
+      "title": "Main Chat Assistant",
+      "created_at": "2026-10-03T03:22:24.201Z",
+      "updated_at": "2026-10-03T03:22:24.201Z"
+    },
+    {
+      "id": "conv-1790997765415-sw4zad",
+      "user_id": "test_conv_user",
+      "title": "Main Chat Assistant",
+      "created_at": "2026-10-03T03:22:45.415Z",
+      "updated_at": "2026-10-03T03:22:51.298Z"
+    },
+    {
+      "id": "conv-1790997773722-7xp34m",
+      "user_id": "test_conv_user",
+      "title": "Main Chat Assistant",
+      "created_at": "2026-10-03T03:22:53.722Z",
+      "updated_at": "2026-10-03T03:22:53.722Z"
+    },
+    {
+      "id": "conv-1790998678242-ucxisf",
+      "user_id": "test_conv_user",
+      "title": "Main Chat Assistant",
+      "created_at": "2026-10-03T03:37:58.242Z",
+      "updated_at": "2026-10-03T03:38:04.218Z"
+    },
+    {
+      "id": "conv-1790998686982-m2gy6f",
+      "user_id": "test_conv_user",
+      "title": "Main Chat Assistant",
+      "created_at": "2026-10-03T03:38:06.982Z",
+      "updated_at": "2026-10-03T03:38:06.982Z"
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg-1",
+      "conversation_id": "conv-1",
+      "sender": "user",
+      "text": "Remind me to study tomorrow.",
+      "created_at": "2025-05-20T09:28:00Z",
+      "type": "text"
+    },
+    {
+      "id": "msg-2",
+      "conversation_id": "conv-1",
+      "sender": "assistant",
+      "text": "I've added a study reminder for tomorrow (May 21, 2025) at 18:00. I also scheduled 'Study Computer Architecture' in your timeline.",
+      "created_at": "2025-05-20T09:29:00Z",
+      "type": "text"
+    },
+    {
+      "sender": "user",
+      "text": "Please create me a reminder to dance at 6:48 AM",
+      "type": "text",
+      "id": "msg-1790992841336",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:00:41.336Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "## Reminder Created\n\n- **Task:** Pay Electricity Bill\n- **Date:** May 25, 2025\n- **Time:** 06:48 AM\n- **Notifications:** Voice & Push Enabled",
+      "type": "text",
+      "id": "msg-1790992861407",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:01:01.407Z"
+    },
+    {
+      "sender": "user",
+      "text": "Please create me a reminder to dance at 6:48 AM",
+      "type": "text",
+      "id": "msg-1790992903890",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:01:43.890Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "## Reminder Created\n\n- **Task:** Dance\n- **Date:** October 3, 2026\n- **Time:** 06:48 AM\n- **Notifications:** Voice & Push Enabled",
+      "type": "text",
+      "id": "msg-1790992906706",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:01:46.706Z"
+    },
+    {
+      "sender": "user",
+      "text": "Remind me to study tomorrow",
+      "type": "text",
+      "id": "msg-1790992912664",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:01:52.664Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "What time should I set the reminder for?",
+      "type": "text",
+      "id": "msg-1790992916690",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:01:56.690Z"
+    },
+    {
+      "sender": "user",
+      "text": "At 4 PM",
+      "type": "text",
+      "id": "msg-1790992922250",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:02:02.250Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "## Reminder Created\n\n- **Task:** Study\n- **Date:** October 4, 2026\n- **Time:** 04:00 PM\n- **Notifications:** Voice & Push Enabled",
+      "type": "text",
+      "id": "msg-1790992922251",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:02:02.251Z"
+    },
+    {
+      "sender": "user",
+      "text": "I want you to create me a reminder, can you do that?",
+      "type": "text",
+      "id": "msg-1790992926006",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:02:06.006Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "## Set a Reminder\n\nYes, I can set a reminder for you. Please provide:\n\n- **Task/Title:** What do you need to be reminded about?\n- **Date & Time:** When should the reminder go off? \n\nOnce you share the details, I will set it up for you immediately.",
+      "type": "text",
+      "id": "msg-1790992933617",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:02:13.617Z"
+    },
+    {
+      "sender": "user",
+      "text": "I have an event this Sunday at 3 PM. The event is called Majestical Night.",
+      "type": "text",
+      "id": "msg-1790992939698",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:02:19.698Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — I've saved **I Have An Event** for tomorrow at 3 PM at 3 PM.",
+      "type": "text",
+      "id": "msg-1790992946032",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:02:26.032Z"
+    },
+    {
+      "sender": "user",
+      "text": "I have an event this Sunday at 3 PM. The event is called Majestical Night.",
+      "type": "text",
+      "id": "msg-1790993059777",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:04:19.777Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "## Event Scheduled\n\n- **Event:** Majestical Night\n- **Date:** Sunday, October 4,",
+      "type": "text",
+      "id": "msg-1790993075569",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:04:35.569Z"
+    },
+    {
+      "sender": "user",
+      "text": "Save the event I just told you.",
+      "type": "text",
+      "id": "msg-1790993075586",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:04:35.586Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — I've saved **Majestical Night** for tomorrow at 3 PM.\n\nWhere will it take place?",
+      "type": "text",
+      "id": "msg-1790993080034",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:04:40.034Z"
+    },
+    {
+      "sender": "user",
+      "text": "I want you to create me a reminder, can you do that?",
+      "type": "text",
+      "id": "msg-1790993080041",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:04:40.041Z"
+    },
+    {
+      "sender": "user",
+      "text": "Save the event I just told you.",
+      "type": "text",
+      "id": "msg-1790993086327",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:04:46.327Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — I've saved **Me A Reminder, Can You Do That?** for today at 12 PM.\n\nWhere will it take place?",
+      "type": "text",
+      "id": "msg-1790993088122",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:04:48.122Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Yes, I can set reminders for you. \n\nPlease share the details:\n- **What** do you want to be reminded about?\n- **When** (date and time) should the reminder go off?",
+      "type": "text",
+      "id": "msg-1790993093336",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:04:53.336Z"
+    },
+    {
+      "sender": "user",
+      "text": "Please create me a reminder to dance at 6:48 AM",
+      "type": "text",
+      "id": "msg-1790993141194",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:05:41.194Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "## Reminder Created\n\n- **Task:** Dance\n- **Date:** October 3, 2026\n- **Time:** 06:48 AM\n- **Notifications:** Voice & Push Enabled",
+      "type": "text",
+      "id": "msg-1790993143350",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:05:43.350Z"
+    },
+    {
+      "sender": "user",
+      "text": "HELLO",
+      "type": "text",
+      "id": "msg-1790993325724",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:08:45.724Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — Updated **Me A Reminder, Can You Do That?** location to **HELLO**.",
+      "type": "text",
+      "id": "msg-1790993327536",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:08:47.536Z"
+    },
+    {
+      "sender": "user",
+      "text": "Hello Xena, what can you do?",
+      "type": "text",
+      "id": "msg-1790993394781",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:09:54.781Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Hello! I'm doing really well. How can I assist you today?",
+      "type": "text",
+      "id": "msg-1790993394783",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:09:54.783Z"
+    },
+    {
+      "sender": "user",
+      "text": "Please create me a reminder to call my mom at 7:30 PM tonight",
+      "type": "text",
+      "id": "msg-1790993401217",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:10:01.217Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "## Reminder Created\n\n- **Task:** Call my mom\n- **Date:** October 3, 2026\n- **Time:** 07:30 PM\n- **Notifications:** Voice & Push Enabled",
+      "type": "text",
+      "id": "msg-1790993403457",
+      "conversation_id": "conv-1",
+      "created_at": "2026-10-03T02:10:03.457Z"
+    },
+    {
+      "sender": "user",
+      "text": "HI",
+      "type": "text",
+      "id": "msg-1790993491897",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T02:11:31.897Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Hello! I am **Xena AI**. How can I assist you with your schedule or studies today?",
+      "type": "text",
+      "id": "msg-1790993494252",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T02:11:34.252Z"
+    },
+    {
+      "sender": "user",
+      "text": "WHO ARE YOU AND WHAT IS YOUR GOAL ?",
+      "type": "text",
+      "id": "msg-1790993508739",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T02:11:48.739Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — Updated **Majestical Night** location to **WHO ARE YOU AND WH IS YOUR GOAL ?**.",
+      "type": "text",
+      "id": "msg-1790993511408",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T02:11:51.408Z"
+    },
+    {
+      "sender": "user",
+      "text": "PLEASE CREATE ME A REMINDER TO STUDY CSC401 AT 7PM TODAY",
+      "type": "text",
+      "id": "msg-1790993550697",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T02:12:30.697Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "## Reminder Created\n\n- **Task:** STUDY CSC401\n- **Date:** October 3, 2026\n- **Time:** 07:00 PM\n- **Notifications:** Voice & Push Enabled",
+      "type": "text",
+      "id": "msg-1790993551892",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T02:12:31.892Z"
+    },
+    {
+      "sender": "user",
+      "text": "HI",
+      "type": "text",
+      "id": "msg-1790994162564",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T02:22:42.564Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Hello! I'm doing really well. How can I assist you today?",
+      "type": "text",
+      "id": "msg-1790994162568",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T02:22:42.568Z"
+    },
+    {
+      "sender": "user",
+      "text": "WHO ARE YOU AND WHAT IS YOUR GOAL?",
+      "type": "text",
+      "id": "msg-1790994168406",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T02:22:48.406Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Hi! I'm **Xena AI**, your intelligent student companion. My goal is to help you stay organized, manage your schedule and reminders, plan your studies, track your academic progress and answer your questions. Think of me as an assistant designed to make student life easier.",
+      "type": "text",
+      "id": "msg-1790994168408",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T02:22:48.408Z"
+    },
+    {
+      "sender": "user",
+      "text": "Présente-toi et dis-moi quel est ton objectif",
+      "type": "text",
+      "id": "msg-1790994172901",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T02:22:52.901Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Salut ! Je suis **Xena AI**, ton compagnon intelligent pour les études. Mon objectif est de t'aider à organiser ton emploi du temps, gérer tes rappels, planifier tes révisions, suivre tes objectifs académiques et répondre à tes questions. Pense à moi comme un assistant conçu pour simplifier ta vie d'étudiant.",
+      "type": "text",
+      "id": "msg-1790997293610-xut36l",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T02:22:52.901Z"
+    },
+    {
+      "sender": "user",
+      "text": "I have an event this Sunday at 3 PM. The event is called Majestical Night.",
+      "type": "text",
+      "id": "msg-1790996921799",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T03:08:41.799Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — I've saved **Majestical Night** for tomorrow at 3 PM.\n\nWhere will it take place?",
+      "type": "text",
+      "id": "msg-1790996924515",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T03:08:44.515Z"
+    },
+    {
+      "sender": "user",
+      "text": "Save the event I just told you.",
+      "type": "text",
+      "id": "msg-1790996924530",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T03:08:44.530Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — I've saved **Majestical Night** for tomorrow at 3 PM.\n\nWhere will it take place?",
+      "type": "text",
+      "id": "msg-1790996925349",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T03:08:45.349Z"
+    },
+    {
+      "sender": "user",
+      "text": "I want you to create me a reminder, can you do that?",
+      "type": "text",
+      "id": "msg-1790996925358",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T03:08:45.358Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "### Creating Reminders\nI am **Xena AI**, your intelligent student companion. I can certainly create reminders for you. To set one up, please provide me with the following details:\n\n*   **Task/Content:** What do you need to be reminded about?\n*   **Date:** When should the reminder occur?\n*   **Time:** What time should I notify you?\n\nOnce you provide this information, I will schedule it and set up voice notifications for you.",
+      "type": "text",
+      "id": "msg-1790996927553",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T03:08:47.553Z"
+    },
+    {
+      "sender": "user",
+      "text": "WHO ARE YOU AND WHAT IS YOUR GOAL?",
+      "type": "text",
+      "id": "msg-1790996937263",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T03:08:57.263Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Hi! I'm **Xena AI**, your intelligent student companion. My goal is to help you stay organized, manage your schedule and reminders, plan your studies, track your academic progress and answer your questions. Think of me as an assistant designed to make student life easier.",
+      "type": "text",
+      "id": "msg-1790996937264",
+      "conversation_id": "conv-1790993488167",
+      "created_at": "2026-10-03T03:08:57.264Z"
+    },
+    {
+      "sender": "user",
+      "text": "hi how are you doing",
+      "type": "text",
+      "id": "msg-1790997070724",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:11:10.724Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "I'm doing great, thanks for asking! How are you doing today?",
+      "type": "text",
+      "id": "msg-1790997070728",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:11:10.728Z"
+    },
+    {
+      "sender": "user",
+      "text": "i am doing good please can you tel me your goal in this app",
+      "type": "text",
+      "id": "msg-1790997089730",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:11:29.730Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "I am **Xena AI**. My primary goal is to serve as a high-efficiency digital assistant tailored for students and mobile users by helping you:\n\n- **Manage your time:** Organize reminders, track upcoming events, and stay on top of your schedule.\n- **Support your academics:** Monitor your exam readiness and provide structured study assistance.\n- **Personalize your experience:** Utilize **Vault Memories** to learn your preferences—such as study habits or notification settings—to provide context-aware support.\n- **Maintain focus:** Streamline your daily tasks through clear, concise interaction so you can spend less time managing your apps and more time achieving your goals.",
+      "type": "text",
+      "id": "msg-1790997094049",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:11:34.049Z"
+    },
+    {
+      "sender": "user",
+      "text": "so what can you do concretey for me to acheive all of that ?",
+      "type": "text",
+      "id": "msg-1790997129079",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:12:09.079Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "As **Xena AI**, here is what I can do to help you as your student companion:\n- **Intelligent Reminders**: Create alerts with exact dates, times, recurrence, and voice notifications.\n- **Calendar & Events**: Schedule exams, project deadlines, appointments, and club meetings.\n- **Study Planning**: Generate chronological daily timelines and dedicated focus blocks.\n- **Exam Tracking**: Monitor course readiness, syllabus progress, and study targets.\n- **Vault Memory**: Save and recall important facts, notes, and credentials.\n- **Academic Q&A**: Explain concepts, answer questions, and break down complex topics.\n\nSome capabilities depend on the modules enabled in your application. What would you like help with?",
+      "type": "text",
+      "id": "msg-1790997129085",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:12:09.085Z"
+    },
+    {
+      "sender": "user",
+      "text": "Hello Xena",
+      "type": "text",
+      "id": "msg-1790997325112-a8uqhe",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:15:25.112Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Hello! I'm doing really well. How can I assist you today?",
+      "type": "text",
+      "id": "msg-1790997325116-bon8tm",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:15:25.116Z"
+    },
+    {
+      "sender": "user",
+      "text": "I would you to plan my day I need to do sport at 4:00 p.m. to dance at 2:00 a.m. and also to study by 6:00 p.m. and I need to go to the market bye 3:00 p.m. so the highest priority for me to study so help me to schedule my day.",
+      "type": "text",
+      "id": "msg-1790997440934-avd2hy",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:17:20.934Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "MY PLAN FOR TODAY (2026-10-03):\n\n02:00 – 03:30\nTo Dance A\n\n04:00 – 05:30\nI Would You To I Need To Do Sport P\n\n08:00 – 09:30\nAlso To Study By 6 00 P\n\n09:45 – 11:15\nGo To The Market Bye 3 00 P\n\n11:30 – 13:00\nSo The Highest Priority For Me To Study So Help Me To Schedule My Day",
+      "type": "text",
+      "id": "msg-1790997442095-8b2v1e",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:17:22.095Z"
+    },
+    {
+      "sender": "user",
+      "text": "Explain APIs.",
+      "type": "voice",
+      "id": "msg-1790997738923-r34zuw",
+      "conversation_id": "conv-1790997735420-o8frhq",
+      "created_at": "2026-10-03T03:22:18.923Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "An API is a set of rules that allows different software programs to talk to each other. Think of it like a waiter in a restaurant who takes your order to the kitchen and brings the food back to your table without you needing to know how the kitchen works.",
+      "type": "voice",
+      "id": "msg-1790997739901-vss02d",
+      "conversation_id": "conv-1790997735420-o8frhq",
+      "created_at": "2026-10-03T03:22:19.901Z"
+    },
+    {
+      "sender": "user",
+      "text": "Can you explain that in more detail?",
+      "type": "voice",
+      "id": "msg-1790997739902-svgesf",
+      "conversation_id": "conv-1790997735420-o8frhq",
+      "created_at": "2026-10-03T03:22:19.902Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Think of the API as a bridge between two systems. When you use an app on your phone to check the weather, the app sends a request through an API to a remote server that holds the data. The server processes that request, finds the information, and sends it back through the API so your app can display the temperature to you. This allows developers to build complex features without needing to write all the underlying code themselves.",
+      "type": "voice",
+      "id": "msg-1790997741219-amtnnv",
+      "conversation_id": "conv-1790997735420-o8frhq",
+      "created_at": "2026-10-03T03:22:21.219Z"
+    },
+    {
+      "sender": "user",
+      "text": "Explain APIs.",
+      "type": "voice",
+      "id": "msg-1790997768813-fqakeb",
+      "conversation_id": "conv-1790997765415-sw4zad",
+      "created_at": "2026-10-03T03:22:48.813Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "An API, or application programming interface, is a set of rules that allows different software programs to talk to each other. Think of it like a waiter in a restaurant who takes your order to the kitchen and brings the food back to your table without you needing to know how the kitchen works.",
+      "type": "voice",
+      "id": "msg-1790997770069-2e25c2",
+      "conversation_id": "conv-1790997765415-sw4zad",
+      "created_at": "2026-10-03T03:22:50.069Z"
+    },
+    {
+      "sender": "user",
+      "text": "Can you explain that in more detail?",
+      "type": "voice",
+      "id": "msg-1790997770070-9tygmv",
+      "conversation_id": "conv-1790997765415-sw4zad",
+      "created_at": "2026-10-03T03:22:50.070Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "When you use an app on your phone to check the weather, that app sends a request through an API to a remote server. The server processes your request, finds the current temperature and forecast, and sends that data back to your phone. The API acts as the secure messenger that handles the request and ensures the data is delivered in a format your phone can understand and display.",
+      "type": "voice",
+      "id": "msg-1790997771298-wnc2kh",
+      "conversation_id": "conv-1790997765415-sw4zad",
+      "created_at": "2026-10-03T03:22:51.298Z"
+    },
+    {
+      "sender": "user",
+      "text": "what is my name ?",
+      "type": "text",
+      "id": "msg-1790998428016-u3sxlq",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:33:48.016Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "I do not have your name recorded in your **Vault Memory** or profile data. If you provide it, I can save it for you.",
+      "type": "text",
+      "id": "msg-1790998432153-67rc1d",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:33:52.153Z"
+    },
+    {
+      "sender": "user",
+      "text": "Explain APIs.",
+      "type": "voice",
+      "id": "msg-1790998681346-2mifa2",
+      "conversation_id": "conv-1790998678242-ucxisf",
+      "created_at": "2026-10-03T03:38:01.346Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "An API acts as a bridge that allows two different software programs to talk to each other. It defines the rules for how one application can request information or services from another, keeping the internal workings of each system hidden.",
+      "type": "voice",
+      "id": "msg-1790998682762-3cixjg",
+      "conversation_id": "conv-1790998678242-ucxisf",
+      "created_at": "2026-10-03T03:38:02.762Z"
+    },
+    {
+      "sender": "user",
+      "text": "Can you explain that in more detail?",
+      "type": "voice",
+      "id": "msg-1790998682764-idpvcx",
+      "conversation_id": "conv-1790998678242-ucxisf",
+      "created_at": "2026-10-03T03:38:02.764Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Think of an API like a waiter in a restaurant. You are the user, and the kitchen is the system that prepares your data. You cannot go into the kitchen yourself, so you give your order to the waiter, who delivers your request to the chefs and brings the finished meal back to your table. In software, the API takes your request, tells the server what to do, and brings the response back to your application.",
+      "type": "voice",
+      "id": "msg-1790998684217-hnn3pu",
+      "conversation_id": "conv-1790998678242-ucxisf",
+      "created_at": "2026-10-03T03:38:04.217Z"
+    },
+    {
+      "sender": "user",
+      "text": "Help me plan my day. I need to dance at 6:48 AM for one hour. I want to exercise for two hours, but I can choose the time. I need to study at 3 PM for two hours. I also have to go to the market at 6 PM for one hour.",
+      "type": "text",
+      "id": "msg-1790998776003-o600li",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:39:36.003Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "## Reminder Created\n\n- **Task:** Pay Electricity Bill\n- **Date:** May 25, 2025\n- **Time:** 06:48 AM\n- **Notifications:** Voice & Push Enabled",
+      "type": "text",
+      "id": "msg-1790998779984-57wlw4",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:39:39.984Z"
+    },
+    {
+      "sender": "user",
+      "text": "Help me plan my day. I need to dance at 6:48 AM for one hour. I want to exercise for two hours, but I can choose the time. I need to study at 3 PM for two hours. I also have to go to the market at 6 PM for one hour.",
+      "type": "text",
+      "id": "msg-1790998817406-wvn7on",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:40:17.406Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "**Daily Plan — October 3, 2026**\n\n- Dance\n- Exercise\n- Study\n- Go To The Market",
+      "type": "text",
+      "id": "msg-1790998818254-lqdtem",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:40:18.254Z"
+    },
+    {
+      "sender": "user",
+      "text": "Schedule my mathematics revision from 8 AM to 11 AM and a meeting at 10 AM.",
+      "type": "text",
+      "id": "msg-1790998825340-ntauah",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:40:25.340Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — I've saved **Mathematics Revision From 8 Am To 11 Am And A Meeting** for today at 8 AM.\n\nWhere will it take place?",
+      "type": "text",
+      "id": "msg-1790998828499-cd03sg",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:40:28.499Z"
+    },
+    {
+      "sender": "user",
+      "text": "Schedule my mathematics revision from 8 AM to 11 AM and a meeting at 10 AM.",
+      "type": "text",
+      "id": "msg-1790998859959-xofacn",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:40:59.959Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "⚠️ **Action Failed**\n\nYour \"Mathematics Revision\" (08:00 – 11:00) conflicts directly with \"A Meeting\" (10:00 – 11:00).",
+      "type": "text",
+      "id": "msg-1790998861163-h73ywv",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:41:01.163Z"
+    },
+    {
+      "sender": "user",
+      "text": "Hello I am doing great.",
+      "type": "voice",
+      "id": "msg-1790999473148-jzwusx",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:51:13.148Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Hello! I'm doing really well. How can I assist you today?",
+      "type": "voice",
+      "id": "msg-1790999473153-9osb2v",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:51:13.153Z"
+    },
+    {
+      "sender": "user",
+      "text": "How can you fix me.",
+      "type": "voice",
+      "id": "msg-1790999488740-rc6h0d",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:51:28.740Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "I can help you get organized by managing your schedule, setting reminders for your tasks, and breaking down complex study topics into manageable steps. If you tell me what is currently overwhelming you, we can start by prioritizing your most urgent deadlines.",
+      "type": "voice",
+      "id": "msg-1790999491243-vxocmt",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:51:31.243Z"
+    },
+    {
+      "sender": "user",
+      "text": "I am writing my exam on the 30th of October and I need you to generate to me study plan focuses four courses that is CAC 305 CSC 401 CAC 203 and see the she beautiful yes how can I proceed to succeed.",
+      "type": "voice",
+      "id": "msg-1790999575435-w3spt7",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:52:55.435Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "**Daily Plan — October 3, 2026**\n\n- I Am Writing My Exam On The 30th Of October\n- Need You To Generate To Me Study Plan Focuses Four Courses That Is CAC 305 CSC 401 CAC 203 And See The She Beautiful Yes How Can I Proceed To Succeed",
+      "type": "voice",
+      "id": "msg-1790999575467-6lkbno",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T03:52:55.467Z"
+    }
+  ],
+  "reminders": [
+    {
+      "id": "rem-1",
+      "user_id": "user-1",
+      "title": "Buy groceries",
+      "date": "2025-05-21",
+      "time": "10:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "created_at": "2025-05-20T08:00:00Z",
+      "status": "triggered"
+    },
+    {
+      "id": "rem-2",
+      "user_id": "user-1",
+      "title": "Project submission",
+      "date": "2025-05-22",
+      "time": "23:59",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "created_at": "2025-05-20T08:00:00Z",
+      "status": "triggered"
+    },
+    {
+      "id": "rem-3",
+      "user_id": "user-1",
+      "title": "Call Mom",
+      "date": "2025-05-23",
+      "time": "18:00",
+      "repeat": "weekly",
+      "priority": "low",
+      "voice_notification": false,
+      "active": true,
+      "created_at": "2025-05-19T08:00:00Z",
+      "status": "triggered"
+    },
+    {
+      "id": "rem-4",
+      "user_id": "user-1",
+      "title": "Doctor Appointment",
+      "date": "2025-05-24",
+      "time": "09:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "created_at": "2025-05-18T08:00:00Z",
+      "status": "triggered"
+    },
+    {
+      "id": "rem-5",
+      "user_id": "user-1",
+      "title": "Pay Electricity Bill",
+      "date": "2025-05-25",
+      "time": "06:48",
+      "repeat": "monthly",
+      "priority": "medium",
+      "voice_notification": false,
+      "active": true,
+      "created_at": "2025-05-15T08:00:00Z",
+      "status": "triggered"
+    },
+    {
+      "title": "Dance",
+      "description": "",
+      "date": "2026-10-03",
+      "time": "06:48",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "scheduled",
+      "id": "rem-1790992093312",
+      "user_id": "test-audit-user-1790992093310",
+      "created_at": "2026-10-03T01:48:13.312Z"
+    },
+    {
+      "title": "Dance",
+      "description": "",
+      "date": "2026-10-03",
+      "time": "06:48",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "scheduled",
+      "id": "rem-1790992093398",
+      "user_id": "test-audit-user-1790992093310",
+      "created_at": "2026-10-03T01:48:13.398Z"
+    },
+    {
+      "title": "Dance",
+      "description": "",
+      "date": "2026-10-03",
+      "time": "06:48",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "scheduled",
+      "id": "rem-1790992122687",
+      "user_id": "test-audit-user-1790992122684",
+      "created_at": "2026-10-03T01:48:42.687Z"
+    },
+    {
+      "title": "Dance",
+      "description": "",
+      "date": "2026-10-03",
+      "time": "06:48",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "scheduled",
+      "id": "rem-1790992122717",
+      "user_id": "test-audit-user-1790992122684",
+      "created_at": "2026-10-03T01:48:42.717Z"
+    },
+    {
+      "title": "Dance",
+      "description": "",
+      "date": "2026-10-03",
+      "time": "06:48",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "scheduled",
+      "id": "rem-1790992903906",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T02:01:43.906Z"
+    },
+    {
+      "title": "Study",
+      "description": "",
+      "date": "2026-10-04",
+      "time": "16:00",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "scheduled",
+      "id": "rem-1790992922250",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T02:02:02.250Z"
+    },
+    {
+      "title": "Dance",
+      "description": "",
+      "date": "2026-10-03",
+      "time": "06:48",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "scheduled",
+      "id": "rem-1790993141211",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T02:05:41.211Z"
+    },
+    {
+      "title": "Call my mom",
+      "description": "",
+      "date": "2026-10-03",
+      "time": "19:30",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "scheduled",
+      "id": "rem-1790993401235",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T02:10:01.235Z"
+    },
+    {
+      "title": "STUDY CSC401",
+      "description": "",
+      "date": "2026-10-03",
+      "time": "19:00",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "scheduled",
+      "id": "rem-1790993550718",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T02:12:30.718Z"
+    },
+    {
+      "title": "Submit Software Engineering Lab",
+      "date": "2026-10-04",
+      "time": "14:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "id": "rem-1790999328182-bjdl9v",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:48:48.182Z"
+    },
+    {
+      "title": "Submit Software Engineering Lab",
+      "date": "2026-10-04",
+      "time": "14:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "id": "rem-1790999365568-ixyfit",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:49:25.568Z",
+      "status": "triggered"
+    },
+    {
+      "title": "Submit Software Engineering Lab",
+      "date": "2026-10-04",
+      "time": "14:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "id": "rem-1790999936885-jasfag",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:58:56.885Z"
+    },
+    {
+      "title": "Submit Software Engineering Lab",
+      "date": "2026-10-04",
+      "time": "14:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "id": "rem-1791000205911-47xdvp",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T04:03:25.911Z"
+    },
+    {
+      "title": "Submit Software Engineering Lab",
+      "date": "2026-10-04",
+      "time": "14:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "id": "rem-1791000368045-mx9r4w",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T04:06:08.045Z"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-1",
+      "user_id": "user-1",
+      "title": "Study Computer Architecture",
+      "date": "2025-05-21",
+      "time": "08:00",
+      "duration_hours": 2,
+      "priority": "high",
+      "status": "pending",
+      "created_at": "2025-05-20T08:00:00Z"
+    },
+    {
+      "id": "task-2",
+      "user_id": "user-1",
+      "title": "Project Work",
+      "date": "2025-05-21",
+      "time": "10:30",
+      "duration_hours": 2,
+      "priority": "medium",
+      "status": "pending",
+      "created_at": "2025-05-20T08:00:00Z"
+    }
+  ],
+  "plans": [
+    {
+      "id": "plan-1",
+      "user_id": "user-1",
+      "date": "2025-05-21",
+      "timeline": [
+        {
+          "id": "time-1",
+          "time": "08:00 - 10:00",
+          "title": "Study Computer Architecture",
+          "duration": "2h",
+          "color": "blue"
+        },
+        {
+          "id": "time-2",
+          "time": "10:30 - 12:30",
+          "title": "Project Work",
+          "duration": "2h",
+          "color": "purple"
+        },
+        {
+          "id": "time-3",
+          "time": "12:30 - 13:30",
+          "title": "Lunch Break",
+          "duration": "1h",
+          "color": "slate"
+        },
+        {
+          "id": "time-4",
+          "time": "14:00 - 16:00",
+          "title": "Data Structures",
+          "duration": "2h",
+          "color": "teal"
+        },
+        {
+          "id": "time-5",
+          "time": "17:00 - 18:00",
+          "title": "Gym",
+          "duration": "1h",
+          "color": "green"
+        },
+        {
+          "id": "time-6",
+          "time": "20:00 - 21:30",
+          "title": "Review & Notes",
+          "duration": "1.5h",
+          "color": "orange"
+        }
+      ],
+      "suggestions": "You have 2 free hours tomorrow morning. Perfect time for deep study.",
+      "created_at": "2025-05-20T09:30:00Z"
+    },
+    {
+      "date": "2026-10-03",
+      "timeline": [
+        {
+          "id": "block-1-1790997440953",
+          "time": "02:00 – 03:30",
+          "title": "To Dance A",
+          "duration": "1.5h",
+          "priority": "high",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-2-1790997440953",
+          "time": "04:00 – 05:30",
+          "title": "I Would You To I Need To Do Sport P",
+          "duration": "1.5h",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-3-1790997440953",
+          "time": "08:00 – 09:30",
+          "title": "Also To Study By 6 00 P",
+          "duration": "1.5h",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-4-1790997440953",
+          "time": "09:45 – 11:15",
+          "title": "Go To The Market Bye 3 00 P",
+          "duration": "1.5h",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-5-1790997440953",
+          "time": "11:30 – 13:00",
+          "title": "So The Highest Priority For Me To Study So Help Me To Schedule My Day",
+          "duration": "1.5h",
+          "priority": "medium",
+          "reminder_enabled": true
+        }
+      ],
+      "suggestions": "Daily plan structured around your actual tasks for 2026-10-03. High-priority focus blocks assigned chronologically.",
+      "id": "plan-1790997440954-u9mwdb",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:17:20.954Z"
+    },
+    {
+      "date": "2026-10-03",
+      "timeline": [
+        {
+          "id": "block-1-1790998817445-mzfx",
+          "time": "06:48 – 07:48",
+          "title": "Dance",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "06:48",
+          "endTime": "07:48",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-2-1790998817445-kaox",
+          "time": "07:48 – 09:48",
+          "title": "Exercise",
+          "duration": "2h",
+          "durationHours": 2,
+          "durationMinutes": 120,
+          "startTime": "07:48",
+          "endTime": "09:48",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-3-1790998817445-8xjm",
+          "time": "15:00 – 17:00",
+          "title": "Study",
+          "duration": "2h",
+          "durationHours": 2,
+          "durationMinutes": 120,
+          "startTime": "15:00",
+          "endTime": "17:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-4-1790998817445-lpjl",
+          "time": "18:00 – 19:00",
+          "title": "Go To The Market",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "18:00",
+          "endTime": "19:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        }
+      ],
+      "suggestions": "Daily plan structured around your actual tasks for 2026-10-03. High-priority focus blocks assigned chronologically.",
+      "id": "plan-1790998817445-an9m0n",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:40:17.445Z"
+    },
+    {
+      "date": "2026-10-03",
+      "timeline": [
+        {
+          "id": "block-1-1790999575458-xgs0",
+          "time": "09:00 – 10:00",
+          "title": "I Am Writing My Exam On The 30th Of October",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "09:00",
+          "endTime": "10:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-2-1790999575458-0ivp",
+          "time": "10:00 – 11:00",
+          "title": "Need You To Generate To Me Study Plan Focuses Four Courses That Is CAC 305 CSC 401 CAC 203 And See The She Beautiful Yes How Can I Proceed To Succeed",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "10:00",
+          "endTime": "11:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        }
+      ],
+      "suggestions": "Daily plan structured around your actual tasks for 2026-10-03. High-priority focus blocks assigned chronologically.",
+      "id": "plan-1790999575459-zbwke9",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:52:55.459Z"
+    }
+  ],
+  "exams": [
+    {
+      "id": "exam-1",
+      "user_id": "user-1",
+      "course": "Computer Architecture",
+      "exam_date": "2025-08-20",
+      "difficulty": "high",
+      "study_hours_per_day": 3,
+      "preferred_study_time": "20:00 - 23:00",
+      "available_days": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat",
+        "Sun"
+      ],
+      "remaining_chapters": 8,
+      "progress": 35,
+      "created_at": "2025-05-01T08:00:00Z"
+    }
+  ],
+  "study_sessions": [
+    {
+      "id": "session-1",
+      "user_id": "user-1",
+      "exam_id": "exam-1",
+      "title": "Memory Hierarchy Revision",
+      "date": "2025-05-21",
+      "time": "20:00",
+      "duration_minutes": 180,
+      "status": "scheduled",
+      "created_at": "2025-05-20T09:30:00Z"
+    }
+  ],
+  "events": [
+    {
+      "id": "event-1",
+      "user_id": "user-1",
+      "title": "Team Meeting",
+      "date": "2025-05-22",
+      "time": "15:00",
+      "location": "Tech Hub, Buea",
+      "description": "Discuss project progress and next steps.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Sarah",
+        "Michael",
+        "Kevin",
+        "Alex"
+      ],
+      "created_at": "2025-05-18T12:00:00Z"
+    },
+    {
+      "title": "I Have An Event",
+      "date": "2026-10-04",
+      "time": "15:00",
+      "location": "3 PM",
+      "description": "I have an event this Sunday at 3 PM. The event is called Majestical Night.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1790992942296",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T02:02:22.296Z"
+    },
+    {
+      "title": "Majestical Night",
+      "date": "2026-10-04",
+      "time": "15:00",
+      "location": "Not specified",
+      "description": "I have an event this Sunday at 3 PM. The event is called Majestical Night.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1790993022566",
+      "user_id": "test_user",
+      "created_at": "2026-10-03T02:03:42.566Z"
+    },
+    {
+      "title": "Majestical Night",
+      "date": "2026-10-04",
+      "time": "15:00",
+      "location": "Not specified",
+      "description": "I have an event this Sunday at 3 PM. The event is called Majestical Night.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1790993028134",
+      "user_id": "test_user",
+      "created_at": "2026-10-03T02:03:48.134Z"
+    },
+    {
+      "title": "Majestical Night",
+      "date": "2026-10-04",
+      "time": "15:00",
+      "location": "WHO ARE YOU AND WH IS YOUR GOAL ?",
+      "description": "I have an event this Sunday at 3 PM. The event is called Majestical Night.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1790993075592",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T02:04:35.592Z"
+    },
+    {
+      "title": "Me A Reminder, Can You Do That?",
+      "date": "2026-10-03",
+      "time": "12:00",
+      "location": "HELLO",
+      "description": "I want you to create me a reminder, can you do that?",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1790993086333",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T02:04:46.333Z"
+    },
+    {
+      "title": "Majestical Night",
+      "date": "2026-10-04",
+      "time": "15:00",
+      "location": "Not specified",
+      "description": "I have an event this Sunday at 3 PM. The event is called Majestical Night.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1790996923394",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:08:43.394Z"
+    },
+    {
+      "title": "Majestical Night",
+      "date": "2026-10-04",
+      "time": "15:00",
+      "location": "Not specified",
+      "description": "I have an event this Sunday at 3 PM. The event is called Majestical Night.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1790996924534",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:08:44.534Z"
+    },
+    {
+      "title": "Mathematics Revision From 8 Am To 11 Am And A Meeting",
+      "date": "2026-10-03",
+      "time": "08:00",
+      "location": "Not specified",
+      "description": "Schedule my mathematics revision from 8 AM to 11 AM and a meeting at 10 AM.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1790998825346-ula7re",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:40:25.346Z"
+    }
+  ],
+  "memories": [
+    {
+      "id": "mem-1",
+      "user_id": "user-1",
+      "text": "I usually study at night.",
+      "category": "Preference",
+      "created_at": "2025-05-10T14:30:00Z"
+    },
+    {
+      "id": "mem-2",
+      "user_id": "user-1",
+      "text": "My Computer Architecture exam is August 20.",
+      "category": "Milestone",
+      "created_at": "2025-05-08T11:15:00Z"
+    },
+    {
+      "id": "mem-3",
+      "user_id": "user-1",
+      "text": "I prefer Spotify while studying.",
+      "category": "Preference",
+      "created_at": "2025-05-05T09:00:00Z"
+    },
+    {
+      "id": "mem-4",
+      "user_id": "user-1",
+      "text": "I like silent reminders during meetings.",
+      "category": "Setting",
+      "created_at": "2025-04-29T16:20:00Z"
+    },
+    {
+      "id": "mem-5",
+      "user_id": "user-1",
+      "text": "I go to church every Sunday morning.",
+      "category": "Schedule",
+      "created_at": "2025-04-20T10:00:00Z"
+    },
+    {
+      "text": "I dance at 6:48 AM.",
+      "category": "Schedule",
+      "id": "mem-1790992861390",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T02:01:01.390Z"
+    },
+    {
+      "text": "Has an event called Majestical Night this Sunday at 3 PM.",
+      "category": "Schedule",
+      "id": "mem-1790992946030",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T02:02:26.030Z"
+    },
+    {
+      "text": "I have an event called Majestical Night this Sunday at 3 PM.",
+      "category": "Milestone",
+      "id": "mem-1790993072048",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T02:04:32.048Z"
+    },
+    {
+      "text": "I dance at 6:48 AM.",
+      "category": "Schedule",
+      "id": "mem-1790993143345",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T02:05:43.345Z"
+    },
+    {
+      "text": "I need to call my mom at 7:30 PM tonight.",
+      "category": "Schedule",
+      "id": "mem-1790993403454",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T02:10:03.454Z"
+    },
+    {
+      "text": "I study CSC401 at 7PM.",
+      "category": "Schedule",
+      "id": "mem-1790993551889",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T02:12:31.889Z"
+    },
+    {
+      "text": "I have an event called Majestical Night this Sunday at 3 PM.",
+      "category": "Milestone",
+      "id": "mem-1790996924511",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:08:44.511Z"
+    },
+    {
+      "text": "I prefer to prioritize studying in my daily schedule.",
+      "category": "Preference",
+      "id": "mem-1790997442092-va4t1m",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:17:22.092Z"
+    },
+    {
+      "text": "I dance daily at 6:48 AM for one hour.",
+      "category": "Schedule",
+      "id": "mem-1790998779966-oj22de",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:39:39.966Z"
+    },
+    {
+      "text": "I dance daily at 6:48 AM for one hour.",
+      "category": "Schedule",
+      "id": "mem-1790998818250-jrcb75",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:40:18.250Z"
+    },
+    {
+      "text": "Mathematics revision is scheduled from 8 AM to 11 AM.",
+      "category": "Schedule",
+      "id": "mem-1790998828495-jdduep",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:40:28.496Z"
+    },
+    {
+      "text": "Mathematics revision is scheduled from 8 AM to 11 AM.",
+      "category": "Schedule",
+      "id": "mem-1790998861159-itqvos",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:41:01.159Z"
+    },
+    {
+      "text": "my mother's name is Pauline",
+      "category": "Relationships",
+      "id": "mem-1790999328163-72vf9i",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:48:48.163Z"
+    },
+    {
+      "text": "I am writing my exam on the 30th of October.",
+      "category": "Milestone",
+      "id": "mem-1790999576730-t4t0b9",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T03:52:56.730Z"
+    }
+  ],
+  "memory_vault": [
+    {
+      "id": "vault-1",
+      "user_id": "user-1",
+      "title": "Passport Location",
+      "content": "My passport is inside the blue drawer in the study desk.",
+      "category": "Location",
+      "tags": [
+        "important",
+        "documents"
+      ],
+      "created_at": "2026-07-25T10:00:00Z"
+    },
+    {
+      "id": "vault-2",
+      "user_id": "user-1",
+      "title": "Parking Spot Level",
+      "content": "I parked at level B2, spot #44.",
+      "category": "Location",
+      "tags": [
+        "car",
+        "parking"
+      ],
+      "created_at": "2026-07-28T14:15:00Z"
+    },
+    {
+      "id": "vault-3",
+      "user_id": "user-1",
+      "title": "Supervisor Preferences",
+      "content": "My supervisor Dr. Vance prefers afternoon meetings after 2 PM.",
+      "category": "Work",
+      "tags": [
+        "university",
+        "meeting"
+      ],
+      "created_at": "2026-07-29T11:00:00Z"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "notif-1",
+      "user_id": "user-1",
+      "title": "Upcoming Exam Prep",
+      "text": "Your Computer Architecture exam is in 3 months. Keep up the revision!",
+      "date": "2025-05-20T09:00:00Z",
+      "read": false,
+      "created_at": "2025-05-20T09:00:00Z"
+    }
+  ],
+  "notification_history": [
+    {
+      "id": "act-1",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Study CSC301",
+      "description": "Xena AI reminded you to start your study session.",
+      "status": "completed",
+      "created_at": "2026-07-14T18:00:00-07:00",
+      "metadata": {}
+    },
+    {
+      "id": "act-2",
+      "user_id": "user-1",
+      "type": "STUDY",
+      "title": "Computer Architecture Revision",
+      "description": "Xena AI created a revision reminder because your exam is in 14 days.",
+      "status": "completed",
+      "created_at": "2026-07-14T14:30:00-07:00",
+      "metadata": {
+        "countdown_days": 14,
+        "progress": 35,
+        "action_label": "Revise Chapters 1-3"
+      }
+    },
+    {
+      "id": "act-3",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Tech Conference",
+      "description": "Xena AI reminded you 30 minutes before your event.",
+      "status": "completed",
+      "created_at": "2026-07-14T15:00:00-07:00",
+      "metadata": {
+        "location": "Tech Hub, Buea",
+        "action_label": "View Location"
+      }
+    },
+    {
+      "id": "act-4",
+      "user_id": "user-1",
+      "type": "AI_ACTION",
+      "title": "Xena AI opened your study document",
+      "description": "Action executed: OPEN_DOCUMENT",
+      "status": "completed",
+      "created_at": "2026-07-14T20:00:00-07:00",
+      "metadata": {
+        "action_type": "OPEN_DOCUMENT",
+        "document_name": "CSC301 Notes PDF"
+      }
+    },
+    {
+      "id": "act-5",
+      "user_id": "user-1",
+      "type": "PLANNING",
+      "title": "Review & Notes Schedule Block",
+      "description": "Xena AI marked planning block as finished on schedule.",
+      "status": "completed",
+      "created_at": "2026-07-14T17:00:00-07:00",
+      "metadata": {
+        "time_slot": "17:00 - 18:00"
+      }
+    },
+    {
+      "id": "act-1790991631005",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Buy groceries\"",
+      "source_id": "rem-1",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T01:40:31.005Z"
+    },
+    {
+      "id": "act-1790991631006",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Project submission\"",
+      "source_id": "rem-2",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T01:40:31.006Z"
+    },
+    {
+      "id": "act-1790997293610-1yerpe",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Call Mom\"",
+      "source_id": "rem-3",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T01:40:31.006Z"
+    },
+    {
+      "id": "act-1790991631007",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Doctor Appointment\"",
+      "source_id": "rem-4",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T01:40:31.007Z"
+    },
+    {
+      "id": "act-1790997293610-ovmu19",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Pay Electricity Bill\"",
+      "source_id": "rem-5",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T01:40:31.007Z"
+    },
+    {
+      "id": "act-1790992093393",
+      "user_id": "test-audit-user-1790992093310",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Dance\"",
+      "description": "Scheduled for 2026-10-03 at 06:48",
+      "source_id": "rem-1790992093312",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T01:48:13.393Z"
+    },
+    {
+      "id": "act-1790992093398",
+      "user_id": "test-audit-user-1790992093310",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Dance\"",
+      "description": "Scheduled for 2026-10-03 at 06:48",
+      "source_id": "rem-1790992093398",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T01:48:13.398Z"
+    },
+    {
+      "id": "act-1790992122711",
+      "user_id": "test-audit-user-1790992122684",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Dance\"",
+      "description": "Scheduled for 2026-10-03 at 06:48",
+      "source_id": "rem-1790992122687",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T01:48:42.711Z"
+    },
+    {
+      "id": "act-1790992122718",
+      "user_id": "test-audit-user-1790992122684",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Dance\"",
+      "description": "Scheduled for 2026-10-03 at 06:48",
+      "source_id": "rem-1790992122717",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T01:48:42.718Z"
+    },
+    {
+      "id": "act-1790992903923",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Dance\"",
+      "description": "Scheduled for 2026-10-03 at 06:48",
+      "source_id": "rem-1790992903906",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T02:01:43.923Z"
+    },
+    {
+      "id": "act-1790992922251",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Study\"",
+      "description": "Scheduled for 2026-10-04 at 16:00",
+      "source_id": "rem-1790992922250",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T02:02:02.251Z"
+    },
+    {
+      "id": "act-1790992942297",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"I Have An Event\"",
+      "description": "2026-10-04 at 15:00 (3 PM)",
+      "source_id": "event-1790992942296",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T02:02:22.297Z"
+    },
+    {
+      "id": "act-1790993022567",
+      "user_id": "test_user",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Majestical Night\"",
+      "description": "2026-10-04 at 15:00 (Not specified)",
+      "source_id": "event-1790993022566",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T02:03:42.567Z"
+    },
+    {
+      "id": "act-1790993028135",
+      "user_id": "test_user",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Majestical Night\"",
+      "description": "2026-10-04 at 15:00 (Not specified)",
+      "source_id": "event-1790993028134",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T02:03:48.135Z"
+    },
+    {
+      "id": "act-1790993075592",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Majestical Night\"",
+      "description": "2026-10-04 at 15:00 (Not specified)",
+      "source_id": "event-1790993075592",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T02:04:35.592Z"
+    },
+    {
+      "id": "act-1790993086334",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Me A Reminder, Can You Do That?\"",
+      "description": "2026-10-03 at 12:00 (Not specified)",
+      "source_id": "event-1790993086333",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T02:04:46.334Z"
+    },
+    {
+      "id": "act-1790993141228",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Dance\"",
+      "description": "Scheduled for 2026-10-03 at 06:48",
+      "source_id": "rem-1790993141211",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T02:05:41.228Z"
+    },
+    {
+      "id": "act-1790993401261",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Call my mom\"",
+      "description": "Scheduled for 2026-10-03 at 19:30",
+      "source_id": "rem-1790993401235",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T02:10:01.261Z"
+    },
+    {
+      "id": "act-1790993550741",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"STUDY CSC401\"",
+      "description": "Scheduled for 2026-10-03 at 19:00",
+      "source_id": "rem-1790993550718",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T02:12:30.741Z"
+    },
+    {
+      "id": "act-1790996923395",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Majestical Night\"",
+      "description": "2026-10-04 at 15:00 (Not specified)",
+      "source_id": "event-1790996923394",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T03:08:43.395Z"
+    },
+    {
+      "id": "act-1790996924535",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Majestical Night\"",
+      "description": "2026-10-04 at 15:00 (Not specified)",
+      "source_id": "event-1790996924534",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T03:08:44.535Z"
+    },
+    {
+      "id": "act-1790997440954-ox97kt",
+      "user_id": "user-1",
+      "type": "PLANNING",
+      "title": "Plan Initialized for 2026-10-03",
+      "description": "Generated 5 schedule time blocks",
+      "source_id": "plan-1790997440954-u9mwdb",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T03:17:20.954Z"
+    },
+    {
+      "id": "act-1790998817446-soa5jb",
+      "user_id": "user-1",
+      "type": "PLANNING",
+      "title": "Plan Initialized for 2026-10-03",
+      "description": "Generated 4 schedule time blocks",
+      "source_id": "plan-1790998817445-an9m0n",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T03:40:17.446Z"
+    },
+    {
+      "id": "act-1790998825347-amlaw3",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Mathematics Revision From 8 Am To 11 Am And A Meeting\"",
+      "description": "2026-10-03 at 08:00 (Not specified)",
+      "source_id": "event-1790998825346-ula7re",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T03:40:25.347Z"
+    },
+    {
+      "id": "act-1790999575460-u5udug",
+      "user_id": "user-1",
+      "type": "PLANNING",
+      "title": "Plan Initialized for 2026-10-03",
+      "description": "Generated 2 schedule time blocks",
+      "source_id": "plan-1790999575459-zbwke9",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T03:52:55.460Z"
+    },
+    {
+      "id": "act-1790999925565-onys5u",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Submit Software Engineering Lab\"",
+      "source_id": "rem-1790999365568-ixyfit",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T03:58:45.565Z"
+    }
+  ],
+  "smart_actions": [],
+  "study_tracking": [
+    {
+      "id": "study-tracking-user-1",
+      "user_id": "user-1",
+      "normal_exam_date": "",
+      "continuous_assessment_date": "",
+      "subjects": [],
+      "hours_per_day": 2,
+      "preferred_start_time": "20:00",
+      "preferred_end_time": "22:00",
+      "available_days": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri"
+      ],
+      "study_plan": [],
+      "created_at": "2026-10-03T03:48:48.145Z",
+      "updated_at": "2026-10-03T03:48:48.145Z"
+    },
+    {
+      "id": "study-tracking-user-2-test",
+      "user_id": "user-2-test",
+      "normal_exam_date": "",
+      "continuous_assessment_date": "",
+      "subjects": [],
+      "hours_per_day": 2,
+      "preferred_start_time": "20:00",
+      "preferred_end_time": "22:00",
+      "available_days": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri"
+      ],
+      "study_plan": [],
+      "created_at": "2026-10-03T03:49:25.590Z",
+      "updated_at": "2026-10-03T03:49:25.590Z"
+    }
+  ]
+}

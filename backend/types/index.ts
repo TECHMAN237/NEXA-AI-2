@@ -18,6 +18,11 @@ export interface Profile {
   notifications_enabled: boolean;
   connected_apps: string[];
   created_at: string;
+  academic_level?: string;
+  institution?: string;
+  field_of_study?: string;
+  bio?: string;
+  timezone?: string;
 }
 
 export interface Conversation {
@@ -181,6 +186,10 @@ export interface Memory {
   text: string;
   category: string;
   created_at: string;
+  subject?: string;
+  predicate?: string;
+  object?: string;
+  tags?: string[];
 }
 
 export interface MemoryVaultItem {

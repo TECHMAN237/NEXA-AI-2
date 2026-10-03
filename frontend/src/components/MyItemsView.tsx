@@ -1081,30 +1081,23 @@ export default function MyItemsView({
                             </div>
                           </div>
 
-                          {/* Chronological Schedule Time Blocks */}
+                          {/* Generated Daily Plan Task List (Clean Task Names Only) */}
                           {plan.timeline && plan.timeline.length > 0 && (
                             <div className="space-y-1.5 bg-[#080B10] rounded-xl p-2.5 border border-white/5">
-                              <div className="text-[9px] font-mono font-semibold uppercase text-gray-400 tracking-wider mb-1.5">
-                                Chronological Time Blocks:
+                              <div className="text-[9px] font-mono font-semibold uppercase text-gray-400 tracking-wider mb-1">
+                                Daily Tasks ({plan.timeline.length}):
                               </div>
-                              {plan.timeline.map((block: any, idx: number) => (
-                                <div 
-                                  key={block.id || idx}
-                                  className="flex items-center justify-between text-xs bg-[#0F141F] p-2 rounded-lg border border-white/5 hover:border-amber-500/20 transition"
-                                >
-                                  <div className="flex items-center space-x-2.5">
-                                    <span className="text-[9px] font-mono font-bold text-cyan-400 bg-cyan-950/50 px-2 py-0.5 rounded border border-cyan-500/20 whitespace-nowrap">
-                                      {block.time}
-                                    </span>
-                                    <span className="font-medium text-white text-xs">{block.title}</span>
-                                  </div>
-                                  {block.duration && (
-                                    <span className="text-[9px] font-mono text-gray-400 bg-white/5 px-1.5 py-0.5 rounded">
-                                      {block.duration}
-                                    </span>
-                                  )}
-                                </div>
-                              ))}
+                              <ul className="space-y-1">
+                                {plan.timeline.map((block: any, idx: number) => (
+                                  <li 
+                                    key={block.id ? `${block.id}-${idx}` : `plan-task-${idx}`}
+                                    className="flex items-center space-x-2 text-xs bg-[#0F141F] px-2.5 py-1.5 rounded-lg border border-white/5 hover:border-amber-500/20 transition text-gray-100"
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80 flex-shrink-0"></span>
+                                    <span className="font-medium text-xs text-white">{block.title}</span>
+                                  </li>
+                                ))}
+                              </ul>
                             </div>
                           )}
 
@@ -2164,6 +2157,32 @@ export default function MyItemsView({
                     </div>
 
                     {/* Additional Details based on Module Type */}
+                    {selectedItem.type === 'planning' && selectedItem.data.timeline && selectedItem.data.timeline.length > 0 && (
+                      <div className="bg-slate-900/55 border border-nexa-border/40 rounded-xl p-3.5 space-y-2.5 text-xs font-mono">
+                        <div className="flex items-center justify-between pb-1 border-b border-white/5">
+                          <span className="text-[10px] font-bold text-amber-300 uppercase font-mono">Scheduled Time Blocks & Durations</span>
+                          <span className="text-[9px] text-gray-500 font-mono">{selectedItem.data.timeline.length} Blocks</span>
+                        </div>
+                        <div className="space-y-1.5 pt-0.5">
+                          {selectedItem.data.timeline.map((block: any, i: number) => (
+                            <div key={i} className="flex items-center justify-between bg-[#0F141F] p-2 rounded-lg border border-white/5">
+                              <div className="flex items-center space-x-2.5">
+                                <span className="text-[9px] font-mono font-bold text-cyan-400 bg-cyan-950/50 px-2 py-0.5 rounded border border-cyan-500/20">
+                                  {block.time}
+                                </span>
+                                <span className="text-white font-medium text-xs">{block.title}</span>
+                              </div>
+                              {block.duration && (
+                                <span className="text-[9px] font-mono text-gray-400 bg-white/5 px-1.5 py-0.5 rounded">
+                                  {block.duration}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {selectedItem.type === 'events' && (selectedItem.data.location || selectedItem.data.participants) && (
                       <div className="bg-slate-900/55 border border-nexa-border/40 rounded-xl p-3.5 space-y-2 text-xs font-mono">
                         <span className="text-[10px] font-bold text-cyan-300 uppercase font-mono block">Event Coordinates</span>
