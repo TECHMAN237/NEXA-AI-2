@@ -45,8 +45,8 @@ export class PersonalContextEngine {
   /**
    * Classifies user query to determine which personal sources are relevant
    */
-  static classifyContextNeeds(query: string): 'IDENTITY' | 'ACADEMIC' | 'RELATIONSHIP' | 'SAVED_FACT' | 'ORGANIZER' | 'CROSS_SOURCE' | 'GENERAL' {
-    const q = query.toLowerCase().trim();
+  static classifyContextNeeds(query?: string): 'IDENTITY' | 'ACADEMIC' | 'RELATIONSHIP' | 'SAVED_FACT' | 'ORGANIZER' | 'CROSS_SOURCE' | 'GENERAL' {
+    const q = (query || '').toLowerCase().trim();
 
     const identityTriggers = [
       "what's my name", "what is my name", "who am i", "my full name", "my email", "what is my email",
@@ -193,7 +193,8 @@ export class PersonalContextEngine {
   /**
    * Main Context Orchestrator: Gathers, validates, and assembles context across Profile, AI Memory, and My Organizer
    */
-  static assemblePersonalContext(userId: string, query: string): PersonalContextPayload {
+  static assemblePersonalContext(userId: string, query: string = ''): PersonalContextPayload {
+    const safeQuery = (query || '').toLowerCase();
     const category = this.classifyContextNeeds(query);
     const sourcesConsulted: Array<'profile' | 'ai_memory' | 'memory_vault' | 'my_organizer'> = [];
     const evidence: ContextEvidenceItem[] = [];
@@ -251,7 +252,7 @@ export class PersonalContextEngine {
     }
 
     // Check missing fields in query
-    if (query.toLowerCase().includes('university') && (!profileData.institution || profileData.institution.includes('Unrecorded'))) {
+    if (safeQuery.includes('university') && (!profileData.institution || profileData.institution.includes('Unrecorded'))) {
       missingContextFields.push('institution');
     }
 

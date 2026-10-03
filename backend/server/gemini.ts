@@ -34,9 +34,6 @@ const GEMINI_MODELS = [
 // In-memory model circuit breaker to avoid calling models with exhausted quotas
 const modelExhaustionMap = new Map<string, number>();
 
-// Pre-quarantine known exhausted models on boot to eliminate startup 429 warnings
-modelExhaustionMap.set("gemini-3.8-flash", Date.now() + 21 * 3600 * 1000);
-
 export function isModelQuarantined(model: string): boolean {
   const until = modelExhaustionMap.get(model);
   if (!until) return false;
@@ -191,16 +188,21 @@ export async function transcribeAudioWithGemini(
       ? `Known User Entities, Course Codes & Reminders: ${userContextTerms.filter(Boolean).join(', ')}`
       : 'Known Course Codes: CS-305';
 
-    const generatePromise = generateContentWithFallback(ai, {
+    const sttParams = {
       contents: [
         {
-          inlineData: {
-            mimeType: cleanMime,
-            data: audioBase64
-          }
-        },
-        {
-          text: "Transcribe the spoken audio into text with high precision and intelligent contextual refinement."
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                mimeType: cleanMime,
+                data: audioBase64
+              }
+            },
+            {
+              text: "Transcribe the spoken audio into text with high precision and intelligent contextual refinement."
+            }
+          ]
         }
       ],
       config: {
@@ -233,13 +235,33 @@ CRITICAL RULES:
 4. Correct natural speech hesitations ("um", "uh") while preserving all intended spoken content.
 5. If there is no speech or only silence/background noise in the audio, return the exact text "[SILENCE]".`
       }
-    });
+    };
 
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("Gemini STT timeout after 30000ms")), 30000);
-    });
+    const sttModels = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'];
+    let response: any = null;
+    let sttError: any = null;
 
-    const response = await Promise.race([generatePromise, timeoutPromise]);
+    for (const model of sttModels) {
+      if (isModelQuarantined(model)) continue;
+      try {
+        response = await ai.models.generateContent({
+          ...sttParams,
+          model
+        });
+        if (response) break;
+      } catch (mErr: any) {
+        sttError = mErr;
+        const isQuotaOr429 = mErr?.status === 429 || mErr?.message?.includes('429') || mErr?.message?.includes('RESOURCE_EXHAUSTED');
+        if (isQuotaOr429) {
+          quarantineModel(model);
+        }
+        console.warn(`[GEMINI_STT_MODEL_FALLBACK] Model ${model} failed for STT (${mErr?.status || 'Error'}). Trying next...`, mErr?.message || mErr);
+      }
+    }
+
+    if (!response && sttError) {
+      throw sttError;
+    }
 
     const resultText = (response.text || "").trim();
     console.log(`[GEMINI_STT] Result: "${resultText}"`);
