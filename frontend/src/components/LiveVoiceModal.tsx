@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Mic, MicOff, Volume2, VolumeX, X, Sparkles, AlertCircle, Loader2, RefreshCw, Radio
+  Mic, MicOff, Volume2, VolumeX, X, Sparkles, AlertCircle, Loader2, Radio
 } from 'lucide-react';
 import { SpeechService } from '../services/SpeechService.js';
 import { GEMINI_VOICE_PROFILES } from '../utils/voiceUtils.js';
+import { VoicePerformanceTracker } from '../utils/VoicePerformanceTracker.js';
 import MarkdownRenderer from './MarkdownRenderer.js';
 import { getApiUrl } from '../config/api.js';
 
@@ -36,38 +37,100 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<string>(() => SpeechService.getPreferredVoice());
 
-  const handleVoiceChange = (voiceId: string) => {
-    setSelectedVoice(voiceId);
-    SpeechService.setPreferredVoice(voiceId);
-  };
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isOpenRef = useRef(isOpen);
   const isProcessingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const currentlySpokenTextRef = useRef<string>('');
+  const activeTurnIdRef = useRef<number>(0);
+  const lastSubmittedTurnKeyRef = useRef<string>('');
+  const listeningTimerRef = useRef<any>(null);
+
+  const clearPendingListeningTimer = () => {
+    if (listeningTimerRef.current) {
+      clearTimeout(listeningTimerRef.current);
+      listeningTimerRef.current = null;
+    }
+  };
+
+  const handleVoiceChange = (voiceId: string) => {
+    setSelectedVoice(voiceId);
+    SpeechService.setPreferredVoice(voiceId);
+    SpeechService.warmUpSession(voiceId);
+  };
+
+  /**
+   * Instant (<100ms) Barge-In Interruption Handler:
+   * Immediately cancels active turn, stops all audio output, aborts network stream,
+   * and transitions cleanly to listening without duplicate or ghost callbacks.
+   */
+  const interruptCurrentTurnAndListen = (interruptedSpeech?: string) => {
+    if (!isOpenRef.current) return;
+    clearPendingListeningTimer();
+
+    const interruptedTurnId = activeTurnIdRef.current;
+    activeTurnIdRef.current += 1;
+    VoicePerformanceTracker.markTurnInterrupted(interruptedTurnId);
+
+    if (abortControllerRef.current) {
+      try { abortControllerRef.current.abort(); } catch {}
+      abortControllerRef.current = null;
+    }
+
+    isProcessingRef.current = false;
+    currentlySpokenTextRef.current = '';
+    SpeechService.stopBargeInMonitor();
+    SpeechService.stopSpeaking();
+
+    startListeningPass(interruptedSpeech);
+  };
+
+  const activateBargeInMonitor = () => {
+    SpeechService.startBargeInMonitor(
+      (interruptedSpeech: string) => {
+        interruptCurrentTurnAndListen(interruptedSpeech);
+      },
+      () => currentlySpokenTextRef.current
+    );
+  };
 
   useEffect(() => {
     isOpenRef.current = isOpen;
     if (isOpen) {
+      clearPendingListeningTimer();
+      activeTurnIdRef.current += 1;
+      const welcomeTurnId = activeTurnIdRef.current;
+
+      // Pre-warm 24kHz AudioContext and backend Gemini Live session pool immediately
+      SpeechService.warmUpSession(selectedVoice);
+
+      const initialGreeting = `Hi ${profileName ? profileName.split(' ')[0] : 'there'}, I'm listening. How can I help you today?`;
       setMessages([
         {
           id: `welcome-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           sender: 'xena',
-          text: `Hi ${profileName ? profileName.split(' ')[0] : 'there'}, I'm listening. How can I help you today?`,
+          text: initialGreeting,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
       setErrorMessage(null);
       setLiveTranscript('');
-      
-      // Greet user by voice, then start automatic continuous listening loop!
-      const initialGreeting = `Hi ${profileName ? profileName.split(' ')[0] : 'there'}, I'm listening. How can I help you today?`;
+
+      // Greet user by voice with active barge-in monitoring, then start continuous listening loop
+      currentlySpokenTextRef.current = initialGreeting;
       setModeState('speaking');
-      SpeechService.speak(initialGreeting, () => {
-        if (isOpenRef.current) {
-          startListeningPass();
-        }
-      });
+      activateBargeInMonitor();
+      SpeechService.speak(
+        initialGreeting,
+        {
+          onEnd: () => {
+            if (!isOpenRef.current || activeTurnIdRef.current !== welcomeTurnId) return;
+            SpeechService.stopBargeInMonitor();
+            startListeningPass();
+          }
+        },
+        { voiceName: selectedVoice }
+      );
     } else {
       handleExit();
     }
@@ -84,10 +147,13 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
   const handleExit = () => {
     isOpenRef.current = false;
     isProcessingRef.current = false;
+    activeTurnIdRef.current += 1;
+    clearPendingListeningTimer();
     if (abortControllerRef.current) {
       try { abortControllerRef.current.abort(); } catch (e) {}
       abortControllerRef.current = null;
     }
+    SpeechService.stopBargeInMonitor();
     SpeechService.stopSpeaking();
     SpeechService.cleanup();
     setModeState('idle');
@@ -99,9 +165,10 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
     onClose();
   };
 
-  // Start a single recording pass in the continuous voice loop
-  const startListeningPass = () => {
+  // Start a single recording pass in the continuous voice loop (optionally seeded with barge-in words)
+  const startListeningPass = (initialBargeInText?: string) => {
     if (!isOpenRef.current || isProcessingRef.current) return;
+    clearPendingListeningTimer();
 
     // Abort pending request if any
     if (abortControllerRef.current) {
@@ -109,66 +176,85 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
       abortControllerRef.current = null;
     }
 
-    // Stop ongoing TTS before starting microphone
+    // Stop ongoing TTS & barge-in monitor before starting microphone recording
+    SpeechService.stopBargeInMonitor();
     SpeechService.stopSpeaking();
 
+    const turnId = ++activeTurnIdRef.current;
+    const seedText = typeof initialBargeInText === 'string' ? initialBargeInText.trim() : '';
     setModeState('listening');
-    setLiveTranscript('');
+    setLiveTranscript(seedText);
     setErrorMessage(null);
+
+    // Pre-warm backend live session while the user speaks so it is 100% ready when speech ends
+    SpeechService.warmUpSession(selectedVoice);
 
     SpeechService.startRecording({
       autoStopOnSilence: true,
-      silenceTimeoutMs: 1500,
+      silenceTimeoutMs: 720,
+      keepMicWarm: true,
+      turnId,
+      initialTranscript: seedText,
       onStart: () => {
-        if (!isOpenRef.current) return;
+        if (!isOpenRef.current || activeTurnIdRef.current !== turnId) return;
         setModeState('listening');
       },
       onAudioLevel: (level, spectrum) => {
-        if (!isOpenRef.current) return;
+        if (!isOpenRef.current || activeTurnIdRef.current !== turnId) return;
         setAudioLevel(level);
         setAudioSpectrum(spectrum);
       },
       onResult: (transcript) => {
-        if (!isOpenRef.current) return;
+        if (!isOpenRef.current || activeTurnIdRef.current !== turnId) return;
         setLiveTranscript(transcript);
       },
       onError: (err) => {
         console.warn('[LIVE_MODE_VOICE_ERROR]', err);
-        if (!isOpenRef.current) return;
+        if (!isOpenRef.current || activeTurnIdRef.current !== turnId) return;
         setModeState('idle');
         setErrorMessage(err || "Microphone access is required for Live Mode.");
       },
       onEnd: (finalTranscript, speechDetected) => {
-        if (!isOpenRef.current) return;
+        if (!isOpenRef.current || activeTurnIdRef.current !== turnId) return;
 
         const sttEndTime = Date.now();
         const cleanSpeech = finalTranscript.trim();
 
-        if (cleanSpeech && speechDetected) {
-          processUserSpeech(cleanSpeech, sttEndTime);
+        if (cleanSpeech && (speechDetected || Boolean(seedText))) {
+          processUserSpeech(cleanSpeech, turnId, sttEndTime);
         } else {
           // If no speech detected, return to listening after short pause
           setLiveTranscript('');
           setModeState('idle');
           if (isOpenRef.current) {
-            setTimeout(() => {
-              if (isOpenRef.current && modeState === 'idle') {
+            clearPendingListeningTimer();
+            listeningTimerRef.current = setTimeout(() => {
+              if (isOpenRef.current && !isProcessingRef.current && activeTurnIdRef.current === turnId) {
                 startListeningPass();
               }
-            }, 800);
+            }, 450);
           }
         }
       }
     });
   };
 
-  // Process user speech with Xena AI brain (Fast Live Mode Endpoint)
-  const processUserSpeech = async (userText: string, sttEndTime?: number) => {
-    if (isProcessingRef.current || !isOpenRef.current) return;
+  // Process user speech with Xena AI brain (Fast Pre-Warmed Gemini Live Stream)
+  const processUserSpeech = async (userText: string, turnId: number, sttEndTime?: number) => {
+    if (isProcessingRef.current || !isOpenRef.current || activeTurnIdRef.current !== turnId) {
+      VoicePerformanceTracker.recordDuplicatePrevented();
+      return;
+    }
+
+    const dedupeKey = `${turnId}:${userText.toLowerCase()}`;
+    if (lastSubmittedTurnKeyRef.current === dedupeKey) {
+      VoicePerformanceTracker.recordDuplicatePrevented();
+      return;
+    }
+    lastSubmittedTurnKeyRef.current = dedupeKey;
     isProcessingRef.current = true;
 
     const sttEnd = sttEndTime || Date.now();
-    const aiStart = Date.now();
 
     // Abort any existing ongoing fetch request
     if (abortControllerRef.current) {
@@ -182,31 +268,34 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
 
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    // Append user message to live history
+    // Append user message to live history (exactly once per turnId)
+    const userMsgId = `u-${turnId}-${Date.now()}`;
     const userMsg: LiveMessage = {
-      id: `u-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: userMsgId,
       sender: 'user',
       text: userText,
       timestamp: timeStr
     };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages(prev => (prev.some(m => m.id === userMsgId) ? prev : [...prev, userMsg]));
 
     try {
-      const xenaMsgId = `x-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const xenaMsgId = `x-${turnId}-${Date.now()}`;
+      VoicePerformanceTracker.markRequestSent(turnId);
+
       const res = await fetch(getApiUrl('/api/chat/live/stream'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: userText, type: 'voice', voiceName: selectedVoice }),
+        body: JSON.stringify({ text: userText, type: 'voice', voiceName: selectedVoice, turnId }),
         signal: abortController.signal
       });
 
-      if (!isOpenRef.current) {
+      if (!isOpenRef.current || activeTurnIdRef.current !== turnId) {
         isProcessingRef.current = false;
         return;
       }
 
       if (res.ok && res.body) {
-        SpeechService.startPcmStream();
+        const streamGenId = SpeechService.startPcmStream();
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
@@ -215,26 +304,31 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
         let receivedAudioChunks = 0;
         let firstAudioLogged = false;
 
-        setMessages(prev => [
-          ...prev,
-          {
-            id: xenaMsgId,
-            sender: 'xena',
-            text: '...',
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          }
-        ]);
+        setMessages(prev =>
+          prev.some(m => m.id === xenaMsgId)
+            ? prev
+            : [
+                ...prev,
+                {
+                  id: xenaMsgId,
+                  sender: 'xena',
+                  text: '...',
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                }
+              ]
+        );
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          if (!isOpenRef.current || abortController.signal.aborted) break;
+          if (!isOpenRef.current || abortController.signal.aborted || activeTurnIdRef.current !== turnId) break;
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
           buffer = lines.pop() || '';
 
           for (const line of lines) {
+            if (!isOpenRef.current || abortController.signal.aborted || activeTurnIdRef.current !== turnId) break;
             const trimmed = line.trim();
             if (!trimmed.startsWith('data:')) continue;
             const jsonStr = trimmed.slice(5).trim();
@@ -242,26 +336,49 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
 
             try {
               const evt = JSON.parse(jsonStr);
+              if (evt.turnId !== undefined && evt.turnId !== turnId) {
+                VoicePerformanceTracker.recordDuplicatePrevented();
+                continue;
+              }
+
               if (evt.type === 'actions' && onRefreshData) {
+                VoicePerformanceTracker.markFirstProviderEvent(turnId);
                 onRefreshData();
               } else if (evt.type === 'transcript' && evt.delta) {
+                VoicePerformanceTracker.markFirstTranscript(turnId);
                 streamedTranscript += evt.delta;
                 const displayText = evt.fullText || streamedTranscript;
+                currentlySpokenTextRef.current = displayText;
                 setMessages(prev =>
                   prev.map(m => (m.id === xenaMsgId ? { ...m, text: displayText } : m))
                 );
               } else if (evt.type === 'audio' && evt.pcmBase64) {
+                if (receivedAudioChunks === 0) {
+                  VoicePerformanceTracker.markFirstAudioChunkReceived(turnId);
+                  activateBargeInMonitor();
+                }
                 receivedAudioChunks++;
                 setModeState('speaking');
-                SpeechService.enqueuePcmChunk(evt.pcmBase64, evt.sampleRate || 24000, () => {
-                  if (!firstAudioLogged) {
-                    firstAudioLogged = true;
-                    const playbackStart = Date.now();
-                    console.log(`[GEMINI_LIVE_LATENCY] Total End-of-Speech -> Native Audio Playing: ${((playbackStart - sttEnd) / 1000).toFixed(2)}s`);
-                  }
-                });
+                SpeechService.enqueuePcmChunk(
+                  evt.pcmBase64,
+                  evt.sampleRate || 24000,
+                  () => {
+                    if (!firstAudioLogged) {
+                      firstAudioLogged = true;
+                      const playbackStart = Date.now();
+                      console.log(
+                        `[GEMINI_LIVE_LATENCY] Turn #${turnId} | End-of-Speech -> First Audible: ${playbackStart - sttEnd}ms`
+                      );
+                    }
+                  },
+                  streamGenId
+                );
               } else if (evt.type === 'done') {
+                if (evt.serverMetrics) {
+                  VoicePerformanceTracker.recordServerMetrics(turnId, evt.serverMetrics);
+                }
                 finalReplyText = evt.replyText || streamedTranscript || "Done. Is there anything else you need?";
+                currentlySpokenTextRef.current = finalReplyText;
                 if (onRefreshData) onRefreshData();
                 setMessages(prev =>
                   prev.map(m => (m.id === xenaMsgId ? { ...m, text: finalReplyText } : m))
@@ -271,28 +388,43 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
           }
         }
 
+        if (!isOpenRef.current || activeTurnIdRef.current !== turnId) {
+          isProcessingRef.current = false;
+          return;
+        }
+
         isProcessingRef.current = false;
 
         if (receivedAudioChunks > 0) {
           SpeechService.waitForPcmStreamEnd(() => {
-            if (isOpenRef.current) {
-              setTimeout(() => {
-                if (isOpenRef.current) startListeningPass();
-              }, 200);
-            }
-          });
+            if (!isOpenRef.current || activeTurnIdRef.current !== turnId) return;
+            VoicePerformanceTracker.markTurnCompleted(turnId);
+            SpeechService.stopBargeInMonitor();
+            clearPendingListeningTimer();
+            listeningTimerRef.current = setTimeout(() => {
+              if (isOpenRef.current && !isProcessingRef.current && activeTurnIdRef.current === turnId) {
+                startListeningPass();
+              }
+            }, 120);
+          }, streamGenId);
         } else {
           const textToSpeak = finalReplyText || streamedTranscript || "Done. Is there anything else you need?";
+          currentlySpokenTextRef.current = textToSpeak;
           setModeState('speaking');
+          activateBargeInMonitor();
           SpeechService.speak(
             textToSpeak,
             {
               onEnd: () => {
-                if (isOpenRef.current) {
-                  setTimeout(() => {
-                    if (isOpenRef.current) startListeningPass();
-                  }, 200);
-                }
+                if (!isOpenRef.current || activeTurnIdRef.current !== turnId) return;
+                VoicePerformanceTracker.markTurnCompleted(turnId);
+                SpeechService.stopBargeInMonitor();
+                clearPendingListeningTimer();
+                listeningTimerRef.current = setTimeout(() => {
+                  if (isOpenRef.current && !isProcessingRef.current && activeTurnIdRef.current === turnId) {
+                    startListeningPass();
+                  }
+                }, 120);
               }
             },
             { voiceName: selectedVoice }
@@ -302,7 +434,7 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
         throw new Error("Live stream API response not ok");
       }
     } catch (e: any) {
-      if (e.name === 'AbortError') {
+      if (e.name === 'AbortError' || activeTurnIdRef.current !== turnId) {
         console.log('[LIVE_MODE] Request aborted due to user interrupt.');
         isProcessingRef.current = false;
         return;
@@ -311,39 +443,40 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
       console.error('[LIVE_MODE_PROCESSING_ERROR]', e);
       isProcessingRef.current = false;
 
-      if (!isOpenRef.current) return;
+      if (!isOpenRef.current || activeTurnIdRef.current !== turnId) return;
 
       const fallbackReply = "I had a connection issue. Could you please say that again?";
       const xenaMsg: LiveMessage = {
-        id: `x-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        id: `x-err-${turnId}-${Date.now()}`,
         sender: 'xena',
         text: fallbackReply,
         timestamp: timeStr
       };
       setMessages(prev => [...prev, xenaMsg]);
 
+      currentlySpokenTextRef.current = fallbackReply;
       setModeState('speaking');
-      SpeechService.speak(fallbackReply, () => {
-        if (isOpenRef.current) {
-          startListeningPass();
-        }
-      });
+      activateBargeInMonitor();
+      SpeechService.speak(
+        fallbackReply,
+        {
+          onEnd: () => {
+            if (!isOpenRef.current || activeTurnIdRef.current !== turnId) return;
+            SpeechService.stopBargeInMonitor();
+            startListeningPass();
+          }
+        },
+        { voiceName: selectedVoice }
+      );
     }
   };
 
   // User taps Orb to control or interrupt
   const handleOrbTap = () => {
     if (modeState === 'speaking' || modeState === 'thinking') {
-      // Interruption: Abort ongoing requests & stop speech immediately -> listen
-      if (abortControllerRef.current) {
-        try { abortControllerRef.current.abort(); } catch (e) {}
-        abortControllerRef.current = null;
-      }
-      isProcessingRef.current = false;
-      SpeechService.stopSpeaking();
-      startListeningPass();
+      interruptCurrentTurnAndListen();
     } else if (modeState === 'listening') {
-      // Force finalize recording
+      // Force finalize recording immediately
       SpeechService.stopRecording();
     } else if (modeState === 'idle') {
       startListeningPass();
@@ -435,7 +568,7 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
               <span>{errorMessage}</span>
             </div>
             <button
-              onClick={startListeningPass}
+              onClick={() => startListeningPass()}
               className="text-[10px] font-bold uppercase bg-red-500/30 hover:bg-red-500/50 px-2 py-1 rounded text-white ml-2 cursor-pointer"
             >
               Retry
@@ -601,21 +734,34 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
         <div className="pt-2 flex items-center justify-between border-t border-nexa-border/60 text-xs relative z-20">
           <div className="flex items-center space-x-2 text-[10px] text-gray-400 font-mono">
             <span className="w-1.5 h-1.5 rounded-full bg-nexa-glow animate-ping"></span>
-            <span>NO MANUAL TYPING NEEDED</span>
+            <span>SPEAK ANYTIME TO BARGE IN</span>
           </div>
 
           <button
-            onClick={modeState === 'listening' ? () => SpeechService.stopRecording() : startListeningPass}
+            onClick={
+              modeState === 'listening'
+                ? () => SpeechService.stopRecording()
+                : modeState === 'speaking' || modeState === 'thinking'
+                  ? handleOrbTap
+                  : () => startListeningPass()
+            }
             className={`px-4 py-2 rounded-xl border text-xs font-bold uppercase font-mono transition flex items-center space-x-2 cursor-pointer ${
               modeState === 'listening'
                 ? 'bg-red-600 hover:bg-red-700 text-white border-red-400 shadow-lg shadow-red-600/30'
-                : 'bg-nexa-blue/20 hover:bg-nexa-blue/40 text-nexa-glow border-nexa-blue/50'
+                : modeState === 'speaking'
+                  ? 'bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 border-amber-400/50'
+                  : 'bg-nexa-blue/20 hover:bg-nexa-blue/40 text-nexa-glow border-nexa-blue/50'
             }`}
           >
             {modeState === 'listening' ? (
               <>
                 <MicOff className="w-4 h-4" />
                 <span>Finish Speaking</span>
+              </>
+            ) : modeState === 'speaking' ? (
+              <>
+                <VolumeX className="w-4 h-4" />
+                <span>Interrupt & Speak</span>
               </>
             ) : (
               <>

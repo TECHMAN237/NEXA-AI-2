@@ -4,7 +4,7 @@ import fs from "fs";
 import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import { dbService } from "./server/db.js";
-import { routeUserIntent, checkAndMemorize, chatWithNexa, chatWithXenaStream, chatWithXenaLive, generateAILinePlanning, reformulateReminder, transcribeAudioWithGemini, isConversationalText, isSimpleGreeting, generateConversationalResponse, synthesizeSpeechWithGemini, streamSpeechWithGemini, streamGeminiLiveTurn, formatTextForNaturalSpeech } from "./server/gemini.js";
+import { routeUserIntent, checkAndMemorize, chatWithNexa, chatWithXenaStream, chatWithXenaLive, generateAILinePlanning, reformulateReminder, transcribeAudioWithGemini, isConversationalText, isSimpleGreeting, generateConversationalResponse, synthesizeSpeechWithGemini, streamSpeechWithGemini, streamGeminiLiveTurn, formatTextForNaturalSpeech, prewarmGeminiLiveSessions } from "./server/gemini.js";
 import { ServerActionEngine } from "./server/ServerActionEngine.js";
 import { normalizeUserInput } from "./server/contextualNormalizer.js";
 import { normalizeTimeString, extractTimeFromText } from "./utils/timeUtils.js";
@@ -597,11 +597,34 @@ async function startServer() {
     console.log('[CHAT_INPUT]', { rawText: text, cleanedText, wasCorrected: normalized.wasCorrected });
 
     // 1. Save user's message in local DB
+    const recentHistory = dbService.getMessages(conversation.id).slice(-6);
     const userMsg = dbService.createMessage(conversation.id, {
       sender: 'user',
       text: cleanedText,
       type: type || 'text'
     });
+
+    // 1.1 Dedicated Authoritative Identity, Purpose & Capability Path FIRST (NEVER intercepted by greeting shortcut or tools)
+    const identityCheck = classifyIdentityOrCapability(cleanedText, recentHistory);
+    if (identityCheck.isMatch) {
+      console.log(`[ROUTING_DECISION] Category: IDENTITY_CAPABILITY | Type: ${identityCheck.category} | Query: "${cleanedText}" | Route: DIRECT_IDENTITY_PIPELINE | Action: NONE`);
+      const profile = dbService.getProfile(currentUserId);
+      const assistantReply = generateAuthoritativeIdentityResponse(cleanedText, profile?.full_name, {
+        mode: type === 'voice' ? 'voice' : 'chat',
+        recentHistory
+      });
+      const assistantMsg = dbService.createMessage(conversation.id, {
+        sender: 'assistant',
+        text: assistantReply,
+        type: type || 'text'
+      });
+      return res.json({
+        userMessage: userMsg,
+        assistantMessage: assistantMsg,
+        intent: { intent: 'IDENTITY_CAPABILITIES', category: identityCheck.category, featureId: identityCheck.featureId },
+        actionResults: []
+      });
+    }
 
     // 1.2 Fast conversational path (pure greetings, well-being, gratitude)
     if (isSimpleGreeting(cleanedText)) {
@@ -616,25 +639,6 @@ async function startServer() {
         userMessage: userMsg,
         assistantMessage: assistantMsg,
         intent: { intent: 'NORMAL_CHAT' },
-        actionResults: []
-      });
-    }
-
-    // 1.3 Dedicated Authoritative Identity, Purpose & Capability Path (NEVER execute tools)
-    const identityCheck = classifyIdentityOrCapability(cleanedText);
-    if (identityCheck.isMatch) {
-      console.log(`[ROUTING_DECISION] Category: IDENTITY_CAPABILITY | Type: ${identityCheck.category} | Query: "${cleanedText}" | Route: DIRECT_IDENTITY_PIPELINE | Action: NONE`);
-      const profile = dbService.getProfile(currentUserId);
-      const assistantReply = generateAuthoritativeIdentityResponse(cleanedText, profile?.full_name);
-      const assistantMsg = dbService.createMessage(conversation.id, {
-        sender: 'assistant',
-        text: assistantReply,
-        type: type || 'text'
-      });
-      return res.json({
-        userMessage: userMsg,
-        assistantMessage: assistantMsg,
-        intent: { intent: 'IDENTITY_CAPABILITIES', category: identityCheck.category },
         actionResults: []
       });
     }
@@ -758,11 +762,40 @@ async function startServer() {
     const conversation = dbService.getOrCreateConversation(currentUserId);
 
     // Save user's message in local DB
+    const recentLiveHistory = dbService.getMessages(conversation.id).slice(-6);
     const userMsg = dbService.createMessage(conversation.id, {
       sender: 'user',
       text: cleanedText,
       type: type || 'voice'
     });
+
+    // Dedicated Authoritative Identity & Capability Inquiry Path FIRST for Live Mode (spoken-friendly 1-2 sentences)
+    const identityCheck = classifyIdentityOrCapability(cleanedText, recentLiveHistory);
+    if (identityCheck.isMatch) {
+      console.log(`[ROUTING_DECISION_LIVE] Category: IDENTITY_CAPABILITY | Type: ${identityCheck.category} | Query: "${cleanedText}" | Route: LIVE_IDENTITY_PIPELINE`);
+      const profile = dbService.getProfile(currentUserId);
+      const assistantReply = generateAuthoritativeIdentityResponse(cleanedText, profile?.full_name, {
+        mode: 'voice',
+        recentHistory: recentLiveHistory
+      });
+      const assistantMsg = dbService.createMessage(conversation.id, {
+        sender: 'assistant',
+        text: assistantReply,
+        type: 'voice'
+      });
+      return res.json({
+        userMessage: userMsg,
+        assistantMessage: assistantMsg,
+        intent: { intent: 'IDENTITY_CAPABILITIES', category: identityCheck.category, featureId: identityCheck.featureId },
+        actionResults: [],
+        replyText: assistantReply,
+        spokenReplyText: formatTextForNaturalSpeech(assistantReply),
+        timings: {
+          totalMs: Date.now() - startTime,
+          aiMs: 0
+        }
+      });
+    }
 
     // Fast conversational path (pure greetings, well-being, gratitude)
     if (isSimpleGreeting(cleanedText)) {
@@ -779,30 +812,7 @@ async function startServer() {
         intent: { intent: 'NORMAL_CHAT' },
         actionResults: [],
         replyText: assistantReply,
-        timings: {
-          totalMs: Date.now() - startTime,
-          aiMs: 0
-        }
-      });
-    }
-
-    // Dedicated Authoritative Identity & Capability Inquiry Path for Live Mode
-    const identityCheck = classifyIdentityOrCapability(cleanedText);
-    if (identityCheck.isMatch) {
-      console.log(`[ROUTING_DECISION_LIVE] Category: IDENTITY_CAPABILITY | Type: ${identityCheck.category} | Query: "${cleanedText}" | Route: LIVE_IDENTITY_PIPELINE`);
-      const profile = dbService.getProfile(currentUserId);
-      const assistantReply = generateAuthoritativeIdentityResponse(cleanedText, profile?.full_name);
-      const assistantMsg = dbService.createMessage(conversation.id, {
-        sender: 'assistant',
-        text: assistantReply,
-        type: 'voice'
-      });
-      return res.json({
-        userMessage: userMsg,
-        assistantMessage: assistantMsg,
-        intent: { intent: 'IDENTITY_CAPABILITIES', category: identityCheck.category },
-        actionResults: [],
-        replyText: assistantReply,
+        spokenReplyText: formatTextForNaturalSpeech(assistantReply),
         timings: {
           totalMs: Date.now() - startTime,
           aiMs: 0
@@ -814,9 +824,9 @@ async function startServer() {
     const pendingResult = await ServerActionEngine.resolvePendingDraft(currentUserId, cleanedText);
     if (pendingResult) {
       let assistantReply = pendingResult.summary;
-      if (pendingResult.data?.title && pendingResult.data?.date && pendingResult.data?.time) {
+      if (pendingResult.targetModule === 'Reminder' && pendingResult.data?.title && pendingResult.data?.date && pendingResult.data?.time && !pendingResult.data?.pending) {
         const todayStr = new Date().toISOString().split('T')[0];
-        const dateWord = pendingResult.data.date === todayStr ? 'today' : 'tomorrow';
+        const dateWord = pendingResult.data.date === todayStr ? 'today' : `on ${pendingResult.data.date}`;
         assistantReply = `Done. I'll remind you ${dateWord} at ${pendingResult.data.time} to ${pendingResult.data.title}.`;
       }
       const assistantMsg = dbService.createMessage(conversation.id, {
@@ -829,6 +839,8 @@ async function startServer() {
         assistantMessage: assistantMsg,
         intent: { intent: pendingResult.intent },
         actionResults: [pendingResult],
+        replyText: assistantReply,
+        spokenReplyText: formatTextForNaturalSpeech(assistantReply),
         latency: {
           totalMs: Date.now() - startTime,
           sttMs: 0,
@@ -911,10 +923,20 @@ async function startServer() {
     });
   });
 
+  // ==================== GEMINI LIVE PRE-WARM ENDPOINT ====================
+  app.post("/api/chat/live/prewarm", (req, res) => {
+    const { voiceName } = req.body || {};
+    try {
+      prewarmGeminiLiveSessions(voiceName);
+    } catch {}
+    res.json({ ok: true });
+  });
+
   // ==================== GEMINI LIVE REAL-TIME AUDIO + ACTION STREAM ENDPOINT ====================
   app.post("/api/chat/live/stream", async (req, res) => {
     if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
-    const { text, voiceName } = req.body || {};
+    const reqStartMs = Date.now();
+    const { text, voiceName, turnId } = req.body || {};
 
     if (!text || typeof text !== "string" || !text.trim()) {
       return res.status(400).json({ error: "Message text is required" });
@@ -930,19 +952,36 @@ async function startServer() {
     if (res.flushHeaders) res.flushHeaders();
     res.write(": ping\n\n");
 
+    const streamAbortController = new AbortController();
+    let clientDisconnected = false;
+    req.on("close", () => {
+      clientDisconnected = true;
+      streamAbortController.abort();
+    });
+
+    const safeWriteSse = (payload: any) => {
+      if (!clientDisconnected && !res.writableEnded) {
+        res.write(`data: ${JSON.stringify(payload)}\n\n`);
+      }
+    };
+
     const conversation = dbService.getOrCreateConversation(currentUserId);
-    const userMsg = dbService.createMessage(conversation.id, {
+    const recentLiveStreamHistory = dbService.getMessages(conversation.id).slice(-6);
+    dbService.createMessage(conversation.id, {
       sender: "user",
       text: cleanedText,
       type: "voice"
     });
 
     try {
-      // 1. Check Pending Action Draft resolution first
-      const pendingResult = await ServerActionEngine.resolvePendingDraft(currentUserId, cleanedText);
+      let firstAudioMs: number | undefined;
+      const isIdentityTurn = classifyIdentityOrCapability(cleanedText, recentLiveStreamHistory).isMatch;
+
+      // 1. Check Pending Action Draft resolution first (unless user is asking an identity/capability question)
+      const pendingResult = isIdentityTurn ? null : await ServerActionEngine.resolvePendingDraft(currentUserId, cleanedText);
       if (pendingResult) {
         let spokenReply = formatTextForNaturalSpeech(pendingResult.summary);
-        if (pendingResult.data?.title && pendingResult.data?.date && pendingResult.data?.time && !pendingResult.data?.pending) {
+        if (pendingResult.targetModule === "Reminder" && pendingResult.data?.title && pendingResult.data?.date && pendingResult.data?.time && !pendingResult.data?.pending) {
           const todayStr = new Date().toISOString().split("T")[0];
           const dateWord = pendingResult.data.date === todayStr ? "today" : `on ${pendingResult.data.date}`;
           spokenReply = `All set! I'll remind you ${dateWord} at ${pendingResult.data.time} to ${pendingResult.data.title}.`;
@@ -954,33 +993,54 @@ async function startServer() {
           type: "voice"
         });
 
-        res.write(`data: ${JSON.stringify({ type: "transcript", delta: spokenReply, fullText: pendingResult.summary, actionResults: [pendingResult] })}\n\n`);
-        await streamSpeechWithGemini(
-          spokenReply,
-          (pcmBase64) => {
-            res.write(`data: ${JSON.stringify({ type: "audio", pcmBase64, sampleRate: 24000 })}\n\n`);
-          },
-          { voiceName }
-        );
-        res.write(`data: ${JSON.stringify({ type: "done", replyText: pendingResult.summary, spokenReplyText: spokenReply, assistantMessage: assistantMsg, actionResults: [pendingResult] })}\n\n`);
-        res.end();
+        safeWriteSse({ type: "transcript", turnId, delta: spokenReply, fullText: pendingResult.summary, actionResults: [pendingResult] });
+        if (!clientDisconnected) {
+          await streamSpeechWithGemini(
+            spokenReply,
+            (pcmBase64) => {
+              if (firstAudioMs === undefined) firstAudioMs = Date.now() - reqStartMs;
+              safeWriteSse({ type: "audio", turnId, pcmBase64, sampleRate: 24000 });
+            },
+            { voiceName, signal: streamAbortController.signal }
+          );
+        }
+        safeWriteSse({
+          type: "done",
+          turnId,
+          replyText: pendingResult.summary,
+          spokenReplyText: spokenReply,
+          assistantMessage: assistantMsg,
+          actionResults: [pendingResult],
+          serverMetrics: {
+            intentMs: 0,
+            actionMs: 0,
+            firstAudioMs,
+            totalMs: Date.now() - reqStartMs,
+            routeType: "pending_draft"
+          }
+        });
+        if (!res.writableEnded) res.end();
         return;
       }
 
       // 2. Execute Intent Routing & Database Actions
+      const intentStartMs = Date.now();
       const reminders = dbService.getReminders(currentUserId);
       const lastReminder = reminders.length > 0 ? reminders[reminders.length - 1] : null;
-      const followUp = parseFollowUpUpdate(cleanedText, lastReminder);
+      const followUp = isIdentityTurn ? null : parseFollowUpUpdate(cleanedText, lastReminder);
 
       let actionsToRun: any[] = [];
+      let routeType = isIdentityTurn ? "identity_capabilities" : "fast_chat";
       if (followUp && followUp.isFollowUp && lastReminder) {
         actionsToRun = [{
           intent: "REMINDER",
           action: "UPDATE",
           payload: { ...followUp.updates, id: lastReminder.id }
         }];
-      } else if (!isSimpleGreeting(cleanedText) && !classifyIdentityOrCapability(cleanedText).isMatch) {
+        routeType = "followup_update";
+      } else if (!isSimpleGreeting(cleanedText) && !isIdentityTurn) {
         const intentClassification = await routeUserIntent(cleanedText);
+        routeType = intentClassification.intent || "NORMAL_CHAT";
         if (intentClassification.actions && intentClassification.actions.length > 0) {
           actionsToRun = intentClassification.actions;
         } else if (intentClassification.intent && intentClassification.intent !== "NORMAL_CHAT") {
@@ -991,17 +1051,22 @@ async function startServer() {
           }];
         }
       }
+      const intentMs = Date.now() - intentStartMs;
 
+      const actionStartMs = Date.now();
       const actionResults = actionsToRun.length > 0
         ? await ServerActionEngine.executeActions(currentUserId, actionsToRun, cleanedText)
         : [];
+      const actionMs = Date.now() - actionStartMs;
 
       if (actionResults.length > 0) {
-        res.write(`data: ${JSON.stringify({ type: "actions", actionResults })}\n\n`);
+        safeWriteSse({ type: "actions", turnId, actionResults });
       }
 
-      // Background memory check
-      checkAndMemorize(currentUserId, cleanedText).catch(() => {});
+      if (clientDisconnected) {
+        if (!res.writableEnded) res.end();
+        return;
+      }
 
       // 3. Stream Gemini Live Native Audio + Synchronized Transcript
       let accumulatedTranscript = "";
@@ -1014,27 +1079,55 @@ async function startServer() {
         {
           onTranscriptDelta: (delta) => {
             accumulatedTranscript += delta;
-            res.write(`data: ${JSON.stringify({ type: "transcript", delta })}\n\n`);
+            safeWriteSse({ type: "transcript", turnId, delta });
           },
           onAudioChunk: (pcmBase64) => {
-            res.write(`data: ${JSON.stringify({ type: "audio", pcmBase64, sampleRate: 24000 })}\n\n`);
-          }
+            if (firstAudioMs === undefined) firstAudioMs = Date.now() - reqStartMs;
+            safeWriteSse({ type: "audio", turnId, pcmBase64, sampleRate: 24000 });
+          },
+          signal: streamAbortController.signal
         }
       );
 
-      const savedText = (finalReply || accumulatedTranscript || "I'm here and listening.").trim();
-      const assistantMsg = dbService.createMessage(conversation.id, {
-        sender: "assistant",
-        text: savedText,
-        type: "voice"
-      });
+      if (!clientDisconnected) {
+        const savedText = (finalReply || accumulatedTranscript || "I'm here and listening.").trim();
+        if (savedText) {
+          const assistantMsg = dbService.createMessage(conversation.id, {
+            sender: "assistant",
+            text: savedText,
+            type: "voice"
+          });
+          safeWriteSse({
+            type: "done",
+            turnId,
+            replyText: savedText,
+            spokenReplyText: formatTextForNaturalSpeech(savedText),
+            assistantMessage: assistantMsg,
+            actionResults,
+            serverMetrics: {
+              intentMs,
+              actionMs,
+              firstAudioMs,
+              totalMs: Date.now() - reqStartMs,
+              routeType
+            }
+          });
+        }
+      }
+      if (!res.writableEnded) res.end();
 
-      res.write(`data: ${JSON.stringify({ type: "done", replyText: savedText, spokenReplyText: formatTextForNaturalSpeech(savedText), assistantMessage: assistantMsg, actionResults })}\n\n`);
-      res.end();
+      // Deferred non-blocking memory check AFTER response stream completes so it never adds turn latency
+      if (/\b(remember|vault|save|keep|store|mother|father|sister|brother|prefer|favorite|goal)\b/i.test(cleanedText)) {
+        setImmediate(() => {
+          checkAndMemorize(currentUserId, cleanedText).catch(() => {});
+        });
+      }
     } catch (err: any) {
-      console.error("[LIVE_STREAM_ERROR]", err);
-      res.write(`data: ${JSON.stringify({ type: "error", error: err?.message || "Live stream error" })}\n\n`);
-      res.end();
+      if (!clientDisconnected) {
+        console.error("[LIVE_STREAM_ERROR]", err);
+        safeWriteSse({ type: "error", turnId, error: err?.message || "Live stream error" });
+      }
+      if (!res.writableEnded) res.end();
     }
   });
 
@@ -1062,13 +1155,34 @@ async function startServer() {
 
     console.log('[CHAT_INPUT]', { rawText: text, cleanedText, wasCorrected: normalized.wasCorrected });
 
+    const recentStreamHistory = dbService.getMessages(conversation.id).slice(-6);
     dbService.createMessage(conversation.id, {
       sender: 'user',
       text: cleanedText,
       type: type || 'text'
     });
 
-    // 1. Fast conversational path for greetings in stream
+    // 1. Dedicated Authoritative Identity & Capability Inquiry Path FIRST for Streaming Mode
+    const identityCheck = classifyIdentityOrCapability(cleanedText, recentStreamHistory);
+    if (identityCheck.isMatch) {
+      console.log(`[ROUTING_DECISION_STREAM] Category: IDENTITY_CAPABILITY | Type: ${identityCheck.category} | Query: "${cleanedText}" | Route: STREAM_IDENTITY_PIPELINE`);
+      const profile = dbService.getProfile(currentUserId);
+      const assistantReply = generateAuthoritativeIdentityResponse(cleanedText, profile?.full_name, {
+        mode: type === 'voice' ? 'voice' : 'chat',
+        recentHistory: recentStreamHistory
+      });
+      res.write(`data: ${JSON.stringify({ chunk: assistantReply })}\n\n`);
+      const assistantMsg = dbService.createMessage(conversation.id, {
+        sender: 'assistant',
+        text: assistantReply,
+        type: type || 'text'
+      });
+      res.write(`data: ${JSON.stringify({ done: true, message: assistantMsg, intent: { intent: 'IDENTITY_CAPABILITIES', category: identityCheck.category, featureId: identityCheck.featureId }, actionResults: [] })}\n\n`);
+      res.end();
+      return;
+    }
+
+    // 2. Fast conversational path for pure greetings in stream
     if (isSimpleGreeting(cleanedText)) {
       const profile = dbService.getProfile(currentUserId);
       const assistantReply = generateConversationalResponse(cleanedText, profile?.full_name);
@@ -1079,23 +1193,6 @@ async function startServer() {
         type: type || 'text'
       });
       res.write(`data: ${JSON.stringify({ done: true, message: assistantMsg, intent: { intent: 'NORMAL_CHAT' }, actionResults: [] })}\n\n`);
-      res.end();
-      return;
-    }
-
-    // 2. Dedicated Authoritative Identity & Capability Inquiry Path for Streaming Mode
-    const identityCheck = classifyIdentityOrCapability(cleanedText);
-    if (identityCheck.isMatch) {
-      console.log(`[ROUTING_DECISION_STREAM] Category: IDENTITY_CAPABILITY | Type: ${identityCheck.category} | Query: "${cleanedText}" | Route: STREAM_IDENTITY_PIPELINE`);
-      const profile = dbService.getProfile(currentUserId);
-      const assistantReply = generateAuthoritativeIdentityResponse(cleanedText, profile?.full_name);
-      res.write(`data: ${JSON.stringify({ chunk: assistantReply })}\n\n`);
-      const assistantMsg = dbService.createMessage(conversation.id, {
-        sender: 'assistant',
-        text: assistantReply,
-        type: type || 'text'
-      });
-      res.write(`data: ${JSON.stringify({ done: true, message: assistantMsg, intent: { intent: 'IDENTITY_CAPABILITIES', category: identityCheck.category }, actionResults: [] })}\n\n`);
       res.end();
       return;
     }

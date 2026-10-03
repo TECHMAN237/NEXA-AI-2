@@ -1,6 +1,7 @@
 import { ProfileManager } from './ProfileManager.js';
 import { getApiUrl } from '../config/api.js';
 import { formatTextForNaturalSpeech, getBestHumanVoice, detectLanguage } from '../utils/voiceUtils.js';
+import { VoicePerformanceTracker } from '../utils/VoicePerformanceTracker.js';
 
 function logTelemetry(event: string, details?: any) {
   const now = Date.now();
@@ -11,10 +12,14 @@ export interface VoiceRecordingCallbacks {
   onStart?: () => void;
   onAudioLevel?: (level: number, spectrum: number[]) => void;
   onResult?: (transcript: string, isFinal: boolean) => void;
+  onFinalizedRefinement?: (refinedTranscript: string) => void;
   onError?: (errorMessage: string) => void;
   onEnd?: (finalTranscript: string, speechDetected: boolean) => void;
   autoStopOnSilence?: boolean;
   silenceTimeoutMs?: number;
+  initialTranscript?: string;
+  keepMicWarm?: boolean;
+  turnId?: number;
 }
 
 export interface SpeakOptions {
@@ -48,16 +53,47 @@ export class SpeechService {
   private static callbacks: VoiceRecordingCallbacks | null = null;
   private static profileName: string | null = null;
   private static lastSpeechActivityTime: number = 0;
+  private static lastFinalResultTime: number = 0;
   private static hasSpokenInSession: boolean = false;
+  private static keepMicWarmActive: boolean = false;
 
   // Neural TTS & 24kHz PCM Stream Playback state
+  private static playbackGenerationId: number = 0;
   private static activeTtsAbortController: AbortController | null = null;
   private static activeAudioElement: HTMLAudioElement | null = null;
+  private static activeUtterance: SpeechSynthesisUtterance | null = null;
   private static pcmAudioContext: AudioContext | null = null;
   private static nextPcmStartTime: number = 0;
   private static activePcmNodes: Set<AudioBufferSourceNode> = new Set();
+  private static pcmEndTimeoutId: any = null;
+  private static bargeInRecognition: any = null;
+  private static isBargeInActive: boolean = false;
   private static clientTtsCache: Map<string, string> = new Map();
   private static preferredVoiceName: string = 'Aoede';
+
+  static getPlaybackGenerationId(): number {
+    return this.playbackGenerationId;
+  }
+
+  /**
+   * Pre-warm WebAudio 24kHz context and backend Gemini Live WebSocket session
+   */
+  static warmUpSession(voiceName?: string): void {
+    const targetVoice = voiceName || this.getPreferredVoice();
+    if (typeof window !== 'undefined') {
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtxClass && (!this.pcmAudioContext || this.pcmAudioContext.state === 'closed')) {
+        try {
+          this.pcmAudioContext = new AudioCtxClass({ sampleRate: 24000 });
+        } catch {}
+      }
+      fetch(getApiUrl('/api/chat/live/prewarm'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voiceName: targetVoice })
+      }).catch(() => {});
+    }
+  }
 
   static setPreferredVoice(voiceName: string): void {
     if (voiceName && voiceName.trim()) {
@@ -102,24 +138,34 @@ export class SpeechService {
 
     logTelemetry('recording_started', { sessionId: currentSessionId });
 
+    this.stopBargeInMonitor();
+
     this.callbacks = callbacks;
-    this.accumulatedFinalTranscript = '';
+    this.keepMicWarmActive = Boolean(callbacks.keepMicWarm);
+    this.accumulatedFinalTranscript = (callbacks.initialTranscript || '').trim();
     this.currentSessionFinal = '';
     this.currentSessionInterim = '';
     this.audioChunks = [];
     this.peakVolume = 0;
     this.isListening = true;
     this.lastSpeechActivityTime = Date.now();
-    this.hasSpokenInSession = false;
+    this.lastFinalResultTime = 0;
+    this.hasSpokenInSession = Boolean(this.accumulatedFinalTranscript);
+
+    if (callbacks.turnId !== undefined) {
+      VoicePerformanceTracker.startTurn(callbacks.turnId);
+    }
 
     // Load active profile name for contextual proper-name recognition
-    try {
-      ProfileManager.loadProfile().then(p => {
-        if (p?.full_name) {
-          this.profileName = p.full_name;
-        }
-      }).catch(() => {});
-    } catch (e) {}
+    if (!this.profileName) {
+      try {
+        ProfileManager.loadProfile().then(p => {
+          if (p?.full_name) {
+            this.profileName = p.full_name;
+          }
+        }).catch(() => {});
+      } catch (e) {}
+    }
 
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       console.warn('[VOICE] getUserMedia not available in environment');
@@ -130,20 +176,27 @@ export class SpeechService {
     }
 
     try {
-      // 1. Request microphone permissions & active MediaStream
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1,
-          sampleRate: 44100
-        } 
-      });
-      console.log('[VOICE] Microphone permission granted');
-      this.mediaStream = stream;
+      // 1. Reuse warm MediaStream if active, otherwise request microphone permissions
+      const hasLiveWarmStream =
+        this.mediaStream &&
+        this.mediaStream.active &&
+        this.mediaStream.getAudioTracks().some(t => t.readyState === 'live' && t.enabled);
 
-      // 2. Setup MediaRecorder to capture continuous raw audio for Gemini AI STT
+      const stream = hasLiveWarmStream
+        ? this.mediaStream!
+        : await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              channelCount: 1
+            } 
+          });
+
+      this.mediaStream = stream;
+      VoicePerformanceTracker.markFirstAudioFrame(callbacks.turnId);
+
+      // 2. Setup MediaRecorder to capture continuous raw audio for fallback STT
       if (typeof MediaRecorder !== 'undefined') {
         try {
           let mimeType = 'audio/webm;codecs=opus';
@@ -161,33 +214,37 @@ export class SpeechService {
             }
           };
 
-          // Register onstop listener to trigger finalization automatically
           this.mediaRecorder.onstop = () => {
-            console.log(`[VOICE] MediaRecorder onstop event fired for session ${currentSessionId}`);
             this.finishRecordingSession(currentSessionId);
           };
 
           this.mediaRecorder.start(200);
-          console.log('[VOICE] MediaRecorder active with mimeType:', this.mediaRecorder.mimeType);
         } catch (mrErr) {
           console.warn('[VOICE] MediaRecorder initialization warning:', mrErr);
         }
       }
 
-      // 3. Setup Web Audio API AnalyserNode for Real-Time Audio Level & Waveform
+      // 3. Setup or reuse Web Audio API AnalyserNode for Real-Time Audio Level & Fast Endpointing
       const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtxClass) {
         try {
-          this.audioContext = new AudioCtxClass();
-          const source = this.audioContext.createMediaStreamSource(stream);
-          this.analyser = this.audioContext.createAnalyser();
-          this.analyser.fftSize = 64;
-          source.connect(this.analyser);
+          if (!this.audioContext || this.audioContext.state === 'closed') {
+            this.audioContext = new AudioCtxClass();
+          }
+          if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume().catch(() => {});
+          }
+          if (!this.analyser) {
+            const source = this.audioContext.createMediaStreamSource(stream);
+            this.analyser = this.audioContext.createAnalyser();
+            this.analyser.fftSize = 64;
+            source.connect(this.analyser);
+          }
 
           const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
 
           const updateVolumeLoop = () => {
-            if (!this.isListening || !this.analyser) return;
+            if (!this.isListening || !this.analyser || currentSessionId !== this.activeSessionId) return;
             this.analyser.getByteFrequencyData(dataArray);
 
             let sum = 0;
@@ -201,21 +258,49 @@ export class SpeechService {
               this.peakVolume = level;
             }
 
+            const now = Date.now();
             // Voice Activity Detection (VAD) for hands-free silence auto-stop
             if (level >= 18) {
-              this.lastSpeechActivityTime = Date.now();
-              if (level >= 24) {
+              this.lastSpeechActivityTime = now;
+              if (level >= 22) {
+                if (!this.hasSpokenInSession) {
+                  VoicePerformanceTracker.markVadDetected(callbacks.turnId);
+                }
                 this.hasSpokenInSession = true;
               }
             } else if (
               this.callbacks?.autoStopOnSilence &&
               this.hasSpokenInSession &&
-              Date.now() - this.sessionStartTime > 1200 &&
-              Date.now() - this.lastSpeechActivityTime > (this.callbacks.silenceTimeoutMs || 1500)
+              now - this.sessionStartTime > 650
             ) {
-              console.log('[VOICE_VAD] End-of-turn silence detected, auto-finalizing recording.');
-              this.stopRecording();
-              return;
+              const currentWords = [
+                this.accumulatedFinalTranscript,
+                this.currentSessionFinal,
+                this.currentSessionInterim
+              ].filter(Boolean).join(' ').trim();
+
+              const endsIncomplete = /\b(and|or|because|on|at|in|called|named|for|to|with|from|about|the|a|an|my|is|are)\s*$/i.test(currentWords);
+              const hasFinalizedClause = Boolean(
+                (this.currentSessionFinal || this.accumulatedFinalTranscript) &&
+                !this.currentSessionInterim &&
+                this.lastFinalResultTime > 0
+              );
+
+              const baseTimeout = this.callbacks.silenceTimeoutMs || 900;
+              const effectiveTimeout = endsIncomplete
+                ? Math.max(baseTimeout + 450, 1350)
+                : hasFinalizedClause
+                  ? Math.min(baseTimeout, 620)
+                  : baseTimeout;
+
+              const quietDuration = now - this.lastSpeechActivityTime;
+              const postFinalQuiet = this.lastFinalResultTime > 0 ? now - this.lastFinalResultTime : quietDuration;
+
+              if (quietDuration > effectiveTimeout || (hasFinalizedClause && !endsIncomplete && postFinalQuiet > 560 && quietDuration > 450)) {
+                VoicePerformanceTracker.markSpeechEnded(this.lastSpeechActivityTime, callbacks.turnId);
+                this.stopRecording();
+                return;
+              }
             }
 
             if (this.callbacks?.onAudioLevel) {
@@ -263,6 +348,9 @@ export class SpeechService {
 
           this.currentSessionFinal = sessionFinal;
           this.currentSessionInterim = sessionInterim;
+          if (sessionFinal && !sessionInterim) {
+            this.lastFinalResultTime = Date.now();
+          }
 
           const currentDisplay = [
             this.accumulatedFinalTranscript,
@@ -271,6 +359,9 @@ export class SpeechService {
           ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 
           if (currentDisplay.length > 0) {
+            if (!this.hasSpokenInSession) {
+              VoicePerformanceTracker.markVadDetected(callbacks.turnId);
+            }
             this.hasSpokenInSession = true;
             this.lastSpeechActivityTime = Date.now();
           }
@@ -349,7 +440,26 @@ export class SpeechService {
     this.isListening = false;
 
     if (this.recognition) {
-      try { this.recognition.stop(); } catch (e) {}
+      try {
+        this.recognition.onend = null;
+        this.recognition.stop();
+      } catch (e) {}
+    }
+
+    const readyWebSpeech = [
+      this.accumulatedFinalTranscript,
+      this.currentSessionFinal,
+      this.currentSessionInterim
+    ].filter(Boolean).join(' ').trim();
+
+    // Fast path: if WebSpeech already produced text, finalize immediately without waiting for MediaRecorder.onstop
+    if (readyWebSpeech.length > 0 && this.callbacks?.autoStopOnSilence) {
+      if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+        this.mediaRecorder.onstop = null;
+        try { this.mediaRecorder.stop(); } catch {}
+      }
+      this.finishRecordingSession(currentSessionId);
+      return;
     }
 
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
@@ -413,13 +523,15 @@ export class SpeechService {
       });
       logTelemetry('composer_updated', { sessionId });
 
-      // Deliver text to composer instantly! User can click Send immediately!
+      VoicePerformanceTracker.markInputFinalized(this.callbacks?.turnId);
+
+      // Deliver text to composer/voice controller instantly!
       if (this.callbacks?.onEnd && sessionId === this.activeSessionId) {
         this.callbacks.onEnd(normalizedWebSpeech, true);
       }
 
-      // Stop audio tracks so mic turns off immediately
-      this.cleanupMediaStream();
+      // Pause recording resources (keeping MediaStream warm if keepMicWarmActive is true)
+      this.cleanupMediaStream(this.keepMicWarmActive);
 
       // PHASE 2: OPTIONAL NON-BLOCKING BACKGROUND CLOUD REFINEMENT (only when caller subscribes to refinement and not in auto-stop Live Voice loop)
       if (
@@ -681,28 +793,31 @@ export class SpeechService {
   /**
    * Clean up MediaStream, AudioContext, Analyser, and MediaRecorder
    */
-  private static cleanupMediaStream(): void {
+  private static cleanupMediaStream(keepWarm: boolean = false): void {
     if (this.animFrameId) {
       cancelAnimationFrame(this.animFrameId);
       this.animFrameId = null;
     }
     if (this.mediaRecorder) {
+      this.mediaRecorder.onstop = null;
       if (this.mediaRecorder.state !== 'inactive') {
         try { this.mediaRecorder.stop(); } catch (e) {}
       }
       this.mediaRecorder = null;
     }
-    if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach(track => {
-        try { track.stop(); } catch (e) {}
-      });
-      this.mediaStream = null;
+    if (!keepWarm) {
+      if (this.mediaStream) {
+        this.mediaStream.getTracks().forEach(track => {
+          try { track.stop(); } catch (e) {}
+        });
+        this.mediaStream = null;
+      }
+      if (this.audioContext) {
+        try { this.audioContext.close(); } catch (e) {}
+        this.audioContext = null;
+      }
+      this.analyser = null;
     }
-    if (this.audioContext) {
-      try { this.audioContext.close(); } catch (e) {}
-      this.audioContext = null;
-    }
-    this.analyser = null;
     this.isListening = false;
   }
 
@@ -710,8 +825,18 @@ export class SpeechService {
    * Clean up all MediaStream tracks, AudioContext nodes, timers, and pending requests
    */
   static cleanup(): void {
-    this.cleanupMediaStream();
+    this.keepMicWarmActive = false;
+    this.stopBargeInMonitor();
+    this.cleanupMediaStream(false);
     this.audioChunks = [];
+    if (this.recognition) {
+      try {
+        this.recognition.onresult = null;
+        this.recognition.onend = null;
+        this.recognition.abort();
+      } catch {}
+      this.recognition = null;
+    }
     if (this.activeAbortController) {
       try { this.activeAbortController.abort(); } catch (e) {}
       this.activeAbortController = null;
@@ -719,12 +844,102 @@ export class SpeechService {
   }
 
   /**
+   * Start Voice Barge-In Monitor while Xena is speaking.
+   * Detects when the user speaks to interrupt Xena, filters out echo of Xena's own spoken text,
+   * and immediately stops TTS playback and transitions to listening with the captured interruption words.
+   */
+  static startBargeInMonitor(
+    onBargeIn: (detectedSpeech: string) => void,
+    getCurrentlySpokenText?: () => string
+  ): void {
+    this.stopBargeInMonitor();
+    if (typeof window === 'undefined') return;
+
+    const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionClass) return;
+
+    try {
+      this.isBargeInActive = true;
+      const rec = new SpeechRecognitionClass();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = 'en-US';
+      this.bargeInRecognition = rec;
+
+      rec.onresult = (event: any) => {
+        if (!this.isBargeInActive) return;
+
+        let transcript = '';
+        for (let i = event.resultIndex || 0; i < event.results.length; ++i) {
+          transcript += ' ' + (event.results[i][0]?.transcript || '');
+        }
+        const cleaned = transcript.replace(/\s+/g, ' ').trim();
+        if (!cleaned || cleaned.length < 2) return;
+
+        const lowerCleaned = cleaned.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+        if (!lowerCleaned) return;
+
+        // Check if this is an explicit barge-in keyword
+        const hasExplicitInterruptKeyword = /\b(wait|stop|hold\s+on|pause|cancel|actually|no|change|never\s+mind|excuse\s+me|hey\s+xena|xena|listen)\b/i.test(lowerCleaned);
+
+        // Compare against what Xena is currently saying to ignore acoustic echo bleed
+        const xenaSpoken = (getCurrentlySpokenText ? getCurrentlySpokenText() : '')
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, '')
+          .trim();
+
+        const words = lowerCleaned.split(/\s+/).filter(Boolean);
+        const isEchoOfXena = xenaSpoken.length > 0 && xenaSpoken.includes(lowerCleaned);
+
+        if (hasExplicitInterruptKeyword || (!isEchoOfXena && words.length >= 2)) {
+          console.log('[VOICE_BARGE_IN] User voice interruption detected:', cleaned);
+          this.stopBargeInMonitor();
+          this.stopSpeaking();
+          onBargeIn(cleaned);
+        }
+      };
+
+      rec.onerror = () => {
+        // Ignore silent/no-speech errors during barge-in monitoring
+      };
+
+      rec.onend = () => {
+        if (this.isBargeInActive && this.bargeInRecognition === rec) {
+          try {
+            rec.start();
+          } catch {}
+        }
+      };
+
+      rec.start();
+    } catch {
+      this.isBargeInActive = false;
+    }
+  }
+
+  /**
+   * Stop Voice Barge-In Monitor
+   */
+  static stopBargeInMonitor(): void {
+    this.isBargeInActive = false;
+    if (this.bargeInRecognition) {
+      try {
+        this.bargeInRecognition.onresult = null;
+        this.bargeInRecognition.onend = null;
+        this.bargeInRecognition.abort();
+      } catch {}
+      this.bargeInRecognition = null;
+    }
+  }
+
+  /**
    * Initialize a 24kHz gapless PCM playback stream (for Gemini Live & Streaming Neural TTS)
    */
-  static startPcmStream(): void {
+  static startPcmStream(): number {
     this.stopSpeaking();
+    const genId = ++this.playbackGenerationId;
     const AudioCtxClass = typeof window !== 'undefined' ? (window.AudioContext || (window as any).webkitAudioContext) : null;
-    if (!AudioCtxClass) return;
+    if (!AudioCtxClass) return genId;
 
     if (!this.pcmAudioContext || this.pcmAudioContext.state === 'closed') {
       this.pcmAudioContext = new AudioCtxClass({ sampleRate: 24000 });
@@ -732,21 +947,31 @@ export class SpeechService {
     if (this.pcmAudioContext.state === 'suspended') {
       this.pcmAudioContext.resume().catch(() => {});
     }
-    this.nextPcmStartTime = this.pcmAudioContext.currentTime + 0.02;
+    this.nextPcmStartTime = this.pcmAudioContext.currentTime + 0.015;
+    return genId;
   }
 
   /**
    * Enqueue a raw 16-bit signed little-endian PCM chunk (24kHz mono) for gapless playback
    */
-  static enqueuePcmChunk(base64Pcm: string, sampleRate: number = 24000, onFirstChunkStart?: () => void): void {
+  static enqueuePcmChunk(
+    base64Pcm: string,
+    sampleRate: number = 24000,
+    onFirstChunkStart?: () => void,
+    expectedGenerationId?: number
+  ): void {
     if (!base64Pcm || typeof window === 'undefined') return;
+    if (expectedGenerationId !== undefined && expectedGenerationId !== this.playbackGenerationId) {
+      VoicePerformanceTracker.recordUnwantedPostInterruptSpeechBlocked();
+      return;
+    }
     const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtxClass) return;
 
     try {
       if (!this.pcmAudioContext || this.pcmAudioContext.state === 'closed') {
         this.pcmAudioContext = new AudioCtxClass({ sampleRate });
-        this.nextPcmStartTime = this.pcmAudioContext.currentTime + 0.02;
+        this.nextPcmStartTime = this.pcmAudioContext.currentTime + 0.015;
       }
       const ctx = this.pcmAudioContext;
       if (ctx.state === 'suspended') {
@@ -778,16 +1003,20 @@ export class SpeechService {
 
       const audioBuffer = ctx.createBuffer(1, float32.length, sampleRate);
       audioBuffer.getChannelData(0).set(float32);
+      VoicePerformanceTracker.markFirstAudioDecoded();
 
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(ctx.destination);
 
-      const startAt = Math.max(ctx.currentTime + 0.01, this.nextPcmStartTime);
+      const startAt = Math.max(ctx.currentTime + 0.008, this.nextPcmStartTime);
       this.nextPcmStartTime = startAt + audioBuffer.duration;
 
-      if (this.activePcmNodes.size === 0 && onFirstChunkStart) {
-        onFirstChunkStart();
+      if (this.activePcmNodes.size === 0) {
+        VoicePerformanceTracker.markFirstAudiblePlayback();
+        if (onFirstChunkStart) {
+          onFirstChunkStart();
+        }
       }
 
       this.activePcmNodes.add(source);
@@ -796,6 +1025,7 @@ export class SpeechService {
       };
       source.start(startAt);
     } catch (err) {
+      VoicePerformanceTracker.recordPlaybackError();
       console.warn('[PCM_STREAM_PLAYBACK_WARNING]', err);
     }
   }
@@ -803,20 +1033,31 @@ export class SpeechService {
   /**
    * Wait until all scheduled PCM chunks have finished playing, then invoke callback
    */
-  static waitForPcmStreamEnd(onEnd?: () => void): void {
+  static waitForPcmStreamEnd(onEnd?: () => void, expectedGenerationId?: number): void {
+    const genId = expectedGenerationId ?? this.playbackGenerationId;
+    if (this.pcmEndTimeoutId) {
+      clearTimeout(this.pcmEndTimeoutId);
+      this.pcmEndTimeoutId = null;
+    }
+    if (genId !== this.playbackGenerationId) {
+      return;
+    }
     if (!this.pcmAudioContext || this.activePcmNodes.size === 0) {
-      if (onEnd) onEnd();
+      if (onEnd && genId === this.playbackGenerationId) onEnd();
       return;
     }
     const ctx = this.pcmAudioContext;
     const remainingSec = Math.max(0, this.nextPcmStartTime - ctx.currentTime);
-    setTimeout(() => {
-      if (onEnd) onEnd();
-    }, Math.ceil(remainingSec * 1000) + 60);
+    this.pcmEndTimeoutId = setTimeout(() => {
+      this.pcmEndTimeoutId = null;
+      if (onEnd && genId === this.playbackGenerationId) {
+        onEnd();
+      }
+    }, Math.ceil(remainingSec * 1000) + 40);
   }
 
   /**
-   * Text To Speech (Gemini 3.8 Neural Voice with Browser Neural Fallback)
+   * Text To Speech (Gemini 3.8 Neural Voice with Progressive Streaming & Browser Fallback)
    */
   static speak(
     text: string,
@@ -830,14 +1071,28 @@ export class SpeechService {
     }
 
     const ttsStartTime = Date.now();
-    const onEndCb = typeof callbacks === 'function' ? callbacks : callbacks?.onEnd;
-    const onStartCb = typeof callbacks !== 'function' ? callbacks?.onStart : undefined;
+    const rawOnEndCb = typeof callbacks === 'function' ? callbacks : callbacks?.onEnd;
+    const rawOnStartCb = typeof callbacks !== 'function' ? callbacks?.onStart : undefined;
 
     this.stopSpeaking();
+    const currentGenId = ++this.playbackGenerationId;
+    let endCalled = false;
+
+    const safeOnStart = () => {
+      if (currentGenId !== this.playbackGenerationId) return;
+      VoicePerformanceTracker.markFirstAudiblePlayback();
+      if (rawOnStartCb) rawOnStartCb();
+    };
+
+    const safeOnEnd = () => {
+      if (endCalled || currentGenId !== this.playbackGenerationId) return;
+      endCalled = true;
+      if (rawOnEndCb) rawOnEndCb();
+    };
 
     const cleanText = formatTextForNaturalSpeech(text);
     if (!cleanText) {
-      if (onEndCb) onEndCb();
+      safeOnEnd();
       return;
     }
 
@@ -849,6 +1104,7 @@ export class SpeechService {
     logTelemetry('tts_start', { textLength: cleanText.length, voiceName, engine: 'gemini-3.8-neural-tts' });
 
     const playWavBase64 = (wavBase64: string, mimeType: string = 'audio/wav') => {
+      if (currentGenId !== this.playbackGenerationId) return;
       try {
         const audio = new Audio(`data:${mimeType};base64,${wavBase64}`);
         audio.playbackRate = playbackRate;
@@ -856,12 +1112,12 @@ export class SpeechService {
 
         let started = false;
         audio.onplay = () => {
+          if (currentGenId !== this.playbackGenerationId) return;
           if (!started) {
             started = true;
             const latencyMs = Date.now() - ttsStartTime;
             logTelemetry('tts_first_audio', { latencyMs, engine: 'gemini-3.8-neural-tts' });
-            logTelemetry('playback_start', { latencyMs });
-            if (onStartCb) onStartCb();
+            safeOnStart();
           }
         };
 
@@ -869,22 +1125,26 @@ export class SpeechService {
           if (this.activeAudioElement === audio) {
             this.activeAudioElement = null;
           }
+          if (currentGenId !== this.playbackGenerationId) return;
           logTelemetry('tts_end', { durationMs: Date.now() - ttsStartTime });
-          if (onEndCb) onEndCb();
+          safeOnEnd();
         };
 
         audio.onerror = () => {
           if (this.activeAudioElement === audio) {
             this.activeAudioElement = null;
           }
-          this.speakBrowserFallback(cleanText, playbackRate, voiceName, ttsStartTime, onStartCb, onEndCb);
+          if (currentGenId !== this.playbackGenerationId) return;
+          this.speakBrowserFallback(cleanText, playbackRate, voiceName, ttsStartTime, currentGenId, safeOnStart, safeOnEnd);
         };
 
         audio.play().catch(() => {
-          this.speakBrowserFallback(cleanText, playbackRate, voiceName, ttsStartTime, onStartCb, onEndCb);
+          if (currentGenId !== this.playbackGenerationId) return;
+          this.speakBrowserFallback(cleanText, playbackRate, voiceName, ttsStartTime, currentGenId, safeOnStart, safeOnEnd);
         });
       } catch (e) {
-        this.speakBrowserFallback(cleanText, playbackRate, voiceName, ttsStartTime, onStartCb, onEndCb);
+        if (currentGenId !== this.playbackGenerationId) return;
+        this.speakBrowserFallback(cleanText, playbackRate, voiceName, ttsStartTime, currentGenId, safeOnStart, safeOnEnd);
       }
     };
 
@@ -898,7 +1158,8 @@ export class SpeechService {
     const abortController = new AbortController();
     this.activeTtsAbortController = abortController;
 
-    fetch(getApiUrl('/api/tts/speak'), {
+    // Stream progressive 24kHz PCM chunks first so playback begins on the very first chunk!
+    fetch(getApiUrl('/api/tts/stream'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -909,26 +1170,67 @@ export class SpeechService {
       signal: abortController.signal
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
-        const data = await res.json();
-        if (abortController.signal.aborted) return;
-        if (data?.audioBase64) {
-          if (this.clientTtsCache.size > 50) {
-            const firstKey = this.clientTtsCache.keys().next().value;
-            if (firstKey) this.clientTtsCache.delete(firstKey);
+        if (!res.ok || !res.body) throw new Error(`TTS Stream HTTP ${res.status}`);
+        if (abortController.signal.aborted || currentGenId !== this.playbackGenerationId) return;
+
+        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtxClass && (!this.pcmAudioContext || this.pcmAudioContext.state === 'closed')) {
+          this.pcmAudioContext = new AudioCtxClass({ sampleRate: 24000 });
+        }
+        if (this.pcmAudioContext) {
+          if (this.pcmAudioContext.state === 'suspended') {
+            this.pcmAudioContext.resume().catch(() => {});
           }
-          this.clientTtsCache.set(cacheKey, data.audioBase64);
-          playWavBase64(data.audioBase64, data.mimeType || 'audio/wav');
+          this.nextPcmStartTime = this.pcmAudioContext.currentTime + 0.015;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let chunksPlayed = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (abortController.signal.aborted || currentGenId !== this.playbackGenerationId) return;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            const jsonStr = trimmed.slice(5).trim();
+            if (!jsonStr) continue;
+            try {
+              const evt = JSON.parse(jsonStr);
+              if (evt.type === 'audio' && evt.pcmBase64) {
+                chunksPlayed++;
+                this.enqueuePcmChunk(
+                  evt.pcmBase64,
+                  evt.sampleRate || 24000,
+                  chunksPlayed === 1 ? safeOnStart : undefined,
+                  currentGenId
+                );
+              }
+            } catch {}
+          }
+        }
+
+        if (abortController.signal.aborted || currentGenId !== this.playbackGenerationId) return;
+        if (chunksPlayed > 0) {
+          this.waitForPcmStreamEnd(safeOnEnd, currentGenId);
         } else {
-          throw new Error('Empty audioBase64');
+          throw new Error('Zero PCM chunks streamed');
         }
       })
       .catch((err: any) => {
-        if (err?.name === 'AbortError' || abortController.signal.aborted) {
+        if (err?.name === 'AbortError' || abortController.signal.aborted || currentGenId !== this.playbackGenerationId) {
           return;
         }
         console.warn('[NEURAL_TTS_FALLBACK] Using enhanced browser voice:', err?.message);
-        this.speakBrowserFallback(cleanText, playbackRate, voiceName, ttsStartTime, onStartCb, onEndCb);
+        this.speakBrowserFallback(cleanText, playbackRate, voiceName, ttsStartTime, currentGenId, safeOnStart, safeOnEnd);
       });
   }
 
@@ -938,20 +1240,30 @@ export class SpeechService {
   private static speakBrowserFallback(
     cleanText: string,
     rate: number,
-    voiceName?: string,
+    voiceName: string | undefined,
     ttsStartTime: number = Date.now(),
+    expectedGenId: number = this.playbackGenerationId,
     onStartCb?: () => void,
     onEndCb?: () => void
   ): void {
+    if (expectedGenId !== this.playbackGenerationId) return;
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       if (onEndCb) onEndCb();
       return;
     }
 
     try {
+      if (this.activeUtterance) {
+        this.activeUtterance.onend = null;
+        this.activeUtterance.onerror = null;
+        this.activeUtterance.onstart = null;
+        this.activeUtterance = null;
+      }
       window.speechSynthesis.cancel();
+
       const lang = detectLanguage(cleanText);
       const utterance = new SpeechSynthesisUtterance(cleanText);
+      this.activeUtterance = utterance;
       utterance.rate = rate === 1.0 ? 0.97 : rate;
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
@@ -964,6 +1276,7 @@ export class SpeechService {
 
       let firstAudioFired = false;
       utterance.onstart = () => {
+        if (expectedGenId !== this.playbackGenerationId) return;
         if (!firstAudioFired) {
           firstAudioFired = true;
           logTelemetry('tts_first_audio', { latencyMs: Date.now() - ttsStartTime, engine: 'browser-neural-fallback' });
@@ -972,23 +1285,36 @@ export class SpeechService {
       };
 
       utterance.onend = () => {
+        if (this.activeUtterance === utterance) this.activeUtterance = null;
+        if (expectedGenId !== this.playbackGenerationId) return;
         if (onEndCb) onEndCb();
       };
 
       utterance.onerror = () => {
+        if (this.activeUtterance === utterance) this.activeUtterance = null;
+        if (expectedGenId !== this.playbackGenerationId) return;
         if (onEndCb) onEndCb();
       };
 
       window.speechSynthesis.speak(utterance);
     } catch (e) {
-      if (onEndCb) onEndCb();
+      if (expectedGenId === this.playbackGenerationId && onEndCb) onEndCb();
     }
   }
 
   /**
    * Stop Text To Speech & Live Audio Stream immediately (Barge-In / Interrupt)
+   * Invalidates active playbackGenerationId and detaches all event handlers BEFORE stopping audio
+   * so cancelled speech can NEVER fire onEnd/onError callbacks.
    */
   static stopSpeaking(): void {
+    this.playbackGenerationId++;
+
+    if (this.pcmEndTimeoutId) {
+      clearTimeout(this.pcmEndTimeoutId);
+      this.pcmEndTimeoutId = null;
+    }
+
     if (this.activeTtsAbortController) {
       try { this.activeTtsAbortController.abort(); } catch (e) {}
       this.activeTtsAbortController = null;
@@ -996,14 +1322,25 @@ export class SpeechService {
 
     if (this.activeAudioElement) {
       try {
+        this.activeAudioElement.onplay = null;
+        this.activeAudioElement.onended = null;
+        this.activeAudioElement.onerror = null;
         this.activeAudioElement.pause();
         this.activeAudioElement.src = '';
       } catch (e) {}
       this.activeAudioElement = null;
     }
 
+    if (this.activeUtterance) {
+      this.activeUtterance.onstart = null;
+      this.activeUtterance.onend = null;
+      this.activeUtterance.onerror = null;
+      this.activeUtterance = null;
+    }
+
     if (this.activePcmNodes.size > 0) {
       this.activePcmNodes.forEach((node) => {
+        try { node.onended = null; } catch (e) {}
         try { node.stop(); } catch (e) {}
         try { node.disconnect(); } catch (e) {}
       });

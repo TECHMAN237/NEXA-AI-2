@@ -15,81 +15,407 @@ export interface ExtractedReminderInfo {
   isDateExplicit: boolean;
 }
 
+export interface ExtractedDateInfo {
+  date: string | null;
+  isExplicit: boolean;
+  matchedText?: string;
+}
+
+export interface ExtractedEventInfo {
+  title: string;
+  date: string;
+  time: string;
+  location: string;
+  description: string;
+  isTitleValid: boolean;
+  isDateExplicit: boolean;
+  isTimeExplicit: boolean;
+  isLocationExplicit: boolean;
+}
+
+const MONTH_NAME_MAP: Record<string, number> = {
+  january: 0, jan: 0, janvier: 0,
+  february: 1, feb: 1, fevrier: 1, 'février': 1,
+  march: 2, mar: 2, mars: 2,
+  april: 3, apr: 3, avril: 3,
+  may: 4, mai: 4,
+  june: 5, jun: 5, juin: 5,
+  july: 6, jul: 6, juillet: 6,
+  august: 7, aug: 7, aout: 7, 'août': 7,
+  september: 8, sep: 8, sept: 8, septembre: 8,
+  october: 9, oct: 9, octobre: 9,
+  november: 10, nov: 10, novembre: 10,
+  december: 11, dec: 11, decembre: 11, 'décembre': 11
+};
+
+const WORD_NUMBERS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5,
+  six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  first: 1, second: 2, third: 3, fourth: 4, fifth: 5,
+  sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10,
+  eleventh: 11, twelfth: 12
+};
+
+function formatLocalIsoDate(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function buildValidDate(year: number, monthIndex: number, day: number): Date | null {
+  if (monthIndex < 0 || monthIndex > 11 || day < 1 || day > 31) return null;
+  const d = new Date(year, monthIndex, day, 0, 0, 0, 0);
+  if (d.getFullYear() !== year || d.getMonth() !== monthIndex || d.getDate() !== day) {
+    return null;
+  }
+  return d;
+}
+
 /**
-  * Resolve relative dates based on text context and reference date.
-  */
-export function resolveRelativeDate(dateInput: string | undefined | null, queryText: string, refDate: Date = new Date()): string {
-  const lower = (queryText || '').toLowerCase();
-  
-  // Create Date object in local context
+ * Deterministic Date Extractor & Normalizer.
+ * Parses ISO dates, Month+Day(+Year), Day+Month(+Year), "8th of August", slash dates,
+ * relative dates ("today", "tomorrow", "in 3 days", "next Friday"), and resolves future years accurately.
+ */
+export function extractExplicitDateFromText(queryText: string | undefined | null, refDate: Date = new Date()): ExtractedDateInfo {
+  if (!queryText || !queryText.trim()) {
+    return { date: null, isExplicit: false };
+  }
+
+  const raw = queryText.trim();
+  const lower = raw.toLowerCase();
   const today = new Date(refDate);
+  today.setHours(0, 0, 0, 0);
+  const currentYear = today.getFullYear();
 
-  const formatDate = (d: Date): string => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+  // 1. Explicit ISO YYYY-MM-DD
+  const isoMatch = raw.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (isoMatch) {
+    const y = parseInt(isoMatch[1], 10);
+    const m = parseInt(isoMatch[2], 10) - 1;
+    const day = parseInt(isoMatch[3], 10);
+    const valid = buildValidDate(y, m, day);
+    if (valid) {
+      return { date: formatLocalIsoDate(valid), isExplicit: true, matchedText: isoMatch[0] };
+    }
+  }
 
-  const todayStr = formatDate(today);
+  // 2. Month Name + Day (+ optional Year): e.g. "December 31", "Dec 31st, 2027", "November 12"
+  const monthNamesPattern = Object.keys(MONTH_NAME_MAP).sort((a, b) => b.length - a.length).join('|');
+  const monthFirstRegex = new RegExp(`\\b(${monthNamesPattern})\\.?\\s+(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)?(?:\\s*,?\\s*(\\d{4}))?\\b`, 'i');
+  const mFirst = raw.match(monthFirstRegex);
+  if (mFirst) {
+    const monthIdx = MONTH_NAME_MAP[mFirst[1].toLowerCase()];
+    const day = parseInt(mFirst[2], 10);
+    let year = mFirst[3] ? parseInt(mFirst[3], 10) : currentYear;
+    let candidate = buildValidDate(year, monthIdx, day);
+    if (candidate && !mFirst[3] && candidate.getTime() < today.getTime()) {
+      candidate = buildValidDate(currentYear + 1, monthIdx, day);
+    }
+    if (candidate) {
+      return { date: formatLocalIsoDate(candidate), isExplicit: true, matchedText: mFirst[0] };
+    }
+  }
 
-  // Check explicit phrases in text
-  if (lower.includes('the day after tomorrow') || lower.includes('après-demain')) {
+  // 3. Day + Month Name (+ optional Year): e.g. "31 December", "31st of December", "on the 8th of August 2027"
+  const dayFirstRegex = new RegExp(`\\b(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(${monthNamesPattern})\\.?(?:\\s*,?\\s*(\\d{4}))?\\b`, 'i');
+  const dFirst = raw.match(dayFirstRegex);
+  if (dFirst) {
+    const day = parseInt(dFirst[1], 10);
+    const monthIdx = MONTH_NAME_MAP[dFirst[2].toLowerCase()];
+    let year = dFirst[3] ? parseInt(dFirst[3], 10) : currentYear;
+    let candidate = buildValidDate(year, monthIdx, day);
+    if (candidate && !dFirst[3] && candidate.getTime() < today.getTime()) {
+      candidate = buildValidDate(currentYear + 1, monthIdx, day);
+    }
+    if (candidate) {
+      return { date: formatLocalIsoDate(candidate), isExplicit: true, matchedText: dFirst[0] };
+    }
+  }
+
+  // 4. Numeric slash date: MM/DD/YYYY or DD/MM/YYYY (e.g. 12/08/2027, 31/12/2026, 12/31/2026)
+  const slashMatch = raw.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+  if (slashMatch) {
+    const p1 = parseInt(slashMatch[1], 10);
+    const p2 = parseInt(slashMatch[2], 10);
+    let year = slashMatch[3] ? parseInt(slashMatch[3], 10) : currentYear;
+    if (year < 100) year += 2000;
+
+    let monthIdx = -1;
+    let day = -1;
+    if (p1 > 12 && p2 <= 12) {
+      // Unambiguously DD/MM/YYYY
+      day = p1;
+      monthIdx = p2 - 1;
+    } else {
+      // Standard MM/DD/YYYY
+      monthIdx = p1 - 1;
+      day = p2;
+    }
+    let candidate = buildValidDate(year, monthIdx, day);
+    if (candidate && !slashMatch[3] && candidate.getTime() < today.getTime()) {
+      candidate = buildValidDate(currentYear + 1, monthIdx, day);
+    }
+    if (candidate) {
+      return { date: formatLocalIsoDate(candidate), isExplicit: true, matchedText: slashMatch[0] };
+    }
+  }
+
+  // 5. Relative offsets: "the day after tomorrow", "tomorrow", "today", "tonight", "in X days"
+  if (lower.includes('the day after tomorrow') || lower.includes('day after tomorrow') || lower.includes('après-demain')) {
     const d = new Date(today);
     d.setDate(d.getDate() + 2);
-    return formatDate(d);
+    return { date: formatLocalIsoDate(d), isExplicit: true, matchedText: 'the day after tomorrow' };
   }
 
-  if (lower.includes('tomorrow') || lower.includes('demain')) {
+  if (/\b(tomorrow|demain)\b/i.test(lower)) {
     const d = new Date(today);
     d.setDate(d.getDate() + 1);
-    return formatDate(d);
+    return { date: formatLocalIsoDate(d), isExplicit: true, matchedText: 'tomorrow' };
   }
 
-  if (lower.includes('today') || lower.includes("aujourd'hui")) {
-    return todayStr;
+  if (/\b(today|tonight|aujourd'hui)\b/i.test(lower)) {
+    return { date: formatLocalIsoDate(today), isExplicit: true, matchedText: 'today' };
   }
 
-  // Day of week handling: "next monday", "this monday", "every monday", "on monday", "monday"
+  const inDaysMatch = lower.match(/\bin\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+days?\b/i);
+  if (inDaysMatch) {
+    const rawNum = inDaysMatch[1].toLowerCase();
+    const offset = WORD_NUMBERS[rawNum] || parseInt(rawNum, 10);
+    if (!isNaN(offset) && offset > 0) {
+      const d = new Date(today);
+      d.setDate(d.getDate() + offset);
+      return { date: formatLocalIsoDate(d), isExplicit: true, matchedText: inDaysMatch[0] };
+    }
+  }
+
+  // 6. Day of week handling: "next friday", "this friday", "on friday", "friday"
   const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   for (let i = 0; i < daysOfWeek.length; i++) {
     const dayName = daysOfWeek[i];
-    if (
-      lower.includes(`next ${dayName}`) || 
-      lower.includes(`every ${dayName}`) || 
-      lower.includes(`on ${dayName}`) ||
-      lower.includes(`this ${dayName}`) ||
-      lower.includes(dayName)
-    ) {
-      const currentDay = today.getDay(); // 0 is Sunday, 1 is Monday...
+    const dayRegex = new RegExp(`\\b(?:(next|this|on|every)\\s+)?(${dayName})\\b`, 'i');
+    const dayMatch = lower.match(dayRegex);
+    if (dayMatch) {
+      const currentDay = today.getDay();
       let daysUntilTarget = i - currentDay;
       if (daysUntilTarget <= 0) {
-        daysUntilTarget += 7; // Move to next week
+        daysUntilTarget += 7;
       }
       const d = new Date(today);
       d.setDate(d.getDate() + daysUntilTarget);
-      return formatDate(d);
+      return { date: formatLocalIsoDate(d), isExplicit: true, matchedText: dayMatch[0] };
     }
   }
 
-  // Next week general handling
-  if (lower.includes('next week')) {
+  if (/\bnext\s+week\b/i.test(lower)) {
     const d = new Date(today);
     d.setDate(d.getDate() + 7);
-    return formatDate(d);
+    return { date: formatLocalIsoDate(d), isExplicit: true, matchedText: 'next week' };
   }
 
-  // If input date is valid YYYY-MM-DD, verify it isn't accidentally today when "tomorrow" was mentioned
-  if (dateInput && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
-    if (lower.includes('tomorrow') && dateInput === todayStr) {
-      const d = new Date(today);
-      d.setDate(d.getDate() + 1);
-      return formatDate(d);
+  if (/\bnext\s+month\b/i.test(lower)) {
+    const d = new Date(today);
+    d.setMonth(d.getMonth() + 1);
+    return { date: formatLocalIsoDate(d), isExplicit: true, matchedText: 'next month' };
+  }
+
+  return { date: null, isExplicit: false };
+}
+
+/**
+ * Resolve relative or explicit dates based on text context and reference date.
+ * Never overwrites an explicitly mentioned date in queryText with today's date.
+ */
+export function resolveRelativeDate(dateInput: string | undefined | null, queryText: string, refDate: Date = new Date()): string {
+  const today = new Date(refDate);
+  const todayStr = formatLocalIsoDate(today);
+
+  // 1. Always check queryText first so explicit dates in the user's sentence ("December 31", "tomorrow")
+  // are never overwritten by a faulty LLM default dateInput.
+  const fromQuery = extractExplicitDateFromText(queryText, refDate);
+  if (fromQuery.isExplicit && fromQuery.date) {
+    return fromQuery.date;
+  }
+
+  // 2. Next check dateInput (could be ISO YYYY-MM-DD or natural language like "December 31")
+  if (dateInput && typeof dateInput === 'string' && dateInput.trim() && dateInput !== 'Not specified') {
+    const fromInput = extractExplicitDateFromText(dateInput, refDate);
+    if (fromInput.isExplicit && fromInput.date) {
+      return fromInput.date;
     }
-    return dateInput;
   }
 
   return todayStr;
+}
+
+const VAGUE_EVENT_TITLES = new Set([
+  '', 'event', 'an event', 'my event', 'the event', 'new event', 'scheduled event', 'saved event',
+  'something', 'something important', 'important', 'anything', 'it', 'this', 'that',
+  'meeting', 'a meeting', 'appointment', 'an appointment', 'conference', 'a conference',
+  'schedule', 'calendar', 'my events', 'events'
+]);
+
+/**
+ * Authoritative Event Entity Extractor (Stage A — Extraction).
+ * Extracts structured { title, date, time, location, description } and validity flags
+ * without ever copying the raw conversational sentence into the event title or fabricating dates.
+ */
+export function extractEventParams(rawText: string, payload?: any, refDate: Date = new Date()): ExtractedEventInfo {
+  const text = (rawText || '').trim();
+
+  // 1. Date extraction & normalization
+  const queryDateInfo = extractExplicitDateFromText(text, refDate);
+  const payloadDateInfo = (!queryDateInfo.isExplicit && payload?.date && payload.date !== 'Not specified')
+    ? extractExplicitDateFromText(String(payload.date), refDate)
+    : { date: null, isExplicit: false };
+
+  // Guard: If payload.date equals today's date, only trust it if the user actually mentioned today/tonight!
+  const todayStr = formatLocalIsoDate(refDate);
+  const userMentionedToday = /\b(today|tonight|aujourd'hui)\b/i.test(text);
+  const isPayloadDateGenuine = payloadDateInfo.isExplicit && (payloadDateInfo.date !== todayStr || userMentionedToday);
+
+  const isDateExplicit = queryDateInfo.isExplicit || isPayloadDateGenuine;
+  const date = queryDateInfo.isExplicit && queryDateInfo.date
+    ? queryDateInfo.date
+    : (isPayloadDateGenuine && payloadDateInfo.date ? payloadDateInfo.date : 'Not specified');
+
+  // 2. Time extraction & normalization
+  const explicitTimeFromQuery = extractTimeFromText(text);
+  const explicitTimeFromPayload = payload?.time && payload.time !== 'Not specified' && payload.time !== '12:00' && payload.time !== '09:00'
+    ? normalizeTimeString(String(payload.time))
+    : null;
+  const time = explicitTimeFromQuery || explicitTimeFromPayload || (payload?.time && explicitTimeFromQuery ? explicitTimeFromQuery : 'Not specified');
+  const isTimeExplicit = time !== 'Not specified';
+
+  // 3. Location extraction
+  let location = 'Not specified';
+  if (payload?.location && typeof payload.location === 'string' && payload.location !== 'Not specified' && payload.location !== 'TBD') {
+    const cand = payload.location.trim();
+    const isTimeLike = /^\d{1,2}(:\d{2})?\s*(am|pm|a\.m\.|p\.m\.)?$/i.test(cand);
+    const isDateLike = extractExplicitDateFromText(cand, refDate).isExplicit;
+    if (!isTimeLike && !isDateLike && !/^(my\s+events|events|calendar)$/i.test(cand)) {
+      location = cand;
+    }
+  }
+
+  if (location === 'Not specified') {
+    // Strip known date, time, and "called X" segments before scanning for "in <Location>" or "at <Location>"
+    const monthNamesPattern = Object.keys(MONTH_NAME_MAP).sort((a, b) => b.length - a.length).join('|');
+    const textForLocation = text
+      .replace(new RegExp(`\\b(?:on\\s+)?(?:the\\s+)?(?:${monthNamesPattern})\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:\\s*,?\\s*\\d{4})?\\b`, 'gi'), ' ')
+      .replace(new RegExp(`\\b(?:on\\s+)?(?:the\\s+)?\\d{1,2}(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?:${monthNamesPattern})\\.?(?:\\s*,?\\s*\\d{4})?\\b`, 'gi'), ' ')
+      .replace(/\b(?:at|from|by)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?\b/gi, ' ')
+      .replace(/\b(?:to|in|into|inside)\s+(?:my\s+)?(?:events?|calendar|schedule|organizer)\b/gi, ' ')
+      .replace(/\b(?:called|named|titled)\s+["']?[^"'\n,.]+?["']?(?=\s+(?:on|at|in|for|tomorrow|today|next|this)\b|$)/gi, ' ');
+
+    const locMatch = textForLocation.match(/\b(?:in|at)\s+([A-Z][a-zA-Z0-9\s,.'-]{1,35}?)(?=\s+(?:on|at|from|for|called|named|titled|tomorrow|today|next|this)\b|[.!?]|$)/);
+    if (locMatch && locMatch[1]) {
+      const candidate = locMatch[1].trim().replace(/[.,!?]+$/, '').trim();
+      const isDateOrDay = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tomorrow|morning|afternoon|evening|night)\b/i.test(candidate) ||
+                          extractExplicitDateFromText(candidate, refDate).isExplicit;
+      const isTime = /^\d{1,2}(:\d{2})?\s*(am|pm)?$/i.test(candidate);
+      if (!isDateOrDay && !isTime && candidate.length >= 2) {
+        location = candidate;
+      }
+    }
+  }
+  const isLocationExplicit = location !== 'Not specified';
+
+  // 4. Event Name (Title) Extraction
+  let extractedTitle = '';
+
+  // Pattern A: Explicit "called X", "named X", "titled X" anywhere in the sentence
+  // e.g., "I have an event on December 31 called Maranatha."
+  // e.g., "Please add an event called Maranatha on December 31."
+  // e.g., "I have a conference called Tech Summit on November 12 at 10 AM in Douala."
+  const monthNamesPattern = Object.keys(MONTH_NAME_MAP).sort((a, b) => b.length - a.length).join('|');
+  const calledRegex = /\b(?:called|named|titled|entitled)\s+["']?([^"'\n.!?]+?)["']?(?=\s+(?:on|at|in|from|by|for|tomorrow|today|tonight|next|this|which|that)\b|[.!?]|$)/i;
+  const calledMatch = text.match(calledRegex);
+
+  if (calledMatch && calledMatch[1]) {
+    extractedTitle = calledMatch[1]
+      .replace(new RegExp(`\\s+(?:on|for)\\s+(?:the\\s+)?(?:${monthNamesPattern}|\\d{1,2}).*$`, 'i'), '')
+      .replace(/\s+(?:at|in)\s+.*$/i, '')
+      .replace(/[.,!?]+$/, '')
+      .trim();
+  } else {
+    // Pattern B: Strip preambles, dates, times, locations, and event suffixes
+    let candidate = text;
+
+    // Strip leading date clauses like "On December 31, ", "On the 8th of August, ", "Tomorrow, "
+    candidate = candidate
+      .replace(new RegExp(`^(?:on\\s+)?(?:the\\s+)?(?:${monthNamesPattern})\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:\\s*,?\\s*\\d{4})?\\s*[,:-]?\\s*`, 'i'), '')
+      .replace(new RegExp(`^(?:on\\s+)?(?:the\\s+)?\\d{1,2}(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?:${monthNamesPattern})\\.?(?:\\s*,?\\s*\\d{4})?\\s*[,:-]?\\s*`, 'i'), '')
+      .replace(/^(?:tomorrow|today|tonight|next\s+\w+|this\s+\w+)\s*[,:-]?\s*/i, '');
+
+    // Strip conversational preambles & command verbs
+    candidate = candidate
+      .replace(/^(?:hello|hi|hey|dear)?\s*(?:xena|nexa)?\s*[,!]?\s*/i, '')
+      .replace(/^(?:please|kindly|can\s+you|could\s+you|would\s+you|i\s+want\s+(?:you\s+)?to|i\s+would\s+like\s+(?:you\s+)?to|i\s+need\s+(?:you\s+)?to|help\s+me)\s+/i, '')
+      .replace(/^(?:please\s+|kindly\s+)?(?:add|create|schedule|book|put|set\s+up|save|register|record)\s+(?:an?\s+|my\s+|the\s+|new\s+)?(?:event|meeting|appointment|conference|workshop|ceremony|party|dinner|lunch|gathering|session)?\s*(?:called|named|titled|for|about)?\s*/i, '')
+      .replace(/^(?:i\s+(?:have|got)|i've\s+got|there\s+is|we\s+have)\s+(?:an?\s+|my\s+|the\s+)?(?:important\s+)?(?:event|meeting|appointment|conference|workshop|ceremony|party|dinner|lunch|gathering|session)?\s*(?:called|named|titled)?\s*/i, '');
+
+    // Strip trailing/embedded dates, times, locations, and "to my events"
+    candidate = candidate
+      .replace(new RegExp(`\\s+(?:on|for|from)?\\s*(?:the\\s+)?(?:${monthNamesPattern})\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:\\s*,?\\s*\\d{4})?.*$`, 'i'), '')
+      .replace(new RegExp(`\\s+(?:on|for|from)?\\s*(?:the\\s+)?\\d{1,2}(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?:${monthNamesPattern})\\.?(?:\\s*,?\\s*\\d{4})?.*$`, 'i'), '')
+      .replace(/\s+(?:on|for)?\s*\b\d{4}-\d{2}-\d{2}\b.*$/i, '')
+      .replace(/\s+(?:on|for)?\s*\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b.*$/i, '')
+      .replace(/\s+(?:on|this|next)?\s*\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today|tonight|next\s+week|next\s+month)\b.*$/i, '')
+      .replace(/\s+(?:at|from|by)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?.*$/i, '')
+      .replace(/\s+(?:to|in|into|inside|on)\s+(?:my\s+)?(?:events?(?:\s+tracker)?|calendar|schedule|organizer).*$/i, '')
+      .replace(/\s+as\s+an?\s+event.*$/i, '')
+      .replace(/[.,!?]+$/, '')
+      .trim();
+
+    if (location !== 'Not specified') {
+      const escapedLoc = location.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      candidate = candidate.replace(new RegExp(`\\s+(?:in|at)\\s+${escapedLoc}\\b.*$`, 'i'), '').trim();
+    }
+
+    extractedTitle = candidate;
+  }
+
+  // Also check payload.title if extractedTitle is empty or vague, provided payload.title is not the raw sentence itself
+  if ((!extractedTitle || VAGUE_EVENT_TITLES.has(extractedTitle.toLowerCase())) && payload?.title && typeof payload.title === 'string') {
+    const pTitle = payload.title.trim().replace(/[.,!?]+$/, '').trim();
+    const isWholeSentence = pTitle.toLowerCase() === text.toLowerCase().replace(/[.,!?]+$/, '').trim() && pTitle.split(/\s+/).length > 4;
+    if (!isWholeSentence && !VAGUE_EVENT_TITLES.has(pTitle.toLowerCase())) {
+      // Run recursive clean on pTitle just in case
+      const cleanedP = pTitle
+        .replace(new RegExp(`\\s+(?:on|for)?\\s*(?:the\\s+)?(?:${monthNamesPattern})\\.?\\s+\\d{1,2}.*$`, 'i'), '')
+        .replace(/\s+(?:to|in|into)\s+(?:my\s+)?events?.*$/i, '')
+        .trim();
+      if (cleanedP && !VAGUE_EVENT_TITLES.has(cleanedP.toLowerCase())) {
+        extractedTitle = cleanedP;
+      }
+    }
+  }
+
+  // Final validation of title
+  const normalizedTitleLower = extractedTitle.toLowerCase().replace(/^["']|["']$/g, '').trim();
+  const isVagueOrInvalid =
+    !normalizedTitleLower ||
+    VAGUE_EVENT_TITLES.has(normalizedTitleLower) ||
+    /^(?:something|anything)\s+(?:important|special|big|urgent|personal)$/i.test(normalizedTitleLower) ||
+    /^(?:on|at|in)\s+/i.test(normalizedTitleLower);
+
+  const isTitleValid = !isVagueOrInvalid;
+  const finalTitle = isTitleValid
+    ? extractedTitle.replace(/^["']|["']$/g, '').trim()
+    : '';
+
+  return {
+    title: finalTitle,
+    date,
+    time,
+    location,
+    description: payload?.description || text,
+    isTitleValid,
+    isDateExplicit,
+    isTimeExplicit,
+    isLocationExplicit
+  };
 }
 
 /**
@@ -156,13 +482,13 @@ export function cleanReminderTitle(rawTitle: string, fullQuery: string): string 
   if (!extractedAction) {
     extractedAction = cleanedText;
     const commandPrefixes = [
-      /^(please\s+)?(can\s+you\s+)?create\s+(me\s+)?a\s+reminder\s+(to|for)?\s*/i,
-      /^(please\s+)?(can\s+you\s+)?set\s+(me\s+)?a\s+reminder\s+(to|for)?\s*/i,
-      /^(please\s+)?(can\s+you\s+)?add\s+(me\s+)?a\s+reminder\s+(to|for)?\s*/i,
-      /^(please\s+)?(can\s+you\s+)?remind\s+me\s+(to|about|that|for)?\s*/i,
-      /^i\s+(have\s+to|must|need\s+to)\s*/i,
-      /^please\s+remind\s+me\s*/i,
-      /^xena\s*/i,
+      /^(?:please\s+)?(?:can\s+you\s+)?create\s+(?:me\s+)?a\s+reminder(?:\s+(?:to|for)\b)?\s*/i,
+      /^(?:please\s+)?(?:can\s+you\s+)?set\s+(?:me\s+)?a\s+reminder(?:\s+(?:to|for)\b)?\s*/i,
+      /^(?:please\s+)?(?:can\s+you\s+)?add\s+(?:me\s+)?a\s+reminder(?:\s+(?:to|for)\b)?\s*/i,
+      /^(?:please\s+)?(?:can\s+you\s+)?remind\s+me(?:\s+(?:to|about|that|for)\b)?\s*/i,
+      /^i\s+(?:have\s+to|must|need\s+to)\b\s*/i,
+      /^please\s+remind\s+me\b\s*/i,
+      /^xena\b\s*/i,
     ];
     for (const prefix of commandPrefixes) {
       extractedAction = extractedAction.replace(prefix, '');
@@ -247,8 +573,10 @@ export function cleanReminderTitle(rawTitle: string, fullQuery: string): string 
     extractedAction = extractedAction.replace(pattern, '');
   }
 
-  // 7. Clean trailing/leading punctuation or extra spaces
+  // 7. Clean trailing/leading punctuation, prepositions ("to review Chemistry" -> "review Chemistry"), or extra spaces
   extractedAction = extractedAction
+    .replace(/^[\s,.:;?!-]+|[\s,.:;?!-]+$/g, '')
+    .replace(/^(?:for\s+me\s+to|for\s+me\s+about|for\s+me\s+for|for\s+me|to|for|about|that)\b\s+/i, '')
     .replace(/^[\s,.:;?!-]+|[\s,.:;?!-]+$/g, '')
     .replace(/\s+/g, ' ')
     .trim();

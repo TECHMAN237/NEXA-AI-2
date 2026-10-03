@@ -28,7 +28,7 @@ import FullChatView from './components/FullChatView.js';
 import LanguageView from './components/LanguageView.js';
 import AboutView from './components/AboutView.js';
 import TeamView from './components/TeamView.js';
-import { getApiUrl } from './config/api.js';
+import { getApiUrl, apiFetch } from './config/api.js';
 import AuthLayout from './components/AuthLayout.js';
 import { speakHumanVoice } from './utils/voiceUtils.js';
 
@@ -106,53 +106,48 @@ export default function App() {
 
   const fetchData = async () => {
     try {
-      const [remindersRes, tasksRes, examsRes, eventsRes, memoriesRes, profileRes, activitiesRes] = await Promise.all([
-        fetch(getApiUrl('/api/reminders')),
-        fetch(getApiUrl('/api/tasks')),
-        fetch(getApiUrl('/api/exams')),
-        fetch(getApiUrl('/api/events')),
-        fetch(getApiUrl('/api/memories')),
-        fetch(getApiUrl('/api/profile')),
-        fetch(getApiUrl('/api/notification-history'))
-      ]);
-
-      const safeJson = async (res: Response) => {
-        if (!res.ok) return null;
-        const ct = res.headers.get('content-type');
-        if (ct && ct.includes('application/json')) {
-          try {
+      const safeFetchJson = async (endpoint: string) => {
+        try {
+          const res = await apiFetch(endpoint);
+          if (!res.ok) return null;
+          const ct = res.headers.get('content-type');
+          if (ct && ct.includes('application/json')) {
             return await res.json();
-          } catch {
-            return null;
           }
+        } catch {
+          // Graceful fallback to local cached state if server is briefly restarting
         }
         return null;
       };
 
-      const remindersData = await safeJson(remindersRes);
+      const [remindersData, tasksData, examsData, eventsData, memoriesData, profileData, activitiesData] = await Promise.all([
+        safeFetchJson('/api/reminders'),
+        safeFetchJson('/api/tasks'),
+        safeFetchJson('/api/exams'),
+        safeFetchJson('/api/events'),
+        safeFetchJson('/api/memories'),
+        safeFetchJson('/api/profile'),
+        safeFetchJson('/api/notification-history')
+      ]);
+
       if (remindersData) {
         setReminders(remindersData);
         await ReminderService.saveReminders(remindersData);
       }
-      const tasksData = await safeJson(tasksRes);
       if (tasksData) {
         setTasks(tasksData);
         await PlanningService.saveTasks(tasksData);
       }
-      const examsData = await safeJson(examsRes);
       if (examsData) {
         setExams(examsData);
         await StudyService.saveExams(examsData);
       }
-      const eventsData = await safeJson(eventsRes);
       if (eventsData) {
         setEvents(eventsData);
         await ProfileService.saveEvents(eventsData);
       }
-      const memoriesData = await safeJson(memoriesRes);
       if (memoriesData) setMemories(memoriesData);
       
-      const profileData = await safeJson(profileRes);
       if (profileData) {
         const localProfile = await ProfileManager.loadProfile();
         if (localProfile?.avatar_url && localProfile.avatar_url.startsWith('data:image/') && (!profileData.avatar_url || profileData.avatar_url.includes('unsplash'))) {
@@ -161,12 +156,11 @@ export default function App() {
         setProfile(profileData);
         await ProfileManager.saveProfile(profileData);
       }
-      const activitiesData = await safeJson(activitiesRes);
       if (activitiesData && Array.isArray(activitiesData)) {
         setActivityCount(activitiesData.length);
       }
     } catch (e) {
-      console.error('Error fetching dashboard states:', e);
+      console.warn('Transient issue refreshing dashboard states:', e);
     }
   };
 

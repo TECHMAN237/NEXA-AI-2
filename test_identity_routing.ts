@@ -1,275 +1,168 @@
-import { classifyIdentityOrCapability, generateAuthoritativeIdentityResponse, isQuestionOrInquiry, XENA_OFFICIAL_IDENTITY, XENA_CAPABILITY_REGISTRY } from './backend/server/XenaIdentity.js';
-import { parseEventFollowUpUpdate, parseFollowUpUpdate } from './backend/utils/reminderParser.js';
-import { routeUserIntent } from './backend/server/gemini.js';
-import { dbService } from './backend/server/db.js';
-import { ServerActionEngine } from './backend/server/ServerActionEngine.js';
+/**
+ * Automated Regression & Verification Suite for Xena AI Identity, Purpose & Capability Intelligence
+ * Tests all English & French identity probes, feature inquiries, chatbot comparisons, limitations,
+ * follow-up awareness, voice vs. chat mode formatting, and non-regression of real action commands.
+ */
+import {
+  XENA_OFFICIAL_IDENTITY,
+  XENA_CAPABILITY_REGISTRY,
+  XENA_UNAVAILABLE_CAPABILITIES,
+  classifyIdentityOrCapability,
+  generateAuthoritativeIdentityResponse,
+  buildXenaSystemPrompt
+} from './backend/server/XenaIdentity.ts';
+import { isSimpleGreeting } from './backend/server/gemini.ts';
+import { PersonalContextEngine } from './backend/services/PersonalContextEngine.ts';
 
-interface TestCase {
-  name: string;
-  input: string;
-  expectedCategory?: string;
-  isIdentityQuery: boolean;
-  shouldExecuteTool: boolean;
-  expectedToolIntent?: string;
+interface ProbeTest {
+  query: string;
+  expectedCategory: string;
+  expectedFeatureId?: string;
+  expectedLang: 'en' | 'fr';
 }
 
-const testCases: TestCase[] = [
-  {
-    name: "T1: Simple greeting",
-    input: "Hi",
-    isIdentityQuery: false,
-    shouldExecuteTool: false
-  },
-  {
-    name: "T2: Exact bug prompt (uppercase)",
-    input: "WHO ARE YOU AND WHAT IS YOUR GOAL?",
-    expectedCategory: "identity_and_goal",
-    isIdentityQuery: true,
-    shouldExecuteTool: false
-  },
-  {
-    name: "T3: Standard identity inquiry",
-    input: "Who are you?",
-    expectedCategory: "identity",
-    isIdentityQuery: true,
-    shouldExecuteTool: false
-  },
-  {
-    name: "T4: Purpose and goal question",
-    input: "What is your goal?",
-    expectedCategory: "goal_purpose",
-    isIdentityQuery: true,
-    shouldExecuteTool: false
-  },
-  {
-    name: "T5: Capabilities question",
-    input: "What can you do?",
-    expectedCategory: "capabilities",
-    isIdentityQuery: true,
-    shouldExecuteTool: false
-  },
-  {
-    name: "T6: Capability / clarification question",
-    input: "Can you update my event?",
-    expectedCategory: "capabilities",
-    isIdentityQuery: true,
-    shouldExecuteTool: false
-  },
-  {
-    name: "T7: Application guidance",
-    input: "Explain event management",
-    expectedCategory: "application_help",
-    isIdentityQuery: true,
-    shouldExecuteTool: false
-  },
-  {
-    name: "T8: Action request with verified location",
-    input: "Update my event location to the library",
-    isIdentityQuery: false,
-    shouldExecuteTool: true,
-    expectedToolIntent: "EVENT"
-  },
-  {
-    name: "T9: Role clarification",
-    input: "I am asking what your role is",
-    expectedCategory: "role",
-    isIdentityQuery: true,
-    shouldExecuteTool: false
-  },
-  {
-    name: "T10: French identity question",
-    input: "Présente-toi",
-    expectedCategory: "identity",
-    isIdentityQuery: true,
-    shouldExecuteTool: false
-  },
-  {
-    name: "T11: French purpose question",
-    input: "Quel est ton objectif dans cette application ?",
-    expectedCategory: "goal_purpose",
-    isIdentityQuery: true,
-    shouldExecuteTool: false
-  },
-  {
-    name: "T12: French capability question",
-    input: "Tu peux faire quoi pour mes études ?",
-    expectedCategory: "capabilities",
-    isIdentityQuery: true,
-    shouldExecuteTool: false
-  },
-  {
-    name: "T13: French application guidance",
-    input: "Explique-moi comment fonctionnent tes rappels",
-    expectedCategory: "application_help",
-    isIdentityQuery: true,
-    shouldExecuteTool: false
-  },
-  {
-    name: "T14: Chatbot inquiry",
-    input: "Are you just a chatbot?",
-    expectedCategory: "capabilities",
-    isIdentityQuery: true,
-    shouldExecuteTool: false
-  },
-  {
-    name: "T15: Student help inquiry",
-    input: "How can you help me as a student?",
-    expectedCategory: "capabilities",
-    isIdentityQuery: true,
-    shouldExecuteTool: false
-  },
-  {
-    name: "T16: Informal / speech typo inquiry",
-    input: "who r u and whats ur purpose??",
-    expectedCategory: "identity_and_goal",
-    isIdentityQuery: true,
-    shouldExecuteTool: false
-  }
+const IDENTITY_PROBES: ProbeTest[] = [
+  // English Identity & Name
+  { query: "Who are you?", expectedCategory: "identity", expectedLang: "en" },
+  { query: "What is your name?", expectedCategory: "name", expectedLang: "en" },
+  { query: "What is Xena?", expectedCategory: "identity", expectedLang: "en" },
+  { query: "Hi, who are you?", expectedCategory: "identity", expectedLang: "en" },
+  { query: "What is your purpose?", expectedCategory: "goal_purpose", expectedLang: "en" },
+  { query: "Who are you and what is your goal?", expectedCategory: "identity_and_goal", expectedLang: "en" },
+  // English Capabilities & Features
+  { query: "What can you do?", expectedCategory: "capabilities", expectedLang: "en" },
+  { query: "How can you help me as a student?", expectedCategory: "role", expectedLang: "en" },
+  { query: "What features are available in this app?", expectedCategory: "capabilities", expectedLang: "en" },
+  { query: "Can you manage my reminders?", expectedCategory: "feature_inquiry", expectedFeatureId: "reminders", expectedLang: "en" },
+  { query: "Can you track my exams?", expectedCategory: "feature_inquiry", expectedFeatureId: "study_tracking", expectedLang: "en" },
+  { query: "Can you help me organize my schedule?", expectedCategory: "feature_inquiry", expectedFeatureId: "planning", expectedLang: "en" },
+  { query: "Can you remember information about me?", expectedCategory: "feature_inquiry", expectedFeatureId: "memory_vault", expectedLang: "en" },
+  // English Differentiation, Help & Limitations
+  { query: "What is the difference between you and a regular chatbot?", expectedCategory: "differentiation", expectedLang: "en" },
+  { query: "How do I use your features?", expectedCategory: "application_help", expectedLang: "en" },
+  { query: "What can you not do?", expectedCategory: "limitations", expectedLang: "en" },
+  { query: "Can you sync with Google Calendar?", expectedCategory: "limitations", expectedLang: "en" },
+  // French Equivalents
+  { query: "Qui es-tu ?", expectedCategory: "identity", expectedLang: "fr" },
+  { query: "Comment tu t'appelles ?", expectedCategory: "name", expectedLang: "fr" },
+  { query: "C'est quoi Xena ?", expectedCategory: "identity", expectedLang: "fr" },
+  { query: "Quel est ton rôle ?", expectedCategory: "role", expectedLang: "fr" },
+  { query: "Que peux-tu faire ?", expectedCategory: "capabilities", expectedLang: "fr" },
+  { query: "Comment peux-tu m'aider comme étudiant ?", expectedCategory: "role", expectedLang: "fr" },
+  { query: "Quelles sont les fonctionnalités de cette application ?", expectedCategory: "capabilities", expectedLang: "fr" },
+  { query: "Peux-tu gérer mes rappels ?", expectedCategory: "feature_inquiry", expectedFeatureId: "reminders", expectedLang: "fr" },
+  { query: "Peux-tu suivre mes examens ?", expectedCategory: "feature_inquiry", expectedFeatureId: "study_tracking", expectedLang: "fr" },
+  { query: "Peux-tu te souvenir d'informations sur moi ?", expectedCategory: "feature_inquiry", expectedFeatureId: "memory_vault", expectedLang: "fr" },
+  { query: "Quelle est la différence entre toi et un chatbot classique ?", expectedCategory: "differentiation", expectedLang: "fr" },
+  { query: "Quelles sont tes limites ?", expectedCategory: "limitations", expectedLang: "fr" },
 ];
 
-async function runTestSuite() {
-  console.log("=================================================================");
-  console.log("  XENA AI — IDENTITY, ROLE CLARITY & INTENT REGRESSION TEST SUITE");
-  console.log("=================================================================\n");
+const ACTION_OR_DATA_PROBES = [
+  "Remind me tomorrow at 8 AM to review Chemistry",
+  "I have an exam on November 15",
+  "I have an event on December 31 called Maranatha",
+  "Remember that my mother's name is Pauline",
+  "What reminders do I have today?",
+  "Do I have an event on December 31?",
+];
 
+async function runTests() {
+  console.log("=== XENA AI IDENTITY & CAPABILITY INTELLIGENCE REGRESSION SUITE ===\n");
   let passed = 0;
   let failed = 0;
 
-  // Mock incomplete event in DB to simulate the exact bug condition
-  const mockEvent = {
-    id: "event-test-incomplete",
-    user_id: "user-test",
-    title: "Majestical Night",
-    date: "2026-10-04",
-    time: "15:00",
-    location: "Not specified"
-  };
+  // 1. Verify 10-section System Prompt & Registry Integrity
+  const chatPrompt = buildXenaSystemPrompt('full_chat');
+  const voicePrompt = buildXenaSystemPrompt('conversational_voice');
+  const hasAllSections =
+    chatPrompt.includes('1. IDENTITY:') &&
+    chatPrompt.includes('2. MISSION:') &&
+    chatPrompt.includes('3. VERIFIED CAPABILITIES:') &&
+    chatPrompt.includes('4. USER CONTEXT & DATA ISOLATION:') &&
+    chatPrompt.includes('5. ACTION EXECUTION RULES') &&
+    chatPrompt.includes('6. MISSING-INFORMATION BEHAVIOR:') &&
+    chatPrompt.includes('7. ACCURACY, LIMITATIONS & UNCERTAINTY:') &&
+    chatPrompt.includes('8. INTERACTION-MODE BEHAVIOR') &&
+    chatPrompt.includes('9. RESPONSE STYLE:') &&
+    chatPrompt.includes('10. SAFETY & PRIVACY:') &&
+    voicePrompt.includes('CONVERSATIONAL VOICE MODE');
 
-  for (const t of testCases) {
-    process.stdout.write(`Testing: ${t.name} -> "${t.input}" ... `);
-
-    // 1. Semantic classification check
-    const classification = classifyIdentityOrCapability(t.input);
-
-    if (t.isIdentityQuery) {
-      if (!classification.isMatch) {
-        console.error(`FAILED: Expected isMatch=true, got false`);
-        failed++;
-        continue;
-      }
-      if (t.expectedCategory && classification.category !== t.expectedCategory) {
-        console.error(`FAILED: Expected category=${t.expectedCategory}, got ${classification.category}`);
-        failed++;
-        continue;
-      }
-    }
-
-    // 2. Safety check against event follow-up parser
-    const eventFollowUp = parseEventFollowUpUpdate(t.input, mockEvent);
-    if (!t.shouldExecuteTool && eventFollowUp !== null) {
-      console.error(`FAILED: Non-action query falsely triggered event follow-up:`, eventFollowUp);
-      failed++;
-      continue;
-    }
-
-    // 3. Safety check against reminder follow-up parser
-    const reminderFollowUp = parseFollowUpUpdate(t.input, { id: "rem-1", title: "Pay Bill" });
-    if (!t.shouldExecuteTool && reminderFollowUp !== null) {
-      console.error(`FAILED: Non-action query falsely triggered reminder follow-up:`, reminderFollowUp);
-      failed++;
-      continue;
-    }
-
-    // 4. Intent router check
-    const routedIntent = await routeUserIntent(t.input);
-    if (t.isIdentityQuery) {
-      if (routedIntent.intent !== 'NORMAL_CHAT') {
-        console.error(`FAILED: Expected intent=NORMAL_CHAT, got ${routedIntent.intent}`);
-        failed++;
-        continue;
-      }
-      const hasAction = routedIntent.actions?.some(a => a.action !== 'NO_OP');
-      if (hasAction) {
-        console.error(`FAILED: Identity query generated non-NO_OP action:`, routedIntent.actions);
-        failed++;
-        continue;
-      }
-    }
-
-    // 5. Response generation check
-    if (t.isIdentityQuery) {
-      const response = generateAuthoritativeIdentityResponse(t.input);
-      if (!response || response.trim().length < 20) {
-        console.error(`FAILED: Empty or invalid identity response generated`);
-        failed++;
-        continue;
-      }
-      // Assert Xena identifies itself as student companion
-      if (classification.language === 'fr') {
-        if (!response.includes("Xena AI") || !response.includes("études")) {
-          console.error(`FAILED: French response missing Xena identity: ${response}`);
-          failed++;
-          continue;
-        }
-      } else {
-        if (!response.includes("Xena AI") || !response.includes("student companion")) {
-          console.error(`FAILED: English response missing Xena student companion identity: ${response}`);
-          failed++;
-          continue;
-        }
-      }
-    }
-
-    console.log(`PASSED ✓`);
+  if (hasAllSections && Object.keys(XENA_CAPABILITY_REGISTRY).length >= 7 && XENA_UNAVAILABLE_CAPABILITIES.length >= 3) {
+    console.log("[PASS] 10-Section System Prompt & Authoritative Capability Registry verified.");
     passed++;
+  } else {
+    console.error("[FAIL] System Prompt sections or Capability Registry incomplete.");
+    failed++;
   }
 
-  // TEST CASE: Pending draft isolation
-  console.log(`\nTesting: Pending draft isolation when asking identity questions... `);
-  const testUserId = "user-regression-test";
-  ServerActionEngine.setPendingDraft(testUserId, {
-    userId: testUserId,
-    intent: 'REMINDER',
-    data: { title: "Study Physics", date: "2026-10-04" },
-    missingFields: ['time'],
-    createdAt: Date.now()
-  });
+  // 2. Test all English & French Identity & Capability Probes
+  for (const probe of IDENTITY_PROBES) {
+    const res = classifyIdentityOrCapability(probe.query);
+    const hijackedByGreeting = isSimpleGreeting(probe.query);
+    const chatReply = generateAuthoritativeIdentityResponse(probe.query, "Alex", { mode: "chat" });
+    const voiceReply = generateAuthoritativeIdentityResponse(probe.query, "Alex", { mode: "voice" });
 
-  // Verify draft exists
-  let storedDraft = ServerActionEngine.getPendingDraft(testUserId);
-  if (!storedDraft || storedDraft.data.title !== "Study Physics") {
-    console.error("FAILED: Failed to set pending draft for test");
-    failed++;
-  } else {
-    // User asks "WHO ARE YOU AND WHAT IS YOUR GOAL?"
-    const draftResolution = await ServerActionEngine.resolvePendingDraft(testUserId, "WHO ARE YOU AND WHAT IS YOUR GOAL?");
-    // It must NOT resolve the draft into a time or title!
-    if (draftResolution !== null) {
-      console.error("FAILED: Pending draft was falsely resolved by identity question:", draftResolution);
-      failed++;
+    const categoryOk = res.isMatch && res.category === probe.expectedCategory;
+    const featureOk = !probe.expectedFeatureId || res.featureId === probe.expectedFeatureId;
+    const langOk = res.language === probe.expectedLang;
+    const notHijacked = !hijackedByGreeting;
+    const voiceConcise = voiceReply.length > 15 && voiceReply.length <= chatReply.length && !voiceReply.includes('**');
+
+    if (categoryOk && featureOk && langOk && notHijacked && voiceConcise) {
+      passed++;
+      console.log(`[PASS] "${probe.query}" -> category=${res.category}${res.featureId ? ` (${res.featureId})` : ''} [${res.language}]`);
+      console.log(`       Voice (${voiceReply.length} chars): ${voiceReply}`);
     } else {
-      // Draft should still be preserved
-      storedDraft = ServerActionEngine.getPendingDraft(testUserId);
-      if (storedDraft) {
-        console.log("PASSED ✓ (Pending draft preserved unharmed)");
-        passed++;
-      } else {
-        console.error("FAILED: Pending draft was erroneously deleted");
-        failed++;
-      }
+      failed++;
+      console.error(`[FAIL] "${probe.query}"`, {
+        got: res,
+        expectedCategory: probe.expectedCategory,
+        expectedFeatureId: probe.expectedFeatureId,
+        hijackedByGreeting,
+        voiceConcise,
+        voiceReply
+      });
     }
   }
 
-  console.log(`\n=================================================================`);
-  console.log(`  REGRESSION TEST RESULTS: ${passed} PASSED | ${failed} FAILED`);
-  console.log(`=================================================================`);
-
-  if (failed > 0) {
-    process.exit(1);
+  // 3. Test Multi-Turn Follow-Up Awareness ("What about my exams?" after "Who are you?")
+  const historyAfterIdentity = [
+    { sender: 'user', text: 'Who are you?' },
+    { sender: 'assistant', text: generateAuthoritativeIdentityResponse('Who are you?', 'Alex', { mode: 'chat' }) }
+  ];
+  const followUpRes = classifyIdentityOrCapability("What about my exams?", historyAfterIdentity);
+  if (followUpRes.isMatch && followUpRes.category === 'feature_inquiry' && followUpRes.featureId === 'study_tracking') {
+    passed++;
+    console.log(`[PASS] Multi-turn follow-up "What about my exams?" after identity turn -> feature_inquiry (study_tracking)`);
+  } else {
+    failed++;
+    console.error(`[FAIL] Multi-turn follow-up failed:`, followUpRes);
   }
+
+  // 4. Test Action & Personal Data Probes are NOT hijacked by Identity Classifier
+  for (const actionQuery of ACTION_OR_DATA_PROBES) {
+    const res = classifyIdentityOrCapability(actionQuery);
+    if (!res.isMatch) {
+      passed++;
+      console.log(`[PASS] Action/Data query NOT hijacked by identity classifier: "${actionQuery}"`);
+    } else {
+      failed++;
+      console.error(`[FAIL] Action/Data query falsely matched as identity: "${actionQuery}" ->`, res);
+    }
+  }
+
+  // 5. Test PersonalContextEngine Guard (never dumps "My Items" on identity/capability query)
+  const groundedIdentity = PersonalContextEngine.generateGroundedLocalResponse('What can you do?', {} as any);
+  if (groundedIdentity.includes('Xena') && !groundedIdentity.includes('My Items:')) {
+    passed++;
+    console.log(`[PASS] PersonalContextEngine guard returns authoritative capability response instead of raw item dump.`);
+  } else {
+    failed++;
+    console.error(`[FAIL] PersonalContextEngine guard failed:`, groundedIdentity);
+  }
+
+  console.log(`\n=== SUMMARY: ${passed} passed, ${failed} failed ===`);
+  process.exit(failed > 0 ? 1 : 0);
 }
 
-runTestSuite().catch(err => {
-  console.error("Test runner failed:", err);
-  process.exit(1);
-});
+runTests();

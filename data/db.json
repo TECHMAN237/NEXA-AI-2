@@ -63,6 +63,57 @@
         "Notion"
       ],
       "created_at": "2026-10-03T03:49:25.586Z"
+    },
+    {
+      "id": "profile-1791059746972-fom7f4",
+      "user_id": "reg-test-user-1791059746898",
+      "email": "steevezali@gmail.com",
+      "full_name": "Alex T.",
+      "avatar_url": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+      "premium": true,
+      "language": "English",
+      "theme": "Dark",
+      "notifications_enabled": true,
+      "connected_apps": [
+        "Google Calendar",
+        "Spotify",
+        "Notion"
+      ],
+      "created_at": "2026-10-03T20:35:46.972Z"
+    },
+    {
+      "id": "profile-1791059797206-w77s6f",
+      "user_id": "reg-test-user-1791059797128",
+      "email": "steevezali@gmail.com",
+      "full_name": "Alex T.",
+      "avatar_url": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+      "premium": true,
+      "language": "English",
+      "theme": "Dark",
+      "notifications_enabled": true,
+      "connected_apps": [
+        "Google Calendar",
+        "Spotify",
+        "Notion"
+      ],
+      "created_at": "2026-10-03T20:36:37.206Z"
+    },
+    {
+      "id": "profile-1791059878444-e7crwz",
+      "user_id": "reg-test-user-1791059878367",
+      "email": "steevezali@gmail.com",
+      "full_name": "Alex T.",
+      "avatar_url": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+      "premium": true,
+      "language": "English",
+      "theme": "Dark",
+      "notifications_enabled": true,
+      "connected_apps": [
+        "Google Calendar",
+        "Spotify",
+        "Notion"
+      ],
+      "created_at": "2026-10-03T20:37:58.444Z"
     }
   ],
   "conversations": [
@@ -113,7 +164,21 @@
       "user_id": "user-1",
       "title": "Main Chat Assistant",
       "created_at": "2026-10-03T04:32:49.666Z",
-      "updated_at": "2026-10-03T19:23:11.359Z"
+      "updated_at": "2026-10-03T19:41:18.236Z"
+    },
+    {
+      "id": "conv-1791057239862-n4x5i2",
+      "user_id": "user-1",
+      "title": "Main Chat Assistant",
+      "created_at": "2026-10-03T19:53:59.862Z",
+      "updated_at": "2026-10-03T21:03:36.097Z"
+    },
+    {
+      "id": "conv-1791061893100-wz83w6",
+      "user_id": "user-1",
+      "title": "Main Chat Assistant",
+      "created_at": "2026-10-03T21:11:33.100Z",
+      "updated_at": "2026-10-03T21:46:23.580Z"
     }
   ],
   "messages": [
@@ -1076,6 +1141,198 @@
       "id": "msg-1791055391359-bagl2o",
       "conversation_id": "conv-1791001969666-pc1zo0",
       "created_at": "2026-10-03T19:23:11.359Z"
+    },
+    {
+      "sender": "user",
+      "text": "On the 31st of December are we going to the event of Maranatha please save it.",
+      "type": "text",
+      "id": "msg-1791055968014-6vw1w5",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:32:48.014Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Done — I've saved **On The 31st Of December Are We Going To The Event Of Maranatha Please Save It.** to your events.\n\nWhat time will it start? Where will it take place?",
+      "type": "text",
+      "id": "msg-1791055976646-tksgsd",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:32:56.646Z"
+    },
+    {
+      "sender": "user",
+      "text": "Please I would you to generate my study time table for this week my level is 40% and my level at in March is 30% my level in geography is 80% and in French 30% , please plan in my item not in the chat.",
+      "type": "text",
+      "id": "msg-1791056473942-3nw9jd",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:41:13.942Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "**Daily Plan — October 3, 2026**\n\n- I Would You To\n- Level At In March\n- Plan In My Item Not In The Chat",
+      "type": "text",
+      "id": "msg-1791056478236-wi75t7",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:41:18.236Z"
+    },
+    {
+      "sender": "user",
+      "text": "Hi Xena, I wish to know your goal.",
+      "type": "voice",
+      "id": "msg-1791060374214-wxyyuh",
+      "conversation_id": "conv-1791057239862-n4x5i2",
+      "created_at": "2026-10-03T20:46:14.214Z"
+    },
+    {
+      "sender": "user",
+      "text": "Seriously?",
+      "type": "voice",
+      "id": "msg-1791060392310-qtlv3u",
+      "conversation_id": "conv-1791057239862-n4x5i2",
+      "created_at": "2026-10-03T20:46:32.310Z"
+    },
+    {
+      "sender": "user",
+      "text": "You get some.",
+      "type": "voice",
+      "id": "msg-1791060462114-zv4a1r",
+      "conversation_id": "conv-1791057239862-n4x5i2",
+      "created_at": "2026-10-03T20:47:42.114Z"
+    },
+    {
+      "sender": "user",
+      "text": "Hi Alex I'm listen call government ID.",
+      "type": "voice",
+      "id": "msg-1791061416097-567n01",
+      "conversation_id": "conv-1791057239862-n4x5i2",
+      "created_at": "2026-10-03T21:03:36.097Z"
+    },
+    {
+      "sender": "user",
+      "text": "Please I would you to help me to plan my day I need to play football at 2:00 p.m. and also to with my Bible at 9:00 a.m. and also to dance at 4:00 p.m. too please generate me plan and save it in my item for planning",
+      "type": "text",
+      "id": "msg-1791062000201-4hcl18",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:13:20.201Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "**Daily Plan — October 3, 2026**\n\n- Also To With My Bible\n- Also To Dance Too",
+      "type": "text",
+      "id": "msg-1791062013448-cjllc8",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:13:33.448Z"
+    },
+    {
+      "sender": "user",
+      "text": "Hello this I would to know you're going in this app.",
+      "type": "voice",
+      "id": "msg-1791062044248-na5rmw",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:14:04.248Z"
+    },
+    {
+      "sender": "user",
+      "text": "Nothing month.",
+      "type": "voice",
+      "id": "msg-1791062049179-32evdj",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:14:09.179Z"
+    },
+    {
+      "sender": "user",
+      "text": "Don't get me through it all night stippler government or whatever please.",
+      "type": "voice",
+      "id": "msg-1791062111053-8thw2s",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:15:11.054Z"
+    },
+    {
+      "sender": "user",
+      "text": "Heroes in a please can you tell me what is your going job.",
+      "type": "voice",
+      "id": "msg-1791062129472-g7ixv6",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:15:29.472Z"
+    },
+    {
+      "sender": "user",
+      "text": "Hello please can you tell me what is your goal in this app.",
+      "type": "voice",
+      "id": "msg-1791062152958-mdoeui",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:15:52.958Z"
+    },
+    {
+      "sender": "user",
+      "text": "Xena, please set a reminder for my Software Engineering Lab submission.",
+      "type": "voice",
+      "id": "msg-1791062168042-n0pdsy",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:16:08.042Z"
+    },
+    {
+      "sender": "user",
+      "text": "Images.",
+      "type": "voice",
+      "id": "msg-1791062383432-bhmpi1",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:19:43.432Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Sure. What time should I remind you?",
+      "type": "voice",
+      "id": "msg-1791062383436-vwg4j5",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:19:43.436Z"
+    },
+    {
+      "sender": "user",
+      "text": "HI WHAT IS YOUR GOAL IN THIS APP ?",
+      "type": "text",
+      "id": "msg-1791063764823-xrd970",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:42:44.823Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "My purpose is to help students turn their intentions into organized, actionable progress without juggling disconnected tools. I coordinate your **Intelligent Reminders**, **Daily Planning**, **Event Tracker**, **Study Tracking timetables**, **My Items**, and **AI Memory** around your personal student context.",
+      "type": "text",
+      "id": "msg-1791063764838-7eat1t",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:42:44.838Z"
+    },
+    {
+      "sender": "user",
+      "text": "Who are you?",
+      "type": "text",
+      "id": "msg-1791063983546-6xbamc",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:46:23.546Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "I'm **Xena AI**, an AI student companion designed to help students manage and organize their academic and everyday activities through the features available in the Xena application.",
+      "type": "text",
+      "id": "msg-1791063983551-mo10xv",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:46:23.551Z"
+    },
+    {
+      "sender": "user",
+      "text": "What can you do?",
+      "type": "text",
+      "id": "msg-1791063983570-cnc14s",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:46:23.570Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "I'm **Xena AI**, your AI student companion. Here are the verified capabilities I can help you with in this app:\n- **Intelligent Reminders**: Create, update, delete, and list reminders with exact dates, times, recurrence, and voice alerts.\n- **Daily Planning**: Build structured, conflict-aware daily schedules that respect your fixed start times, durations, and priorities.\n- **Event Tracker**: Save, update, delete, and query calendar events with clean event titles, dates, times, and locations.\n- **Study Tracking & Timetables**: Track your subjects, difficulty levels, readiness, and exam dates, and generate weighted 7-day study timetables with exam countdown reminders.\n- **My Items Contextual Awareness**: Answer questions about what you have scheduled today, tomorrow, or on any date across your Reminders, Planner, Study Tracker, and Events.\n- **AI Memory & Vault Memory**: Remember personal facts, relationships, preferences, and secure Vault notes you ask me to keep.\n- **Text & Live Voice Interaction**: Communicate naturally in English or French through Full Chat or real-time Conversational Voice Mode.",
+      "type": "text",
+      "id": "msg-1791063983580-utdctr",
+      "conversation_id": "conv-1791061893100-wz83w6",
+      "created_at": "2026-10-03T21:46:23.580Z"
     }
   ],
   "reminders": [
@@ -1389,7 +1646,7 @@
       "voice_notification": true,
       "active": true,
       "category": "General",
-      "status": "scheduled",
+      "status": "triggered",
       "id": "rem-1791054890981-memnaz",
       "user_id": "user-1",
       "created_at": "2026-10-03T19:14:50.981Z"
@@ -1404,7 +1661,7 @@
       "voice_notification": true,
       "active": true,
       "category": "General",
-      "status": "scheduled",
+      "status": "triggered",
       "id": "rem-1791054942439-ktl2m3",
       "user_id": "user-1",
       "created_at": "2026-10-03T19:15:42.439Z"
@@ -1438,6 +1695,114 @@
       "id": "rem-1791055278157-2do8ek",
       "user_id": "user-1",
       "created_at": "2026-10-03T19:21:18.157Z"
+    },
+    {
+      "title": "Exam Reminder: Algorithms, Database Systems, Linear Algebra exam in 1 month",
+      "date": "2026-11-15",
+      "time": "20:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "category": "Study",
+      "id": "rem-1791059797266-rygatj",
+      "user_id": "reg-test-user-1791059797128",
+      "created_at": "2026-10-03T20:36:37.266Z"
+    },
+    {
+      "title": "Exam Reminder: Algorithms, Database Systems, Linear Algebra exam in 2 weeks",
+      "date": "2026-12-01",
+      "time": "20:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "category": "Study",
+      "id": "rem-1791059797271-91brxu",
+      "user_id": "reg-test-user-1791059797128",
+      "created_at": "2026-10-03T20:36:37.271Z"
+    },
+    {
+      "title": "Exam Reminder: Algorithms, Database Systems, Linear Algebra exam in 1 week",
+      "date": "2026-12-08",
+      "time": "20:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "category": "Study",
+      "id": "rem-1791059797273-rhy1a9",
+      "user_id": "reg-test-user-1791059797128",
+      "created_at": "2026-10-03T20:36:37.273Z"
+    },
+    {
+      "title": "Exam Reminder: Algorithms, Database Systems, Linear Algebra exam in 1 month",
+      "date": "2026-11-15",
+      "time": "19:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "category": "Study",
+      "id": "rem-1791059878494-l2rtlb",
+      "user_id": "reg-test-user-1791059878367",
+      "created_at": "2026-10-03T20:37:58.494Z"
+    },
+    {
+      "title": "Exam Reminder: Algorithms, Database Systems, Linear Algebra exam in 2 weeks",
+      "date": "2026-12-01",
+      "time": "19:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "category": "Study",
+      "id": "rem-1791059878497-1iy347",
+      "user_id": "reg-test-user-1791059878367",
+      "created_at": "2026-10-03T20:37:58.497Z"
+    },
+    {
+      "title": "Exam Reminder: Algorithms, Database Systems, Linear Algebra exam in 1 week",
+      "date": "2026-12-08",
+      "time": "19:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "category": "Study",
+      "id": "rem-1791059878500-lkgikr",
+      "user_id": "reg-test-user-1791059878367",
+      "created_at": "2026-10-03T20:37:58.500Z"
+    },
+    {
+      "title": "Review notes",
+      "description": "",
+      "date": "2026-10-04",
+      "time": "08:00",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "scheduled",
+      "id": "rem-1791061026806-wjnuqf",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T20:57:06.806Z"
+    },
+    {
+      "title": "Morrow to review Chemistry",
+      "description": "",
+      "date": "2026-10-04",
+      "time": "08:00",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "scheduled",
+      "id": "rem-1791061719069-ggtliu",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T21:08:39.069Z"
     }
   ],
   "tasks": [
@@ -1774,6 +2139,117 @@
       "id": "plan-1791054330158-bdrt7m",
       "user_id": "user-1",
       "created_at": "2026-10-03T19:05:30.158Z"
+    },
+    {
+      "date": "2026-10-03",
+      "timeline": [
+        {
+          "id": "block-1-1791056473983-bix3",
+          "time": "05:00 – 06:00",
+          "title": "I Would You To",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "05:00",
+          "endTime": "06:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-2-1791056473983-b466",
+          "time": "06:00 – 07:00",
+          "title": "Level At In March",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "06:00",
+          "endTime": "07:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-3-1791056473983-pvt6",
+          "time": "07:00 – 08:00",
+          "title": "Plan In My Item Not In The Chat",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "07:00",
+          "endTime": "08:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        }
+      ],
+      "suggestions": "Daily plan structured around your actual tasks for 2026-10-03. High-priority focus blocks assigned chronologically.",
+      "id": "plan-1791056473985-7bipqv",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T19:41:13.985Z"
+    },
+    {
+      "date": "2026-12-31",
+      "timeline": [
+        {
+          "id": "block-1-1791059356683-p6yz",
+          "time": "08:00 – 09:00",
+          "title": "On December 31",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "08:00",
+          "endTime": "09:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-2-1791059356683-brgl",
+          "time": "09:00 – 10:00",
+          "title": "I Have Something Important",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "09:00",
+          "endTime": "10:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        }
+      ],
+      "suggestions": "Daily plan structured around your actual tasks for 2026-12-31. High-priority focus blocks assigned chronologically.",
+      "id": "plan-1791059356684-5bkodt",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T20:29:16.684Z"
+    },
+    {
+      "date": "2026-10-03",
+      "timeline": [
+        {
+          "id": "block-1-1791062009275-4qbi",
+          "time": "09:00 – 10:00",
+          "title": "Also To With My Bible",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "09:00",
+          "endTime": "10:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-2-1791062009275-x64h",
+          "time": "16:00 – 17:00",
+          "title": "Also To Dance Too",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "16:00",
+          "endTime": "17:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        }
+      ],
+      "suggestions": "Daily plan structured around your actual tasks for 2026-10-03. High-priority focus blocks assigned chronologically.",
+      "id": "plan-1791062009277-kylohx",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T21:13:29.277Z"
     }
   ],
   "exams": [
@@ -1797,6 +2273,702 @@
       "remaining_chapters": 8,
       "progress": 35,
       "created_at": "2025-05-01T08:00:00Z"
+    },
+    {
+      "id": "exam-1791059797262-0riytn",
+      "user_id": "reg-test-user-1791059797128",
+      "course": "Algorithms",
+      "exam_date": "2026-12-15",
+      "difficulty": "high",
+      "study_hours_per_day": 3,
+      "preferred_study_time": "20:00 - 22:00",
+      "available_days": [
+        "Mon",
+        "Wed",
+        "Fri"
+      ],
+      "remaining_chapters": 5,
+      "progress": 30,
+      "auto_reminders": true,
+      "study_plan": [
+        {
+          "day": "Monday",
+          "slots": [
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "22:00 – 23:00",
+              "activity": "Linear Algebra — Active Recall & Review",
+              "subject": "Linear Algebra",
+              "start_time": "22:00",
+              "end_time": "23:00",
+              "duration_minutes": 60,
+              "level": 80
+            }
+          ]
+        },
+        {
+          "day": "Wednesday",
+          "slots": [
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "22:00 – 23:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "22:00",
+              "end_time": "23:00",
+              "duration_minutes": 60,
+              "level": 30
+            }
+          ]
+        },
+        {
+          "day": "Friday",
+          "slots": [
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "22:00 – 23:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "22:00",
+              "end_time": "23:00",
+              "duration_minutes": 60,
+              "level": 50
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-10-03T20:36:37.262Z"
+    },
+    {
+      "id": "exam-1791059797262-1ovy82",
+      "user_id": "reg-test-user-1791059797128",
+      "course": "Database Systems",
+      "exam_date": "2026-12-15",
+      "difficulty": "medium",
+      "study_hours_per_day": 3,
+      "preferred_study_time": "20:00 - 22:00",
+      "available_days": [
+        "Mon",
+        "Wed",
+        "Fri"
+      ],
+      "remaining_chapters": 5,
+      "progress": 50,
+      "auto_reminders": true,
+      "study_plan": [
+        {
+          "day": "Monday",
+          "slots": [
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "22:00 – 23:00",
+              "activity": "Linear Algebra — Active Recall & Review",
+              "subject": "Linear Algebra",
+              "start_time": "22:00",
+              "end_time": "23:00",
+              "duration_minutes": 60,
+              "level": 80
+            }
+          ]
+        },
+        {
+          "day": "Wednesday",
+          "slots": [
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "22:00 – 23:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "22:00",
+              "end_time": "23:00",
+              "duration_minutes": 60,
+              "level": 30
+            }
+          ]
+        },
+        {
+          "day": "Friday",
+          "slots": [
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "22:00 – 23:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "22:00",
+              "end_time": "23:00",
+              "duration_minutes": 60,
+              "level": 50
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-10-03T20:36:37.262Z"
+    },
+    {
+      "id": "exam-1791059797262-iuoicx",
+      "user_id": "reg-test-user-1791059797128",
+      "course": "Linear Algebra",
+      "exam_date": "2026-12-15",
+      "difficulty": "low",
+      "study_hours_per_day": 3,
+      "preferred_study_time": "20:00 - 22:00",
+      "available_days": [
+        "Mon",
+        "Wed",
+        "Fri"
+      ],
+      "remaining_chapters": 5,
+      "progress": 80,
+      "auto_reminders": true,
+      "study_plan": [
+        {
+          "day": "Monday",
+          "slots": [
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "22:00 – 23:00",
+              "activity": "Linear Algebra — Active Recall & Review",
+              "subject": "Linear Algebra",
+              "start_time": "22:00",
+              "end_time": "23:00",
+              "duration_minutes": 60,
+              "level": 80
+            }
+          ]
+        },
+        {
+          "day": "Wednesday",
+          "slots": [
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "22:00 – 23:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "22:00",
+              "end_time": "23:00",
+              "duration_minutes": 60,
+              "level": 30
+            }
+          ]
+        },
+        {
+          "day": "Friday",
+          "slots": [
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "22:00 – 23:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "22:00",
+              "end_time": "23:00",
+              "duration_minutes": 60,
+              "level": 50
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-10-03T20:36:37.262Z"
+    },
+    {
+      "id": "exam-1791059878489-p2h440",
+      "user_id": "reg-test-user-1791059878367",
+      "course": "Algorithms",
+      "exam_date": "2026-12-15",
+      "difficulty": "high",
+      "study_hours_per_day": 3,
+      "preferred_study_time": "19:00 - 22:00",
+      "available_days": [
+        "Mon",
+        "Wed",
+        "Fri"
+      ],
+      "remaining_chapters": 5,
+      "progress": 30,
+      "auto_reminders": true,
+      "study_plan": [
+        {
+          "day": "Monday",
+          "slots": [
+            {
+              "time": "19:00 – 20:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "19:00",
+              "end_time": "20:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Linear Algebra — Active Recall & Review",
+              "subject": "Linear Algebra",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 80
+            }
+          ]
+        },
+        {
+          "day": "Wednesday",
+          "slots": [
+            {
+              "time": "19:00 – 20:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "19:00",
+              "end_time": "20:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 30
+            }
+          ]
+        },
+        {
+          "day": "Friday",
+          "slots": [
+            {
+              "time": "19:00 – 20:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "19:00",
+              "end_time": "20:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 50
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-10-03T20:37:58.489Z"
+    },
+    {
+      "id": "exam-1791059878489-nsrxsk",
+      "user_id": "reg-test-user-1791059878367",
+      "course": "Database Systems",
+      "exam_date": "2026-12-15",
+      "difficulty": "medium",
+      "study_hours_per_day": 3,
+      "preferred_study_time": "19:00 - 22:00",
+      "available_days": [
+        "Mon",
+        "Wed",
+        "Fri"
+      ],
+      "remaining_chapters": 5,
+      "progress": 50,
+      "auto_reminders": true,
+      "study_plan": [
+        {
+          "day": "Monday",
+          "slots": [
+            {
+              "time": "19:00 – 20:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "19:00",
+              "end_time": "20:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Linear Algebra — Active Recall & Review",
+              "subject": "Linear Algebra",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 80
+            }
+          ]
+        },
+        {
+          "day": "Wednesday",
+          "slots": [
+            {
+              "time": "19:00 – 20:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "19:00",
+              "end_time": "20:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 30
+            }
+          ]
+        },
+        {
+          "day": "Friday",
+          "slots": [
+            {
+              "time": "19:00 – 20:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "19:00",
+              "end_time": "20:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 50
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-10-03T20:37:58.489Z"
+    },
+    {
+      "id": "exam-1791059878489-diptce",
+      "user_id": "reg-test-user-1791059878367",
+      "course": "Linear Algebra",
+      "exam_date": "2026-12-15",
+      "difficulty": "low",
+      "study_hours_per_day": 3,
+      "preferred_study_time": "19:00 - 22:00",
+      "available_days": [
+        "Mon",
+        "Wed",
+        "Fri"
+      ],
+      "remaining_chapters": 5,
+      "progress": 80,
+      "auto_reminders": true,
+      "study_plan": [
+        {
+          "day": "Monday",
+          "slots": [
+            {
+              "time": "19:00 – 20:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "19:00",
+              "end_time": "20:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Linear Algebra — Active Recall & Review",
+              "subject": "Linear Algebra",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 80
+            }
+          ]
+        },
+        {
+          "day": "Wednesday",
+          "slots": [
+            {
+              "time": "19:00 – 20:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "19:00",
+              "end_time": "20:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 30
+            }
+          ]
+        },
+        {
+          "day": "Friday",
+          "slots": [
+            {
+              "time": "19:00 – 20:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "19:00",
+              "end_time": "20:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 50
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-10-03T20:37:58.489Z"
     }
   ],
   "study_sessions": [
@@ -1941,6 +3113,202 @@
       "id": "event-1790998825346-ula7re",
       "user_id": "user-1",
       "created_at": "2026-10-03T03:40:25.346Z"
+    },
+    {
+      "title": "On The 31st Of December Are We Going To The Event Of Maranatha Please Save It.",
+      "date": "2026-10-03",
+      "time": "Not specified",
+      "location": "Not specified",
+      "description": "On the 31st of December are we going to the event of Maranatha please save it.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1791055971626-7st9ml",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T19:32:51.626Z"
+    },
+    {
+      "title": "Gala Night",
+      "date": "2026-12-28",
+      "time": "19:00",
+      "location": "Not specified",
+      "description": "Add Gala Night to my events.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1791059356653-3jbpqr",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T20:29:16.653Z"
+    },
+    {
+      "title": "Gala Night",
+      "date": "2026-12-28",
+      "time": "19:00",
+      "location": "Not specified",
+      "description": "Add Gala Night to my events.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1791059407912-isi1gd",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T20:30:07.912Z"
+    },
+    {
+      "title": "Maranatha",
+      "date": "2026-12-31",
+      "time": "Not specified",
+      "location": "Not specified",
+      "description": "On December 31, I have something important.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1791059407937-a587vb",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T20:30:07.937Z"
+    },
+    {
+      "title": "Maranatha",
+      "date": "2026-12-28",
+      "time": "Not specified",
+      "location": "Not specified",
+      "description": "I have an event on December 31 called Maranatha.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1791059746914-ud2bgt",
+      "user_id": "reg-test-user-1791059746898",
+      "created_at": "2026-10-03T20:35:46.914Z"
+    },
+    {
+      "title": "Tech Summit",
+      "date": "2026-11-12",
+      "time": "10:00",
+      "location": "Douala",
+      "description": "I have a conference called Tech Summit on November 12 at 10 AM in Douala.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1791059746940-6bf3fl",
+      "user_id": "reg-test-user-1791059746898",
+      "created_at": "2026-10-03T20:35:46.940Z"
+    },
+    {
+      "title": "Gala Night",
+      "date": "2026-12-20",
+      "time": "Not specified",
+      "location": "Not specified",
+      "description": "Add Gala Night to my events.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1791059746955-x6jy2c",
+      "user_id": "reg-test-user-1791059746898",
+      "created_at": "2026-10-03T20:35:46.955Z"
+    },
+    {
+      "title": "Maranatha",
+      "date": "2026-12-28",
+      "time": "Not specified",
+      "location": "Not specified",
+      "description": "I have an event on December 31 called Maranatha.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1791059797144-lfe1i9",
+      "user_id": "reg-test-user-1791059797128",
+      "created_at": "2026-10-03T20:36:37.144Z"
+    },
+    {
+      "title": "Tech Summit",
+      "date": "2026-11-12",
+      "time": "10:00",
+      "location": "Douala",
+      "description": "I have a conference called Tech Summit on November 12 at 10 AM in Douala.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1791059797170-1q53v8",
+      "user_id": "reg-test-user-1791059797128",
+      "created_at": "2026-10-03T20:36:37.170Z"
+    },
+    {
+      "title": "Gala Night",
+      "date": "2026-12-20",
+      "time": "Not specified",
+      "location": "Not specified",
+      "description": "Add Gala Night to my events.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1791059797186-pjjmgu",
+      "user_id": "reg-test-user-1791059797128",
+      "created_at": "2026-10-03T20:36:37.186Z"
+    },
+    {
+      "title": "Maranatha",
+      "date": "2026-12-28",
+      "time": "Not specified",
+      "location": "Not specified",
+      "description": "I have an event on December 31 called Maranatha.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1791059878381-i8xzq7",
+      "user_id": "reg-test-user-1791059878367",
+      "created_at": "2026-10-03T20:37:58.381Z"
+    },
+    {
+      "title": "Tech Summit",
+      "date": "2026-11-12",
+      "time": "10:00",
+      "location": "Douala",
+      "description": "I have a conference called Tech Summit on November 12 at 10 AM in Douala.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1791059878408-0n2auz",
+      "user_id": "reg-test-user-1791059878367",
+      "created_at": "2026-10-03T20:37:58.408Z"
+    },
+    {
+      "title": "Gala Night",
+      "date": "2026-12-20",
+      "time": "Not specified",
+      "location": "Not specified",
+      "description": "Add Gala Night to my events.",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1791059878425-uhkdqn",
+      "user_id": "reg-test-user-1791059878367",
+      "created_at": "2026-10-03T20:37:58.425Z"
+    },
+    {
+      "title": "Do I have an event",
+      "date": "2026-10-04",
+      "time": "Not specified",
+      "location": "Not specified",
+      "description": "Do I have an event tomorrow?",
+      "reminder_time": "30 minutes before",
+      "participants": [
+        "Alex"
+      ],
+      "id": "event-1791060996173-zl65ee",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T20:56:36.173Z"
     }
   ],
   "memories": [
@@ -2118,6 +3486,27 @@
       "id": "mem-1791055283986-7ycwax",
       "user_id": "user-1",
       "created_at": "2026-10-03T19:21:23.986Z"
+    },
+    {
+      "text": "The user is attending the Maranatha event on December 31st.",
+      "category": "Milestone",
+      "id": "mem-1791055976638-hlsvvl",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T19:32:56.638Z"
+    },
+    {
+      "text": "Current academic levels are 40% overall, 80% in geography, and 30% in French.",
+      "category": "Milestone",
+      "id": "mem-1791056478227-qtwr8e",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T19:41:18.227Z"
+    },
+    {
+      "text": "I play football at 2:00 p.m., read my Bible at 9:00 a.m., and dance at 4:00 p.m.",
+      "category": "Schedule",
+      "id": "mem-1791062013437-muorpk",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T21:13:33.437Z"
     }
   ],
   "memory_vault": [
@@ -2792,6 +4181,237 @@
       "status": "completed",
       "metadata": {},
       "created_at": "2026-10-03T19:21:37.020Z"
+    },
+    {
+      "id": "act-1791055971628-faat2m",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"On The 31st Of December Are We Going To The Event Of Maranatha Please Save It.\"",
+      "description": "2026-10-03 at Not specified (Not specified)",
+      "source_id": "event-1791055971626-7st9ml",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:32:51.628Z"
+    },
+    {
+      "id": "act-1791056473987-5lh18e",
+      "user_id": "user-1",
+      "type": "PLANNING",
+      "title": "Plan Initialized for 2026-10-03",
+      "description": "Generated 3 schedule time blocks",
+      "source_id": "plan-1791056473985-7bipqv",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:41:13.987Z"
+    },
+    {
+      "id": "act-1791057652958-a7hcrm",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Read my history note\"",
+      "source_id": "rem-1791054942439-ktl2m3",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:00:52.958Z"
+    },
+    {
+      "id": "act-1791057653059-4zti7j",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Read my history note\"",
+      "source_id": "rem-1791054890981-memnaz",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:00:53.059Z"
+    },
+    {
+      "id": "act-1791059356655-io9res",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Gala Night\"",
+      "description": "2026-12-28 at 19:00",
+      "source_id": "event-1791059356653-3jbpqr",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:29:16.655Z"
+    },
+    {
+      "id": "act-1791059356686-kc0edq",
+      "user_id": "user-1",
+      "type": "PLANNING",
+      "title": "Plan Initialized for 2026-12-31",
+      "description": "Generated 2 schedule time blocks",
+      "source_id": "plan-1791059356684-5bkodt",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:29:16.686Z"
+    },
+    {
+      "id": "act-1791059407914-sj3rfr",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Gala Night\"",
+      "description": "2026-12-28 at 19:00",
+      "source_id": "event-1791059407912-isi1gd",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:30:07.914Z"
+    },
+    {
+      "id": "act-1791059407939-oh9be9",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Maranatha\"",
+      "description": "2026-12-31",
+      "source_id": "event-1791059407937-a587vb",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:30:07.939Z"
+    },
+    {
+      "id": "act-1791059746934-xwcj9e",
+      "user_id": "reg-test-user-1791059746898",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Maranatha\"",
+      "description": "2026-12-31",
+      "source_id": "event-1791059746914-ud2bgt",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:35:46.934Z"
+    },
+    {
+      "id": "act-1791059746943-0ywxen",
+      "user_id": "reg-test-user-1791059746898",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Tech Summit\"",
+      "description": "2026-11-12 at 10:00 (Douala)",
+      "source_id": "event-1791059746940-6bf3fl",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:35:46.943Z"
+    },
+    {
+      "id": "act-1791059746957-02jppj",
+      "user_id": "reg-test-user-1791059746898",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Gala Night\"",
+      "description": "2026-12-20",
+      "source_id": "event-1791059746955-x6jy2c",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:35:46.957Z"
+    },
+    {
+      "id": "act-1791059797164-qr5g2r",
+      "user_id": "reg-test-user-1791059797128",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Maranatha\"",
+      "description": "2026-12-31",
+      "source_id": "event-1791059797144-lfe1i9",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:36:37.164Z"
+    },
+    {
+      "id": "act-1791059797174-26jok8",
+      "user_id": "reg-test-user-1791059797128",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Tech Summit\"",
+      "description": "2026-11-12 at 10:00 (Douala)",
+      "source_id": "event-1791059797170-1q53v8",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:36:37.174Z"
+    },
+    {
+      "id": "act-1791059797188-sdbes0",
+      "user_id": "reg-test-user-1791059797128",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Gala Night\"",
+      "description": "2026-12-20",
+      "source_id": "event-1791059797186-pjjmgu",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:36:37.188Z"
+    },
+    {
+      "id": "act-1791059878401-810a21",
+      "user_id": "reg-test-user-1791059878367",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Maranatha\"",
+      "description": "2026-12-31",
+      "source_id": "event-1791059878381-i8xzq7",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:37:58.401Z"
+    },
+    {
+      "id": "act-1791059878412-4jtlab",
+      "user_id": "reg-test-user-1791059878367",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Tech Summit\"",
+      "description": "2026-11-12 at 10:00 (Douala)",
+      "source_id": "event-1791059878408-0n2auz",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:37:58.412Z"
+    },
+    {
+      "id": "act-1791059878427-yyw4cw",
+      "user_id": "reg-test-user-1791059878367",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Gala Night\"",
+      "description": "2026-12-20",
+      "source_id": "event-1791059878425-uhkdqn",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:37:58.427Z"
+    },
+    {
+      "id": "act-1791060996177-lkqdr2",
+      "user_id": "user-1",
+      "type": "EVENT",
+      "title": "Event Scheduled: \"Do I have an event\"",
+      "description": "2026-10-04",
+      "source_id": "event-1791060996173-zl65ee",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:56:36.177Z"
+    },
+    {
+      "id": "act-1791061026812-omdczd",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Review notes\"",
+      "description": "Scheduled for 2026-10-04 at 08:00",
+      "source_id": "rem-1791061026806-wjnuqf",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T20:57:06.812Z"
+    },
+    {
+      "id": "act-1791061719076-hkznvh",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Morrow to review Chemistry\"",
+      "description": "Scheduled for 2026-10-04 at 08:00",
+      "source_id": "rem-1791061719069-ggtliu",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T21:08:39.076Z"
+    },
+    {
+      "id": "act-1791062009282-wers0t",
+      "user_id": "user-1",
+      "type": "PLANNING",
+      "title": "Plan Initialized for 2026-10-03",
+      "description": "Generated 2 schedule time blocks",
+      "source_id": "plan-1791062009277-kylohx",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T21:13:29.282Z"
     }
   ],
   "smart_actions": [],
@@ -2835,6 +4455,300 @@
       "study_plan": [],
       "created_at": "2026-10-03T03:49:25.590Z",
       "updated_at": "2026-10-03T03:49:25.590Z"
+    },
+    {
+      "id": "study-tracking-reg-test-user-1791059746898",
+      "user_id": "reg-test-user-1791059746898",
+      "normal_exam_date": "",
+      "continuous_assessment_date": "",
+      "subjects": [],
+      "hours_per_day": 2,
+      "preferred_start_time": "20:00",
+      "preferred_end_time": "22:00",
+      "available_days": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri"
+      ],
+      "study_plan": [],
+      "created_at": "2026-10-03T20:35:46.986Z",
+      "updated_at": "2026-10-03T20:35:46.986Z"
+    },
+    {
+      "id": "study-tracking-reg-test-user-1791059797128",
+      "user_id": "reg-test-user-1791059797128",
+      "normal_exam_date": "2026-12-15",
+      "continuous_assessment_date": "",
+      "subjects": [
+        {
+          "id": "subj-1791059797258-gssh",
+          "name": "Algorithms",
+          "difficulty": "Hard",
+          "priority": "High",
+          "level": 30
+        },
+        {
+          "id": "subj-1791059797258-zu22",
+          "name": "Database Systems",
+          "difficulty": "Medium",
+          "priority": "Medium",
+          "level": 50
+        },
+        {
+          "id": "subj-1791059797259-2tt1",
+          "name": "Linear Algebra",
+          "difficulty": "Easy",
+          "priority": "Low",
+          "level": 80
+        }
+      ],
+      "hours_per_day": 3,
+      "preferred_start_time": "20:00",
+      "preferred_end_time": "22:00",
+      "available_days": [
+        "Mon",
+        "Wed",
+        "Fri"
+      ],
+      "study_plan": [
+        {
+          "day": "Monday",
+          "slots": [
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "22:00 – 23:00",
+              "activity": "Linear Algebra — Active Recall & Review",
+              "subject": "Linear Algebra",
+              "start_time": "22:00",
+              "end_time": "23:00",
+              "duration_minutes": 60,
+              "level": 80
+            }
+          ]
+        },
+        {
+          "day": "Wednesday",
+          "slots": [
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "22:00 – 23:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "22:00",
+              "end_time": "23:00",
+              "duration_minutes": 60,
+              "level": 30
+            }
+          ]
+        },
+        {
+          "day": "Friday",
+          "slots": [
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "22:00 – 23:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "22:00",
+              "end_time": "23:00",
+              "duration_minutes": 60,
+              "level": 50
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-10-03T20:36:37.224Z",
+      "updated_at": "2026-10-03T20:36:37.261Z"
+    },
+    {
+      "id": "study-tracking-reg-test-user-1791059878367",
+      "user_id": "reg-test-user-1791059878367",
+      "normal_exam_date": "2026-12-15",
+      "continuous_assessment_date": "",
+      "subjects": [
+        {
+          "id": "subj-1791059878482-xv1o",
+          "name": "Algorithms",
+          "difficulty": "Hard",
+          "priority": "High",
+          "level": 30
+        },
+        {
+          "id": "subj-1791059878482-09vf",
+          "name": "Database Systems",
+          "difficulty": "Medium",
+          "priority": "Medium",
+          "level": 50
+        },
+        {
+          "id": "subj-1791059878482-0ini",
+          "name": "Linear Algebra",
+          "difficulty": "Easy",
+          "priority": "Low",
+          "level": 80
+        }
+      ],
+      "hours_per_day": 3,
+      "preferred_start_time": "19:00",
+      "preferred_end_time": "22:00",
+      "available_days": [
+        "Mon",
+        "Wed",
+        "Fri"
+      ],
+      "study_plan": [
+        {
+          "day": "Monday",
+          "slots": [
+            {
+              "time": "19:00 – 20:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "19:00",
+              "end_time": "20:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Linear Algebra — Active Recall & Review",
+              "subject": "Linear Algebra",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 80
+            }
+          ]
+        },
+        {
+          "day": "Wednesday",
+          "slots": [
+            {
+              "time": "19:00 – 20:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "19:00",
+              "end_time": "20:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 30
+            }
+          ]
+        },
+        {
+          "day": "Friday",
+          "slots": [
+            {
+              "time": "19:00 – 20:00",
+              "activity": "Algorithms — Intensive Focus & Practice",
+              "subject": "Algorithms",
+              "start_time": "19:00",
+              "end_time": "20:00",
+              "duration_minutes": 60,
+              "level": 30
+            },
+            {
+              "time": "20:00 – 21:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "20:00",
+              "end_time": "21:00",
+              "duration_minutes": 60,
+              "level": 50
+            },
+            {
+              "time": "21:00 – 22:00",
+              "activity": "Database Systems — Core Concept Mastery",
+              "subject": "Database Systems",
+              "start_time": "21:00",
+              "end_time": "22:00",
+              "duration_minutes": 60,
+              "level": 50
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-10-03T20:37:58.461Z",
+      "updated_at": "2026-10-03T20:37:58.486Z"
     }
   ]
 }

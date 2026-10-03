@@ -8,7 +8,7 @@ import MarkdownRenderer from './MarkdownRenderer.js';
 import { SpeechService } from '../services/SpeechService.js';
 import { ChatComposer } from './ChatComposer.js';
 import { LiveVoiceModal } from './LiveVoiceModal.js';
-import { getApiUrl } from '../config/api.js';
+import { getApiUrl, apiFetch } from '../config/api.js';
 
 interface AssistantViewProps {
   onNavigate: (view: string) => void;
@@ -54,14 +54,14 @@ export default function AssistantView({
 
   const fetchMessages = async () => {
     try {
-      const res = await fetch(getApiUrl('/api/chat/messages'));
+      const res = await apiFetch('/api/chat/messages');
       const contentType = res.headers.get('content-type');
       if (res.ok && contentType && contentType.includes('application/json')) {
         const data = await res.json();
         setChatMessages(data);
       }
     } catch (e) {
-      console.error('Error fetching chat:', e);
+      console.warn('Transient issue fetching chat history:', e);
     }
   };
 
@@ -88,104 +88,113 @@ export default function AssistantView({
     };
     setChatMessages(prev => [...prev, tempUserMsg]);
 
+    let streamCompleted = false;
     try {
-      const response = await fetch(getApiUrl('/api/chat/stream'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, type: 'text' })
-      });
-
-      if (response.ok && response.body) {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let streamingText = '';
-        const tempAssistantId = `temp-a-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-        let addedTempMessage = false;
-
-        let buffer = '';
-        let doneReading = false;
-        while (!doneReading) {
-          const { value, done } = await reader.read();
-          if (done) {
-            doneReading = true;
-            break;
-          }
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(trimmed.slice(6));
-                if (data.chunk) {
-                  setIsLoading(false);
-                  streamingText += data.chunk;
-                  if (!addedTempMessage) {
-                    addedTempMessage = true;
-                    setChatMessages(prev => [
-                      ...prev,
-                      {
-                        id: tempAssistantId,
-                        conversation_id: 'conv-1',
-                        sender: 'assistant',
-                        text: streamingText,
-                        created_at: new Date().toISOString(),
-                        type: 'text'
-                      }
-                    ]);
-                  } else {
-                    setChatMessages(prev =>
-                      prev.map(m => (m.id === tempAssistantId ? { ...m, text: streamingText } : m))
-                    );
-                  }
-                } else if (data.done && data.fullText && !streamingText) {
-                  streamingText = data.fullText;
-                  if (!addedTempMessage) {
-                    addedTempMessage = true;
-                    setChatMessages(prev => [
-                      ...prev,
-                      {
-                        id: tempAssistantId,
-                        conversation_id: 'conv-1',
-                        sender: 'assistant',
-                        text: streamingText,
-                        created_at: new Date().toISOString(),
-                        type: 'text'
-                      }
-                    ]);
-                  } else {
-                    setChatMessages(prev =>
-                      prev.map(m => (m.id === tempAssistantId ? { ...m, text: streamingText } : m))
-                    );
-                  }
-                }
-              } catch (parseErr) {}
-            }
-          }
-        }
-        await fetchMessages();
-        onRefreshData();
-      } else {
-        // Fallback to non-streaming endpoint
-        const res = await fetch(getApiUrl('/api/chat/message'), {
+      try {
+        const response = await apiFetch('/api/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text, type: 'text' })
-        });
+        }, 2);
+
+        if (response.ok && response.body) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let streamingText = '';
+          const tempAssistantId = `temp-a-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+          let addedTempMessage = false;
+
+          let buffer = '';
+          let doneReading = false;
+          while (!doneReading) {
+            const { value, done } = await reader.read();
+            if (done) {
+              doneReading = true;
+              break;
+            }
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (trimmed.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(trimmed.slice(6));
+                  if (data.chunk) {
+                    setIsLoading(false);
+                    streamingText += data.chunk;
+                    if (!addedTempMessage) {
+                      addedTempMessage = true;
+                      setChatMessages(prev => [
+                        ...prev,
+                        {
+                          id: tempAssistantId,
+                          conversation_id: 'conv-1',
+                          sender: 'assistant',
+                          text: streamingText,
+                          created_at: new Date().toISOString(),
+                          type: 'text'
+                        }
+                      ]);
+                    } else {
+                      setChatMessages(prev =>
+                        prev.map(m => (m.id === tempAssistantId ? { ...m, text: streamingText } : m))
+                      );
+                    }
+                  } else if (data.done && data.fullText && !streamingText) {
+                    streamingText = data.fullText;
+                    if (!addedTempMessage) {
+                      addedTempMessage = true;
+                      setChatMessages(prev => [
+                        ...prev,
+                        {
+                          id: tempAssistantId,
+                          conversation_id: 'conv-1',
+                          sender: 'assistant',
+                          text: streamingText,
+                          created_at: new Date().toISOString(),
+                          type: 'text'
+                        }
+                      ]);
+                    } else {
+                      setChatMessages(prev =>
+                        prev.map(m => (m.id === tempAssistantId ? { ...m, text: streamingText } : m))
+                      );
+                    }
+                  }
+                } catch (parseErr) {}
+              }
+            }
+          }
+          if (streamingText.trim().length > 0) {
+            streamCompleted = true;
+            await fetchMessages();
+            onRefreshData();
+          }
+        }
+      } catch (streamErr) {
+        // Fall through to non-streaming /api/chat/message with retry
+      }
+
+      if (!streamCompleted) {
+        const res = await apiFetch('/api/chat/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, type: 'text' })
+        }, 3);
         if (res.ok) {
           await fetchMessages();
           onRefreshData();
         }
       }
     } catch (e: any) {
-      console.error('Error sending message:', e);
+      console.warn('Transient issue sending message:', e);
       const errorMsg: Message = {
         id: `temp-a-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         conversation_id: 'conv-1',
         sender: 'assistant',
-        text: `Sorry, I faced a network issue connecting to my core brain. (${e?.message || 'NetworkError'})`,
+        text: `I encountered a brief connection interruption. Please try sending your message again.`,
         created_at: new Date().toISOString(),
         type: 'text'
       };

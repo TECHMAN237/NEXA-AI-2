@@ -759,6 +759,49 @@ export const dbService = {
       );
     }
 
+    // Synchronize subjects and timetable into db.exams so My Items -> Study tab reflects them immediately
+    if (updated.subjects && updated.subjects.length > 0) {
+      const targetExamDate = updated.normal_exam_date || updated.continuous_assessment_date || '2026-12-15';
+      const prefTimeStr = `${updated.preferred_start_time || '20:00'} - ${updated.preferred_end_time || '22:00'}`;
+      for (const subj of updated.subjects) {
+        const diffLower = (subj.difficulty || 'Medium').toLowerCase() as 'low' | 'medium' | 'high';
+        const mappedDiff: 'low' | 'medium' | 'high' =
+          subj.difficulty === 'Hard' ? 'high' : subj.difficulty === 'Easy' ? 'low' : (diffLower === 'high' || diffLower === 'low' ? diffLower : 'medium');
+        const existingExamIdx = db.exams.findIndex(
+          e => e.user_id === userId && e.course.toLowerCase() === subj.name.toLowerCase()
+        );
+        if (existingExamIdx >= 0) {
+          db.exams[existingExamIdx] = {
+            ...db.exams[existingExamIdx],
+            course: subj.name,
+            exam_date: updated.normal_exam_date || db.exams[existingExamIdx].exam_date || targetExamDate,
+            difficulty: mappedDiff,
+            study_hours_per_day: updated.hours_per_day || 2,
+            preferred_study_time: prefTimeStr,
+            available_days: updated.available_days || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+            progress: typeof subj.level === 'number' ? subj.level : db.exams[existingExamIdx].progress,
+            study_plan: updated.study_plan
+          };
+        } else {
+          db.exams.push({
+            id: generateUniqueId('exam'),
+            user_id: userId,
+            course: subj.name,
+            exam_date: targetExamDate,
+            difficulty: mappedDiff,
+            study_hours_per_day: updated.hours_per_day || 2,
+            preferred_study_time: prefTimeStr,
+            available_days: updated.available_days || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+            remaining_chapters: 5,
+            progress: typeof subj.level === 'number' ? subj.level : 50,
+            auto_reminders: true,
+            study_plan: updated.study_plan,
+            created_at: new Date().toISOString()
+          });
+        }
+      }
+    }
+
     const idx = db.study_tracking.findIndex(st => st.user_id === userId);
     if (idx >= 0) {
       db.study_tracking[idx] = updated;

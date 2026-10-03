@@ -1431,7 +1431,11 @@ export default function MyItemsView({
                                 <div key={dIdx} className="bg-white/[0.03] p-1.5 rounded border border-white/5 text-[10px]">
                                   <span className="font-bold text-gray-300 mr-2">{dayItem.day}:</span>
                                   <span className="text-gray-400">
-                                    {dayItem.slots.map((s: any) => `${s.time} (${s.activity})`).join(' | ')}
+                                    {(dayItem.slots || []).map((s: any) => {
+                                      const timeLabel = s.time || (s.start_time && s.end_time ? `${s.start_time}–${s.end_time}` : '');
+                                      const activityLabel = s.activity || (s.subject ? `${s.subject}${s.duration_minutes ? ` (${s.duration_minutes}m)` : ''}` : '');
+                                      return `${timeLabel} (${activityLabel})`;
+                                    }).join(' | ')}
                                   </span>
                                 </div>
                               ))}

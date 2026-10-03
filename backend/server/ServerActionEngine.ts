@@ -1,8 +1,8 @@
 import { dbService } from './db.js';
-import { normalizeTimeString, extractTimeFromText, extractDurationFromText } from '../utils/timeUtils.js';
-import { extractReminderParams, parseFollowUpUpdate, cleanReminderTitle, resolveRelativeDate, detectReminderFields } from '../utils/reminderParser.js';
-import { generateStudyPlan, generateExamReminders } from '../utils/studyPlanGenerator.js';
-import { StudyTrackingData } from '../types/index.js';
+import { normalizeTimeString, extractTimeFromText, extractDurationFromText, formatReadableDate, formatReadableTime } from '../utils/timeUtils.js';
+import { extractReminderParams, parseFollowUpUpdate, cleanReminderTitle, resolveRelativeDate, detectReminderFields, extractExplicitDateFromText, extractEventParams } from '../utils/reminderParser.js';
+import { generateStudyPlan, generateExamReminders, extractStudyParams } from '../utils/studyPlanGenerator.js';
+import { StudyTrackingData, StudySubject } from '../types/index.js';
 import { extractVaultContent } from './contextualNormalizer.js';
 import { isConversationalText } from './gemini.js';
 import { DailyScheduleEngine, ExtractedTaskConstraint } from '../services/DailyScheduleEngine.js';
@@ -103,17 +103,156 @@ export class ServerActionEngine {
     );
 
     const isPureTimeOrDate = /^(at\s+)?(\d{1,2}(:\d{2})?|\d{1,2}\s+\d{2})\s*(am|pm|a\.m\.|p\.m\.)?$/i.test(lower) ||
-      /^(today|tomorrow|tonight|noon|midnight|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/i.test(lower);
+      /^(today|tomorrow|tonight|noon|midnight|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/i.test(lower) ||
+      extractExplicitDateFromText(rawQuery).isExplicit;
 
     if (isIntentSwitch && !isPureTimeOrDate) {
       const extractedT = extractTimeFromText(rawQuery);
-      const extractedTitle = cleanReminderTitle(rawQuery, rawQuery);
+      const extractedD = extractExplicitDateFromText(rawQuery);
+      const extractedTitle = draft.intent === 'EVENT'
+        ? extractEventParams(rawQuery).title
+        : cleanReminderTitle(rawQuery, rawQuery);
       const satisfiesMissingTime = draft.missingFields.includes('time') && extractedT !== null;
+      const satisfiesMissingDate = draft.missingFields.includes('date') && extractedD.isExplicit;
       const satisfiesMissingTitle = draft.missingFields.includes('title') && extractedTitle.length > 0;
 
-      if (!satisfiesMissingTime && !satisfiesMissingTitle) {
+      if (!satisfiesMissingTime && !satisfiesMissingDate && !satisfiesMissingTitle) {
         this.clearPendingDraft(userId);
         return null;
+      }
+    }
+
+    if (draft.intent === 'EVENT') {
+      const evExtract = extractEventParams(rawQuery, draft.data);
+      const dateCheck = extractExplicitDateFromText(rawQuery);
+
+      if (draft.missingFields.includes('date') && dateCheck.isExplicit && dateCheck.date) {
+        draft.data.date = dateCheck.date;
+        draft.missingFields = draft.missingFields.filter(f => f !== 'date');
+      }
+      if (evExtract.isTimeExplicit && evExtract.time !== 'Not specified') {
+        draft.data.time = evExtract.time;
+      }
+      if (evExtract.isLocationExplicit && evExtract.location !== 'Not specified') {
+        draft.data.location = evExtract.location;
+      }
+
+      if (draft.missingFields.includes('title')) {
+        let candidateTitle = evExtract.isTitleValid ? evExtract.title : '';
+        if (!candidateTitle) {
+          const stripped = rawQuery
+            .replace(/^(?:it's|it\s+is|call\s+it|name\s+it|title\s+is|the\s+event\s+is|called|named|titled)\s+/i, '')
+            .replace(/[.,!?]+$/, '')
+            .trim();
+          if (stripped && !dateCheck.isExplicit && stripped.length >= 2 && stripped.length <= 60) {
+            candidateTitle = stripped;
+          }
+        }
+        if (candidateTitle) {
+          draft.data.title = candidateTitle;
+          draft.missingFields = draft.missingFields.filter(f => f !== 'title');
+        }
+      }
+
+      if (!draft.missingFields.includes('title') && !draft.missingFields.includes('date') && draft.data.title && draft.data.date) {
+        const newEvent = dbService.createEvent(userId, {
+          title: draft.data.title,
+          date: draft.data.date,
+          time: draft.data.time || 'Not specified',
+          location: draft.data.location || 'Not specified',
+          description: draft.data.description || rawQuery,
+          reminder_time: '30 minutes before',
+          participants: draft.data.participants || ['Alex']
+        });
+
+        this.clearPendingDraft(userId);
+
+        dbService.createNotificationHistory(userId, {
+          type: 'EVENT',
+          title: `Event Scheduled: "${newEvent.title}"`,
+          description: `${newEvent.date}${newEvent.time && newEvent.time !== 'Not specified' ? ` at ${newEvent.time}` : ''}`,
+          source_id: newEvent.id,
+          status: 'completed'
+        });
+
+        const followUpText = this.buildCanonicalEventConfirmation(newEvent);
+        return {
+          intent: 'EVENT',
+          targetModule: 'Event',
+          action: 'CREATE',
+          success: true,
+          data: { ...newEvent, event_name: newEvent.title, event_date: newEvent.date, followUpText },
+          summary: followUpText
+        };
+      } else {
+        this.setPendingDraft(userId, draft);
+        let question = 'What date is this event scheduled for?';
+        if (draft.missingFields.includes('title') && draft.missingFields.includes('date')) {
+          question = 'What would you like to call this event, and what date is it scheduled for?';
+        } else if (draft.missingFields.includes('title')) {
+          question = 'What would you like to call this event?';
+        } else if (draft.missingFields.includes('date')) {
+          question = `What date is ${draft.data.title || 'this event'} scheduled for?`;
+        }
+        return {
+          intent: 'EVENT',
+          targetModule: 'Event',
+          action: 'CREATE',
+          success: true,
+          data: { pending: true, missingFields: draft.missingFields, followUpText: question },
+          summary: question
+        };
+      }
+    }
+
+    if (draft.intent === 'STUDY_TRACKING') {
+      const pctMatch = rawQuery.match(/(\d{1,3})\s*%?/);
+      const isHard = /\b(hard|difficult|weak|low)\b/i.test(lower);
+      const isEasy = /\b(easy|strong|high|good)\b/i.test(lower);
+      const isMed = /\b(medium|moderate|average|ok)\b/i.test(lower);
+      let levelVal: number | undefined = pctMatch ? Math.min(100, Math.max(0, parseInt(pctMatch[1], 10))) : undefined;
+      let difficulty: 'Easy' | 'Medium' | 'Hard' = 'Medium';
+      let priority: 'Low' | 'Medium' | 'High' = 'Medium';
+
+      if (isHard) {
+        difficulty = 'Hard';
+        priority = 'High';
+        if (levelVal === undefined) levelVal = 30;
+      } else if (isEasy) {
+        difficulty = 'Easy';
+        priority = 'Low';
+        if (levelVal === undefined) levelVal = 80;
+      } else if (isMed && levelVal === undefined) {
+        levelVal = 50;
+      }
+
+      if (levelVal !== undefined && draft.data.pendingSubject) {
+        const subjectName = draft.data.pendingSubject;
+        const currentTracking = dbService.getStudyTracking(userId);
+        const existingIdx = currentTracking.subjects.findIndex(s => s.name.toLowerCase() === subjectName.toLowerCase());
+        const updatedSubjects = [...currentTracking.subjects];
+        if (existingIdx >= 0) {
+          updatedSubjects[existingIdx] = { ...updatedSubjects[existingIdx], level: levelVal, difficulty, priority };
+        } else {
+          updatedSubjects.push({
+            id: `subj-${Date.now()}`,
+            name: subjectName,
+            difficulty,
+            priority,
+            level: levelVal
+          });
+        }
+        const updated = dbService.saveStudyTracking(userId, { subjects: updatedSubjects });
+        this.clearPendingDraft(userId);
+        const followUpText = `Added **${subjectName}** (${difficulty} • **${levelVal}%** confidence) to your study tracking and updated your study timetable.`;
+        return {
+          intent: 'STUDY_TRACKING',
+          targetModule: 'StudyTracking',
+          action: 'CREATE',
+          success: true,
+          data: { followUpText, study_tracking: updated },
+          summary: followUpText
+        };
       }
     }
 
@@ -135,9 +274,9 @@ export class ServerActionEngine {
 
       // 2. Missing date check
       if (draft.missingFields.includes('date')) {
-        const hasDateInQuery = lower.includes('today') || lower.includes('tomorrow') || /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(lower) || /\b\d{4}-\d{2}-\d{2}\b/.test(lower) || /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\b/i.test(lower);
-        if (hasDateInQuery) {
-          draft.data.date = resolveRelativeDate(null, rawQuery);
+        const dateCheck = extractExplicitDateFromText(rawQuery);
+        if (dateCheck.isExplicit && dateCheck.date) {
+          draft.data.date = dateCheck.date;
           draft.missingFields = draft.missingFields.filter(f => f !== 'date');
         } else if (draft.data.time) {
           draft.data.date = resolveRelativeDate(null, 'today');
@@ -895,6 +1034,24 @@ Details:        ${details || 'N/A'}
     };
   }
 
+  private static buildCanonicalEventConfirmation(ev: { title: string; date: string; time?: string; location?: string }): string {
+    const readableDate = ev.date && ev.date !== 'Not specified' ? formatReadableDate(ev.date) : ev.date;
+    const hasTime = ev.time && ev.time !== 'Not specified';
+    const hasLoc = ev.location && ev.location !== 'Not specified' && ev.location !== 'TBD';
+    const readableTime = hasTime ? formatReadableTime(ev.time!) : null;
+
+    let card = `## Event Scheduled\n\n`;
+    card += `- **Event Name:** ${ev.title}\n`;
+    card += `- **Event Date:** ${ev.date} (${readableDate})\n`;
+    if (readableTime) {
+      card += `- **Time:** ${readableTime}\n`;
+    }
+    if (hasLoc) {
+      card += `- **Location:** ${ev.location}\n`;
+    }
+    return card.trim();
+  }
+
   // ==================== EVENT MODULE ====================
   private static handleEventAction(
     userId: string,
@@ -905,9 +1062,18 @@ Details:        ${details || 'N/A'}
     todayStr: string
   ): ServerActionResult {
     if (action === 'DELETE') {
-      const titleSearch = (payload.title || rawQuery).toLowerCase();
+      const cleanedTarget = (payload.title || rawQuery)
+        .replace(/^(?:please\s+)?(?:delete|remove|cancel|clear)\s+(?:the\s+|my\s+)?(?:event\s+(?:called|named)?\s*)?/i, '')
+        .replace(/\s+(?:event|from\s+my\s+events?|from\s+calendar).*$/i, '')
+        .replace(/[.,!?]+$/, '')
+        .trim()
+        .toLowerCase();
+
       const events = dbService.getEvents(userId);
-      const match = events.find(ev => ev.title.toLowerCase().includes(titleSearch));
+      const match = events.find(ev =>
+        ev.title.toLowerCase().includes(cleanedTarget) ||
+        cleanedTarget.includes(ev.title.toLowerCase())
+      );
 
       if (!match) {
         return {
@@ -915,19 +1081,23 @@ Details:        ${details || 'N/A'}
           targetModule: 'Event',
           action,
           success: false,
-          error: `No event found matching "${payload.title || rawQuery}"`,
-          summary: `✗ Failed to delete event: "${payload.title || rawQuery}" not found.`
+          error: `No event found matching "${cleanedTarget || rawQuery}"`,
+          summary: `✗ Could not find an event matching "${cleanedTarget || rawQuery}" to delete.`
         };
       }
 
       const deleted = dbService.deleteEvent(userId, match.id);
       this.logDebugTrace(intent, action, 'Event', 'dbService.deleteEvent', deleted ? 'SUCCESS' : 'FAILED', deleted ? 'SUCCESS' : 'FAILED', deleted ? 'SUCCESS' : 'FAILED');
+      const followUpText = deleted
+        ? `Done — I have deleted the event **${match.title}** (${match.date}) from your Event Tracker.`
+        : `Failed to delete event "${match.title}".`;
       return {
         intent,
         targetModule: 'Event',
         action,
         success: deleted,
-        summary: deleted ? `✓ Deleted event: "${match.title}".` : `✗ Failed to delete event "${match.title}".`
+        data: { followUpText },
+        summary: followUpText
       };
     }
 
@@ -936,7 +1106,13 @@ Details:        ${details || 'N/A'}
       let match = payload.id ? events.find(e => e.id === payload.id) : null;
       if (!match) {
         const titleSearch = (payload.title || rawQuery).toLowerCase();
-        match = events.find(ev => ev.title.toLowerCase().includes(titleSearch));
+        match = events.find(ev =>
+          titleSearch.includes(ev.title.toLowerCase()) ||
+          ev.title.toLowerCase().includes(titleSearch)
+        );
+      }
+      if (!match && events.length > 0) {
+        match = events[events.length - 1];
       }
 
       if (!match) {
@@ -946,31 +1122,48 @@ Details:        ${details || 'N/A'}
           action,
           success: false,
           error: 'Event not found for update.',
-          summary: '✗ Failed to update event.'
+          summary: '✗ Could not find a matching event to update.'
         };
       }
 
-      const updated = dbService.updateEvent(userId, match.id, payload);
-      const updatedEvent = updated || match;
-
-      const missingFields: string[] = [];
-      if (!updatedEvent.date || updatedEvent.date === 'Not specified') missingFields.push('Date');
-      if (!updatedEvent.time || updatedEvent.time === 'Not specified') missingFields.push('Time');
-      if (!updatedEvent.location || updatedEvent.location === 'Not specified') missingFields.push('Location');
-
-      let followUpText = '';
-      if (payload.location) {
-        followUpText = `Done — Updated **${updatedEvent.title}** location to **${updatedEvent.location}**.`;
-      } else {
-        followUpText = `Done — Updated **${updatedEvent.title}**.`;
+      const updates: Record<string, any> = {};
+      const dateInfo = extractExplicitDateFromText(rawQuery);
+      if (dateInfo.isExplicit && dateInfo.date) {
+        updates.date = dateInfo.date;
+      } else if (payload.date && payload.date !== 'Not specified') {
+        const pDate = extractExplicitDateFromText(String(payload.date));
+        if (pDate.isExplicit && pDate.date) updates.date = pDate.date;
       }
+
+      const timeInfo = extractTimeFromText(rawQuery) || (payload.time ? normalizeTimeString(String(payload.time)) : null);
+      if (timeInfo) {
+        updates.time = timeInfo;
+      }
+
+      if (payload.location && payload.location !== 'Not specified') {
+        updates.location = payload.location;
+      } else {
+        const evExt = extractEventParams(rawQuery);
+        if (evExt.isLocationExplicit) {
+          updates.location = evExt.location;
+        }
+      }
+
+      const renameMatch = rawQuery.match(/\b(?:rename|call\s+it|change\s+(?:the\s+)?(?:name|title)\s+to)\s+["']?([^"'\n.!?]+)["']?/i);
+      if (renameMatch && renameMatch[1]) {
+        updates.title = renameMatch[1].trim();
+      }
+
+      const updated = dbService.updateEvent(userId, match.id, updates);
+      const updatedEvent = updated || { ...match, ...updates };
+      const followUpText = this.buildCanonicalEventConfirmation(updatedEvent);
 
       return {
         intent,
         targetModule: 'Event',
         action: 'UPDATE',
         success: true,
-        data: { ...updatedEvent, followUpText },
+        data: { ...updatedEvent, event_name: updatedEvent.title, event_date: updatedEvent.date, followUpText },
         summary: `✓ Updated event "${updatedEvent.title}".`
       };
     }
@@ -988,15 +1181,11 @@ Details:        ${details || 'N/A'}
       let matchingEvents = sortedEvents;
       let filterDescription = 'upcoming';
 
-      if (lowerQuery.includes('tomorrow')) {
-        const d = new Date();
-        d.setDate(d.getDate() + 1);
-        const tomorrowStr = d.toISOString().split('T')[0];
-        matchingEvents = sortedEvents.filter(e => e.date === tomorrowStr);
-        filterDescription = `for tomorrow (${tomorrowStr})`;
-      } else if (lowerQuery.includes('today')) {
-        matchingEvents = sortedEvents.filter(e => e.date === todayStr);
-        filterDescription = `for today (${todayStr})`;
+      const explicitDateQuery = extractExplicitDateFromText(rawQuery);
+
+      if (explicitDateQuery.isExplicit && explicitDateQuery.date) {
+        matchingEvents = sortedEvents.filter(e => e.date === explicitDateQuery.date);
+        filterDescription = `for ${explicitDateQuery.date}`;
       } else if (lowerQuery.includes('this week') || lowerQuery.includes('week')) {
         const dEnd = new Date();
         dEnd.setDate(dEnd.getDate() + 7);
@@ -1004,13 +1193,20 @@ Details:        ${details || 'N/A'}
         matchingEvents = sortedEvents.filter(e => e.date >= todayStr && e.date <= endOfWeekStr);
         filterDescription = 'for this week';
       } else {
-        const upcoming = sortedEvents.filter(e => e.date >= todayStr || e.date === 'Not specified');
-        if (upcoming.length > 0) {
-          matchingEvents = upcoming;
-          filterDescription = 'coming up';
+        // Check if user is asking about a specific event by name (e.g., "When is Maranatha?")
+        const byName = sortedEvents.filter(e => e.title && lowerQuery.includes(e.title.toLowerCase()));
+        if (byName.length > 0) {
+          matchingEvents = byName;
+          filterDescription = `matching "${byName[0].title}"`;
         } else {
-          matchingEvents = sortedEvents;
-          filterDescription = 'on record';
+          const upcoming = sortedEvents.filter(e => e.date >= todayStr || e.date === 'Not specified');
+          if (upcoming.length > 0) {
+            matchingEvents = upcoming;
+            filterDescription = 'coming up';
+          } else {
+            matchingEvents = sortedEvents;
+            filterDescription = 'on record';
+          }
         }
       }
 
@@ -1024,12 +1220,16 @@ Details:        ${details || 'N/A'}
           action: 'READ',
           success: true,
           data: { events: [], followUpText },
-          summary: `✓ No events found ${filterDescription}.`
+          summary: followUpText
         };
       }
 
       const eventListStr = matchingEvents
-        .map(e => `• **${e.title}**: ${e.date} at ${e.time}${e.location && e.location !== 'Not specified' ? ` (${e.location})` : ''}`)
+        .map(e => {
+          const timePart = e.time && e.time !== 'Not specified' ? ` at ${e.time}` : '';
+          const locPart = e.location && e.location !== 'Not specified' && e.location !== 'TBD' ? ` (${e.location})` : '';
+          return `• **${e.title}** — ${e.date}${timePart}${locPart}`;
+        })
         .join('\n');
 
       const followUpText = `Here are your events ${filterDescription}:\n\n${eventListStr}`;
@@ -1044,126 +1244,111 @@ Details:        ${details || 'N/A'}
       };
     }
 
-    // Default: CREATE
-    let rawTitle = payload.title || payload.content || rawQuery;
-    let title = rawTitle;
-    const calledMatch = (typeof rawTitle === 'string' ? rawTitle : rawQuery).match(/(?:called|named)\s+([^.!?\n]+)/i);
-    if (calledMatch && calledMatch[1]) {
-      title = calledMatch[1].replace(/[.]$/, '').trim();
-    } else if (typeof rawTitle === 'string') {
-      title = rawTitle
-        .replace(/^(I\s+(have|got)\s+(an\s+)?(event|meeting|appointment|gathering)\s+)/i, '')
-        .replace(/^(I\s+(would\s+like|want)\s+(you\s+)?to\s+)?(remind\s+me\s+of\s+the|remind\s+me\s+about\s+the|remind\s+me\s+of|remind\s+me\s+about|remind\s+me\s+to|remind\s+me|save\s+my|save\s+the|save\s+it\s+in|save\s+in|save\s+to|save|add\s+my|add\s+the|add|schedule\s+my|schedule\s+the|schedule|create\s+my|create\s+the|create)\s+/i, '')
-        .replace(/\s+(that\s+will\s+happen|which\s+is\s+happening|happening|taking\s+place).*$/i, '')
-        .replace(/\s+(and\s+)?(save\s+it\s+(inside|in)|add\s+it\s+to|save\s+to)\s+(my\s+)?events.*$/i, '')
-        .replace(/\s+(inside|in|to)\s+(my\s+)?events.*$/i, '')
-        .replace(/\s+as\s+an?\s+event.*$/i, '')
-        .replace(/\s+(this|next)?\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today).*$/i, '')
-        .replace(/\s+(on|at)\s+\d{1,2}(:\d{2})?\s*(am|pm)?.*$/i, '')
-        .trim();
+    // ==================== STAGE A: EXTRACTION ====================
+    const extracted = extractEventParams(rawQuery, payload);
 
-      if (title) {
-        title = title.split(/\s+/).map((w: string) => w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : '').join(' ');
-      }
+    // ==================== STAGE B: VALIDATION ====================
+    const missingFields: string[] = [];
+    if (!extracted.isTitleValid || !extracted.title) {
+      missingFields.push('title');
     }
-    if (!title || typeof title !== 'string' || title.trim().length === 0) {
-      title = 'Scheduled Event';
+    if (!extracted.isDateExplicit || !extracted.date || extracted.date === 'Not specified') {
+      missingFields.push('date');
     }
 
-    const hasExplicitDate = !!payload.date || /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2}\/\d{1,2}|\d{4}-\d{2}-\d{2})\b/i.test(rawQuery);
-    const date = hasExplicitDate ? resolveRelativeDate(payload.date, rawQuery) : 'Not specified';
-
-    const explicitTime = normalizeTimeString(payload.time) || extractTimeFromText(rawQuery);
-    const time = explicitTime ? explicitTime : 'Not specified';
-
-    let location = payload.location;
-    if (!location) {
-      const locMatch = rawQuery.match(/\b(at|in)\s+([A-Z0-9][a-zA-Z0-9\s,]{2,30})/);
-      if (locMatch) {
-        const candidate = locMatch[2].trim();
-        const isTimeOrDate = /^\d{1,2}(:\d{2})?\s*(am|pm|a\.m\.|p\.m\.)?$/i.test(candidate) ||
-                             /\b(am|pm|noon|midnight)\b/i.test(candidate) ||
-                             /\b(saturday|sunday|monday|tuesday|wednesday|thursday|friday|today|tomorrow|events|my events)\b/i.test(candidate);
-        if (!isTimeOrDate) {
-          location = candidate;
-        }
-      }
-    }
-    if (!location || location === 'Tech Hub, Buea' || /^\d{1,2}(:\d{2})?\s*(am|pm|a\.m\.|p\.m\.)?$/i.test(location)) {
-      location = 'Not specified';
-    }
-
-    const newEvent = dbService.createEvent(userId, {
-      title: title.trim(),
-      date,
-      time,
-      location,
-      description: payload.description || rawQuery,
-      reminder_time: '30 minutes before',
-      participants: payload.participants || ['Alex']
-    });
-
-    const verifyList = dbService.getEvents(userId);
-    const verified = verifyList.some(e => e.id === newEvent.id);
-
-    if (verified) {
-      const missingFields: string[] = [];
-      if (date === 'Not specified') missingFields.push('Date');
-      if (time === 'Not specified') missingFields.push('Time');
-      if (location === 'Not specified') missingFields.push('Location');
-
-      let timeDisplay = time;
-      if (time && time.includes(':')) {
-        const [hStr, mStr] = time.split(':');
-        const h = parseInt(hStr, 10);
-        const ampm = h >= 12 ? 'PM' : 'AM';
-        const displayH = h % 12 === 0 ? 12 : h % 12;
-        const displayM = mStr ? `:${mStr}` : ':00';
-        timeDisplay = `${displayH}${displayM === ':00' ? '' : displayM} ${ampm}`;
-      }
-
-      let dateDisplay = date;
-      const todayDateStr = new Date().toISOString().split('T')[0];
-      const tomorrowDate = new Date();
-      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-      const tomorrowDateStr = tomorrowDate.toISOString().split('T')[0];
-
-      if (date === todayDateStr) dateDisplay = 'today';
-      else if (date === tomorrowDateStr) dateDisplay = 'tomorrow';
-
-      let followUpText = '';
-      if (missingFields.length === 0) {
-        followUpText = `Done — I've saved **${newEvent.title}** for ${dateDisplay} at ${timeDisplay}${location !== 'Not specified' ? ` at ${location}` : ''}.`;
-      } else if (missingFields.length === 1 && missingFields[0] === 'Location') {
-        followUpText = `Done — I've saved **${newEvent.title}** for ${dateDisplay} at ${timeDisplay}.\n\nWhere will it take place?`;
-      } else if (missingFields.length === 1 && missingFields[0] === 'Time') {
-        followUpText = `Done — I've saved **${newEvent.title}** for ${dateDisplay}.\n\nWhat time will it start?`;
-      } else {
-        const questions = missingFields.map(f => {
-          if (f === 'Location') return 'Where will it take place?';
-          if (f === 'Time') return 'What time will it start?';
-          if (f === 'Date') return 'What date will it happen?';
-          return `What is the ${f.toLowerCase()}?`;
-        }).join(' ');
-        followUpText = `Done — I've saved **${newEvent.title}** to your events.\n\n${questions}`;
-      }
-
-      dbService.createNotificationHistory(userId, {
-        type: 'EVENT',
-        title: `Event Scheduled: "${newEvent.title}"`,
-        description: `${newEvent.date} at ${newEvent.time} (${newEvent.location})`,
-        source_id: newEvent.id,
-        status: 'completed'
+    // If required fields (event_name or event_date) are missing, save a PendingDraft and ask for clarification!
+    // NEVER fabricate a date or save the entire sentence as the event title.
+    if (missingFields.length > 0) {
+      this.setPendingDraft(userId, {
+        userId,
+        intent: 'EVENT',
+        data: {
+          title: extracted.title || '',
+          date: extracted.isDateExplicit ? extracted.date : '',
+          time: extracted.time,
+          location: extracted.location,
+          description: extracted.description
+        },
+        missingFields,
+        createdAt: Date.now()
       });
 
-      this.logDebugTrace(intent, action, 'Event', 'dbService.createEvent', 'SUCCESS', 'SUCCESS', 'SUCCESS', `Created Event ID: ${newEvent.id}`);
+      let clarificationQuestion = 'What would you like to call this event, and what date is it scheduled for?';
+      if (missingFields.includes('title') && !missingFields.includes('date')) {
+        clarificationQuestion = 'What would you like to call this event?';
+      } else if (missingFields.includes('date') && !missingFields.includes('title')) {
+        clarificationQuestion = `What date is ${extracted.title} scheduled for?`;
+      }
+
+      this.logDebugTrace(intent, 'CREATE_PENDING_CLARIFICATION', 'Event', 'ServerActionEngine.setPendingDraft', 'SUCCESS', 'SUCCESS', 'SUCCESS', `Missing: ${missingFields.join(', ')}`);
       return {
         intent,
         targetModule: 'Event',
         action: 'CREATE',
         success: true,
-        data: { ...newEvent, followUpText },
-        summary: `✓ Event created: "${newEvent.title}".`
+        data: {
+          pending: true,
+          missingFields,
+          partialEvent: {
+            event_name: extracted.title || null,
+            event_date: extracted.isDateExplicit ? extracted.date : null
+          },
+          followUpText: clarificationQuestion
+        },
+        summary: clarificationQuestion
+      };
+    }
+
+    // ==================== STAGE C: EXECUTION ====================
+    // Prevent duplicate event creation if identical title + date already exists
+    const existingEvents = dbService.getEvents(userId);
+    const duplicateEvent = existingEvents.find(
+      e => e.title.toLowerCase() === extracted.title.toLowerCase() && e.date === extracted.date
+    );
+
+    const newEvent = duplicateEvent
+      ? (dbService.updateEvent(userId, duplicateEvent.id, {
+          time: extracted.isTimeExplicit ? extracted.time : duplicateEvent.time,
+          location: extracted.isLocationExplicit ? extracted.location : duplicateEvent.location,
+          description: extracted.description || duplicateEvent.description
+        }) || duplicateEvent)
+      : dbService.createEvent(userId, {
+          title: extracted.title,
+          date: extracted.date,
+          time: extracted.time,
+          location: extracted.location,
+          description: extracted.description,
+          reminder_time: '30 minutes before',
+          participants: payload.participants || ['Alex']
+        });
+
+    const verifyList = dbService.getEvents(userId);
+    const verified = verifyList.some(e => e.id === newEvent.id);
+
+    if (verified) {
+      const followUpText = this.buildCanonicalEventConfirmation(newEvent);
+
+      dbService.createNotificationHistory(userId, {
+        type: 'EVENT',
+        title: `Event Scheduled: "${newEvent.title}"`,
+        description: `${newEvent.date}${newEvent.time && newEvent.time !== 'Not specified' ? ` at ${newEvent.time}` : ''}${newEvent.location && newEvent.location !== 'Not specified' ? ` (${newEvent.location})` : ''}`,
+        source_id: newEvent.id,
+        status: 'completed'
+      });
+
+      this.logDebugTrace(intent, action, 'Event', 'dbService.createEvent', 'SUCCESS', 'SUCCESS', 'SUCCESS', `Created Event ID: ${newEvent.id} | Name: ${newEvent.title} | Date: ${newEvent.date}`);
+      return {
+        intent,
+        targetModule: 'Event',
+        action: 'CREATE',
+        success: true,
+        data: {
+          ...newEvent,
+          event_name: newEvent.title,
+          event_date: newEvent.date,
+          followUpText
+        },
+        summary: followUpText
       };
     } else {
       this.logDebugTrace(intent, action, 'Event', 'dbService.createEvent', 'SUCCESS', 'FAILED', 'FAILED');
@@ -1173,7 +1358,7 @@ Details:        ${details || 'N/A'}
         action: 'CREATE',
         success: false,
         error: 'Storage verification failed for new event.',
-        summary: `✗ Failed to persist event "${title}".`
+        summary: `✗ Failed to persist event "${extracted.title}".`
       };
     }
   }
@@ -1227,7 +1412,7 @@ Details:        ${details || 'N/A'}
           targetModule: 'StudyTracking',
           action: 'READ',
           success: true,
-          data: { followUpText: `You haven't set your normal examination session date yet. Tell me your exam date (e.g., "My normal exam session starts August 20").` },
+          data: { followUpText: `You haven't set your normal examination session date yet. Tell me your exam date (e.g., "My normal exam session starts December 15").` },
           summary: `✓ Checked exam countdown.`
         };
       }
@@ -1238,7 +1423,7 @@ Details:        ${details || 'N/A'}
       const diffMs = targetDate.getTime() - now.getTime();
       const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-      const followUpText = `Your normal examination session (${currentTracking.normal_exam_date}) is in **${diffDays > 0 ? diffDays : 0} days**.`;
+      const followUpText = `Your normal examination session (**${currentTracking.normal_exam_date}**) is in **${diffDays > 0 ? diffDays : 0} days**.`;
       return {
         intent,
         targetModule: 'StudyTracking',
@@ -1249,85 +1434,73 @@ Details:        ${details || 'N/A'}
       };
     }
 
-    // 3. View / Read Study Plan
-    if (action === 'READ' || lower.includes("what's my study plan") || lower.includes("show my study plan") || lower.includes("view my study plan")) {
+    // 3. View / Read Study Plan or Subjects
+    const isReadQuery =
+      action === 'READ' ||
+      lower.includes("what's my study plan") ||
+      lower.includes("what is my study plan") ||
+      lower.includes("what is my study timetable") ||
+      lower.includes("show my study plan") ||
+      lower.includes("show my study timetable") ||
+      lower.includes("view my study plan") ||
+      lower.includes("what subjects am i") ||
+      lower.includes("what courses am i");
+
+    const extractedStudy = extractStudyParams(rawQuery, payload);
+
+    if (isReadQuery && extractedStudy.subjects.length === 0 && !extractedStudy.wantsGenerate) {
       const plan = currentTracking.study_plan || [];
-      if (plan.length === 0) {
+      const subjects = currentTracking.subjects || [];
+      if (plan.length === 0 && subjects.length === 0) {
         return {
           intent,
           targetModule: 'StudyTracking',
           action: 'READ',
           success: true,
-          data: { followUpText: `You don't have a generated study plan yet. Ask me to "Generate my study plan" once you've added your subjects and availability.` },
+          data: { followUpText: `You don't have a generated study timetable yet. Tell me your subjects, exam date, and study hours (e.g., "I have exams in Math, Physics, and Chemistry on December 15, I can study 3 hours a day from 7 PM to 10 PM") and I'll generate it for you!` },
           summary: `✓ Retrieved study plan.`
         };
       }
 
-      const planSummary = plan.map((d: any) => `**${d.day}:**\n` + d.slots.map((s: any) => `  • ${s.time} — ${s.activity}`).join('\n')).join('\n\n');
-      const followUpText = `Here is your current study timetable:\n\n${planSummary}`;
+      let followUpText = `## Study Tracking & Timetable\n\n`;
+      if (currentTracking.normal_exam_date) {
+        followUpText += `- **Exam Date:** ${currentTracking.normal_exam_date}\n`;
+      }
+      if (currentTracking.continuous_assessment_date) {
+        followUpText += `- **CA Date:** ${currentTracking.continuous_assessment_date}\n`;
+      }
+      followUpText += `- **Study Window:** ${currentTracking.hours_per_day}h/day (${currentTracking.preferred_start_time} – ${currentTracking.preferred_end_time}) on ${currentTracking.available_days.join(', ')}\n\n`;
+
+      if (subjects.length > 0) {
+        followUpText += `### Tracked Subjects\n`;
+        subjects.forEach(s => {
+          followUpText += `- **${s.name}** — ${s.difficulty || 'Medium'} difficulty • ${s.level}% confidence\n`;
+        });
+        followUpText += `\n`;
+      }
+
+      if (plan.length > 0) {
+        const planSummary = plan.map((d: any) => `**${d.day}:**\n` + d.slots.map((s: any) => `  • ${s.time} — ${s.activity}`).join('\n')).join('\n\n');
+        followUpText += `### Personalized Study Timetable\n\n${planSummary}`;
+      }
       return {
         intent,
         targetModule: 'StudyTracking',
         action: 'READ',
         success: true,
-        data: { followUpText },
-        summary: `✓ Retrieved study plan.`
+        data: { followUpText: followUpText.trim(), study_tracking: currentTracking },
+        summary: `✓ Retrieved study timetable.`
       };
     }
 
-    // 4. Generate Study Plan
-    if (lower.includes('generate') && (lower.includes('plan') || lower.includes('timetable') || lower.includes('schedule'))) {
-      if (currentTracking.subjects.length === 0) {
-        return {
-          intent,
-          targetModule: 'StudyTracking',
-          action: 'CREATE',
-          success: false,
-          error: 'No subjects found',
-          data: { followUpText: `Please add at least one subject to your study tracking first (e.g. "Add Mathematics at 30%").` },
-          summary: `✗ Cannot generate plan without subjects.`
-        };
-      }
-
-      const updated = dbService.saveStudyTracking(userId, {});
-      const plan = updated.study_plan || [];
-      const planSummary = plan.map((d: any) => `**${d.day}:**\n` + d.slots.map((s: any) => `  • ${s.time} — ${s.activity}`).join('\n')).join('\n\n');
-
-      const examReminders = generateExamReminders(
-        updated.subjects.map(s => s.name).join(', ') || 'Exam Session',
-        updated.normal_exam_date || '2026-08-20'
-      );
-      for (const rem of examReminders) {
-        dbService.createReminder(userId, {
-          title: rem.title,
-          date: rem.date,
-          time: updated.preferred_start_time || '20:00',
-          repeat: 'none',
-          priority: 'high',
-          voice_notification: true,
-          active: true
-        });
-      }
-
-      const followUpText = `I have generated your personalized study timetable! Weaker subjects have been allocated more revision sessions.\n\n**Generated Study Timetable:**\n\n${planSummary}\n\nAutomated exam proximity reminders have also been scheduled.`;
-      return {
-        intent,
-        targetModule: 'StudyTracking',
-        action: 'CREATE',
-        success: true,
-        data: { followUpText, study_tracking: updated },
-        summary: `✓ Generated personalized study plan.`
-      };
-    }
-
-    // 5. Subject operations: Delete
+    // 4. Subject operations: Delete
     const delSubjMatch = lower.match(/(?:delete|remove)\s+([a-z0-9\s]+?)(?:\s+from\s+(?:my\s+)?study\s+tracking|$)/i);
     if (delSubjMatch || action === 'DELETE') {
       const targetName = delSubjMatch ? delSubjMatch[1].trim() : (payload.course || payload.subject_name || rawQuery).replace(/(?:delete|remove|from|study|tracking)/gi, '').trim();
       if (targetName) {
         const updatedSubjects = currentTracking.subjects.filter(s => !s.name.toLowerCase().includes(targetName.toLowerCase()));
         const updated = dbService.saveStudyTracking(userId, { subjects: updatedSubjects });
-        const followUpText = `Removed **${targetName}** from your study tracking subjects.`;
+        const followUpText = `Removed **${targetName}** from your study tracking subjects and updated your timetable.`;
         return {
           intent,
           targetModule: 'StudyTracking',
@@ -1339,16 +1512,18 @@ Details:        ${details || 'N/A'}
       }
     }
 
-    // 6. Subject operations: Level Update / Change / Set
-    const setLevelMatch = lower.match(/(?:change|set|update)\s+([a-z0-9\s]+?)\s+(?:to|level\s+to|at)\s+(\d{1,3})%?/i);
-    if (setLevelMatch) {
+    // 5. Subject operations: Single Level Update / Change / Set (e.g. "Set Mathematics to 45%")
+    const setLevelMatch = lower.match(/(?:change|set|update)\s+([a-z0-9\s]+?)\s+(?:to|level\s+to|at)\s+(\d{1,3})\s*%?/i);
+    if (setLevelMatch && extractedStudy.subjects.length <= 1) {
       const targetName = setLevelMatch[1].trim();
-      const levelVal = parseInt(setLevelMatch[2], 10);
+      const levelVal = Math.min(100, Math.max(0, parseInt(setLevelMatch[2], 10)));
+      const difficulty: 'Easy' | 'Medium' | 'Hard' = levelVal <= 40 ? 'Hard' : levelVal >= 75 ? 'Easy' : 'Medium';
+      const priority: 'Low' | 'Medium' | 'High' = levelVal <= 40 ? 'High' : levelVal >= 75 ? 'Low' : 'Medium';
       let found = false;
       const updatedSubjects = currentTracking.subjects.map(s => {
         if (s.name.toLowerCase().includes(targetName.toLowerCase())) {
           found = true;
-          return { ...s, level: levelVal };
+          return { ...s, level: levelVal, difficulty, priority };
         }
         return s;
       });
@@ -1357,12 +1532,14 @@ Details:        ${details || 'N/A'}
         updatedSubjects.push({
           id: `subj-${Date.now()}`,
           name: targetName.charAt(0).toUpperCase() + targetName.slice(1),
+          difficulty,
+          priority,
           level: levelVal
         });
       }
 
       const updated = dbService.saveStudyTracking(userId, { subjects: updatedSubjects });
-      const followUpText = `Set **${targetName}** confidence level to **${levelVal}%**.`;
+      const followUpText = `Set **${targetName}** confidence level to **${levelVal}%** (${difficulty} difficulty) and rebalanced your study timetable.`;
       return {
         intent,
         targetModule: 'StudyTracking',
@@ -1373,107 +1550,120 @@ Details:        ${details || 'N/A'}
       };
     }
 
-    // 7. Subject operations: Add Subject
-    const addSubjMatch = lower.match(/(?:add|create)\s+([a-z0-9\s]+?)\s+(?:to\s+(?:my\s+)?study\s+tracking|at\s+(\d{1,3})%?|with\s+(\d{1,3})%?)/i);
-    if (addSubjMatch || lower.includes('add ') || payload.subject_name) {
-      let subjectName = payload.subject_name || (addSubjMatch ? addSubjMatch[1].trim() : '');
-      let levelVal = payload.level !== undefined ? payload.level : (addSubjMatch ? (addSubjMatch[2] ? parseInt(addSubjMatch[2], 10) : (addSubjMatch[3] ? parseInt(addSubjMatch[3], 10) : undefined)) : undefined);
+    // 6. Comprehensive Multi-Subject / Exam Date / Availability / Timetable Generation Handler
+    const mergedSubjects: StudySubject[] = [...currentTracking.subjects];
+    const addedOrUpdatedSubjectNames: string[] = [];
 
-      if (!subjectName) {
-        const words = rawQuery.replace(/(?:add|to|my|study|tracking)/gi, '').trim();
-        if (words) subjectName = words;
-      }
-
-      const pctMatch = rawQuery.match(/(\d{1,3})%/);
-      if (pctMatch && levelVal === undefined) {
-        levelVal = parseInt(pctMatch[1], 10);
-      }
-
-      if (subjectName && levelVal === undefined) {
-        return {
-          intent,
-          targetModule: 'StudyTracking',
-          action: 'NO_OP',
-          success: true,
-          data: { 
-            followUpText: `What percentage would you give your current level in **${subjectName}**?`,
-            pendingSubject: subjectName
-          },
-          summary: `Asked for level percentage for ${subjectName}.`
-        };
-      }
-
-      if (subjectName && levelVal !== undefined) {
-        const existingIdx = currentTracking.subjects.findIndex(s => s.name.toLowerCase() === subjectName.toLowerCase());
-        let updatedSubjects = [...currentTracking.subjects];
+    if (extractedStudy.subjects.length > 0) {
+      for (const incoming of extractedStudy.subjects) {
+        const existingIdx = mergedSubjects.findIndex(s => s.name.toLowerCase() === incoming.name.toLowerCase());
         if (existingIdx >= 0) {
-          updatedSubjects[existingIdx].level = levelVal;
+          mergedSubjects[existingIdx] = {
+            ...mergedSubjects[existingIdx],
+            difficulty: incoming.difficulty || mergedSubjects[existingIdx].difficulty || 'Medium',
+            priority: incoming.priority || mergedSubjects[existingIdx].priority || 'Medium',
+            level: incoming.level !== undefined ? incoming.level : mergedSubjects[existingIdx].level
+          };
         } else {
-          updatedSubjects.push({
-            id: `subj-${Date.now()}`,
-            name: subjectName.charAt(0).toUpperCase() + subjectName.slice(1),
-            level: levelVal
+          mergedSubjects.push(incoming);
+        }
+        addedOrUpdatedSubjectNames.push(`${incoming.name} (${incoming.difficulty} • ${incoming.level}%)`);
+      }
+    }
+
+    const updatesToSave: Partial<StudyTrackingData> = {};
+    if (extractedStudy.subjects.length > 0) {
+      updatesToSave.subjects = mergedSubjects;
+    }
+    if (extractedStudy.normal_exam_date) {
+      updatesToSave.normal_exam_date = extractedStudy.normal_exam_date;
+    }
+    if (extractedStudy.continuous_assessment_date) {
+      updatesToSave.continuous_assessment_date = extractedStudy.continuous_assessment_date;
+    }
+    if (extractedStudy.hours_per_day) {
+      updatesToSave.hours_per_day = extractedStudy.hours_per_day;
+    }
+    if (extractedStudy.preferred_start_time) {
+      updatesToSave.preferred_start_time = extractedStudy.preferred_start_time;
+    }
+    if (extractedStudy.preferred_end_time) {
+      updatesToSave.preferred_end_time = extractedStudy.preferred_end_time;
+    }
+    if (extractedStudy.available_days && extractedStudy.available_days.length > 0) {
+      updatesToSave.available_days = extractedStudy.available_days;
+    }
+
+    // If user asked to generate timetable but no subjects exist at all yet
+    if (extractedStudy.wantsGenerate && mergedSubjects.length === 0) {
+      const promptMsg = `Which subjects are you preparing for, and how many hours per day can you study?`;
+      return {
+        intent,
+        targetModule: 'StudyTracking',
+        action: 'CREATE',
+        success: false,
+        error: 'No subjects found',
+        data: { followUpText: promptMsg },
+        summary: promptMsg
+      };
+    }
+
+    // Persist updates and auto-generate study_plan in dbService.saveStudyTracking
+    const updated = dbService.saveStudyTracking(userId, updatesToSave);
+    const plan = updated.study_plan || [];
+
+    // Schedule exam proximity reminders if exam date is set and subjects exist
+    if (updated.normal_exam_date && updated.subjects.length > 0) {
+      const existingReminders = dbService.getReminders(userId);
+      const examReminders = generateExamReminders(
+        updated.subjects.map(s => s.name).join(', ') || 'Exam Session',
+        updated.normal_exam_date
+      );
+      for (const rem of examReminders) {
+        const alreadyExists = existingReminders.some(r => r.title === rem.title && r.date === rem.date);
+        if (!alreadyExists) {
+          dbService.createReminder(userId, {
+            title: rem.title,
+            date: rem.date,
+            time: updated.preferred_start_time || '20:00',
+            repeat: 'none',
+            priority: 'high',
+            voice_notification: true,
+            active: true,
+            category: 'Study'
           });
         }
-
-        const updated = dbService.saveStudyTracking(userId, { subjects: updatedSubjects });
-        const followUpText = `Added **${subjectName}** at **${levelVal}%** level to your study tracking.`;
-        return {
-          intent,
-          targetModule: 'StudyTracking',
-          action: 'CREATE',
-          success: true,
-          data: { followUpText, study_tracking: updated },
-          summary: `✓ Added subject "${subjectName}" at ${levelVal}%.`
-        };
       }
     }
 
-    // 8. Normal Exam date
-    if (lower.includes('normal exam') || lower.includes('exam session')) {
-      const date = payload.date || resolveRelativeDate(null, rawQuery) || '2026-08-20';
-      const updated = dbService.saveStudyTracking(userId, { normal_exam_date: date });
-      const followUpText = `Updated normal examination session start date to **${date}**.`;
-      return {
-        intent,
-        targetModule: 'StudyTracking',
-        action: 'UPDATE',
-        success: true,
-        data: { followUpText, study_tracking: updated },
-        summary: `✓ Set normal exam date to ${date}.`
-      };
+    let responseLines: string[] = [`## Study Tracking & Timetable Updated\n`];
+    if (updated.normal_exam_date) {
+      responseLines.push(`- **Exam Date:** ${updated.normal_exam_date}`);
+    }
+    if (updated.continuous_assessment_date) {
+      responseLines.push(`- **Continuous Assessment Date:** ${updated.continuous_assessment_date}`);
+    }
+    responseLines.push(`- **Study Schedule:** ${updated.hours_per_day}h/day (${updated.preferred_start_time} – ${updated.preferred_end_time}) on ${updated.available_days.join(', ')}`);
+
+    if (updated.subjects.length > 0) {
+      responseLines.push(`- **Tracked Subjects:** ${updated.subjects.map(s => `**${s.name}** (${s.difficulty || 'Medium'} • ${s.level}%)`).join(', ')}`);
     }
 
-    // 9. CA date
-    if (lower.includes('continuous assessment') || lower.includes('ca period') || lower.includes('ca start')) {
-      const date = payload.date || resolveRelativeDate(null, rawQuery) || '2026-06-10';
-      const updated = dbService.saveStudyTracking(userId, { continuous_assessment_date: date });
-      const followUpText = `Updated continuous assessment period start date to **${date}**.`;
-      return {
-        intent,
-        targetModule: 'StudyTracking',
-        action: 'UPDATE',
-        success: true,
-        data: { followUpText, study_tracking: updated },
-        summary: `✓ Set CA date to ${date}.`
-      };
+    if (plan.length > 0) {
+      const planSummary = plan
+        .map((d: any) => `**${d.day}:**\n` + d.slots.map((s: any) => `  • ${s.time} — ${s.activity}`).join('\n'))
+        .join('\n\n');
+      responseLines.push(`\n### Personalized Study Timetable\n*(Weaker & harder subjects are prioritized with extra revision blocks)*\n\n${planSummary}`);
     }
 
-    // Fallback update
-    const updatesToApply: Partial<StudyTrackingData> = {};
-    if (payload.hours_per_day || payload.study_hours_per_day) updatesToApply.hours_per_day = payload.hours_per_day || payload.study_hours_per_day;
-    if (payload.normal_exam_date) updatesToApply.normal_exam_date = payload.normal_exam_date;
-    if (payload.continuous_assessment_date) updatesToApply.continuous_assessment_date = payload.continuous_assessment_date;
-    if (payload.available_days) updatesToApply.available_days = payload.available_days;
-
-    const updated = dbService.saveStudyTracking(userId, updatesToApply);
+    const followUpText = responseLines.join('\n');
     return {
       intent,
       targetModule: 'StudyTracking',
-      action: 'UPDATE',
+      action: extractedStudy.wantsGenerate || extractedStudy.subjects.length > 0 ? 'CREATE' : 'UPDATE',
       success: true,
-      data: { followUpText: `Updated your study tracking preferences.`, study_tracking: updated },
-      summary: `✓ Updated study tracking.`
+      data: { followUpText, study_tracking: updated },
+      summary: followUpText
     };
   }
 

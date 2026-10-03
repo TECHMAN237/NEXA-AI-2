@@ -1,8 +1,9 @@
-import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { GoogleGenAI, Type, Modality, ThinkingLevel } from "@google/genai";
 import { dbService } from "./db.js";
 import { IntentClassification } from "../types/index.js";
 import { extractTimeFromText, normalizeTimeString, formatReadableDate, formatReadableTime } from "../utils/timeUtils.js";
-import { cleanReminderTitle, resolveRelativeDate, extractReminderParams } from "../utils/reminderParser.js";
+import { cleanReminderTitle, resolveRelativeDate, extractReminderParams, extractEventParams as parseStructuredEventParams, extractExplicitDateFromText } from "../utils/reminderParser.js";
+import { extractStudyParams } from "../utils/studyPlanGenerator.js";
 import { normalizeUserInput, extractVaultContent } from "./contextualNormalizer.js";
 import { 
   classifyIdentityOrCapability, 
@@ -394,34 +395,48 @@ const reformulateCache = new MemoryCache<string>();
 
 export function isSimpleGreeting(text: string): boolean {
   if (!text) return false;
-  const lower = text.trim().toLowerCase();
+  const lower = text.trim().toLowerCase().replace(/[?!.,;:]+$/, '').trim();
 
-  // If query starts with or contains an action verb, it's not a greeting
-  if (/^(remind|create|set|add|schedule|save|delete|update|change|organize|plan|track)\b/i.test(lower)) {
+  // Never allow a greeting handler to intercept identity, role, purpose, or capability questions (Part 4.1 & 4.2)
+  if (classifyIdentityOrCapability(text).isMatch) {
     return false;
   }
 
-  // Pure greetings
-  const greetings = [
-    'good morning', 'good afternoon', 'good evening', 'good night',
-    'hello', 'hi', 'hey', 'greetings', 'bonjour', 'salut', 'hola', 'coucou',
-    'hello xena', 'hi xena', 'hey xena', 'dear xena'
-  ];
-  if (greetings.includes(lower) || greetings.some(g => lower === g || lower.startsWith(g + ' ') || lower.startsWith(g + ',') || lower.startsWith(g + '!'))) {
+  // If query starts with or contains an action verb, it's not a greeting
+  if (/\b(remind|create|set|add|schedule|save|delete|update|change|organize|plan|track)\b/i.test(lower)) {
+    return false;
+  }
+
+  // Reject if a greeting is followed by any non-well-being question word ("Hi, what is...", "Hello, can you...", "Bonjour, comment...")
+  const strippedAfterGreeting = lower.replace(
+    /^(?:good\s+(?:morning|afternoon|evening|night)|hello|hi|hey|greetings|bonjour|salut|hola|coucou)(?:\s+(?:there|xena|xena\s+ai))?[\s,!.:;-]*/i,
+    ''
+  ).trim();
+
+  const wellBeingSet = new Set([
+    '',
+    'how are you',
+    'how are you doing',
+    "how's it going",
+    'how do you do',
+    'how is everything',
+    "how's your day",
+    'how are you today',
+    'how are you doing today',
+    'comment vas-tu',
+    'comment ça va',
+    'ça va'
+  ]);
+
+  if (
+    /^(?:good\s+(?:morning|afternoon|evening|night)|hello|hi|hey|greetings|bonjour|salut|hola|coucou)\b/i.test(lower) &&
+    wellBeingSet.has(strippedAfterGreeting)
+  ) {
     return true;
   }
 
-  // Inquiry about well-being
-  if (
-    lower === 'how are you' ||
-    lower === 'how are you doing' ||
-    lower === "how's it going" ||
-    lower === 'how do you do' ||
-    lower === 'how is everything' ||
-    lower === "how's your day" ||
-    lower === 'how are you today' ||
-    lower === 'how are you doing today'
-  ) {
+  // Pure inquiry about well-being
+  if (wellBeingSet.has(lower) && lower.length > 0) {
     return true;
   }
 
@@ -486,29 +501,18 @@ export function isConversationalText(text: string): boolean {
   return false;
 }
 
-export function extractEventParams(text: string) {
-  const todayStr = new Date().toISOString().split('T')[0];
-  const hasExplicitDate = /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2}\/\d{1,2}|\d{4}-\d{2}-\d{2})\b/i.test(text);
-  const date = hasExplicitDate ? resolveRelativeDate(null, text) : todayStr;
-  const explicitTime = extractTimeFromText(text);
-  const time = explicitTime ? explicitTime : '12:00';
-
-  let title = text;
-  const isCalledMatch = text.match(/(?:called|named)\s+([^.!?\n]+)/i);
-  if (isCalledMatch && isCalledMatch[1]) {
-    title = isCalledMatch[1].replace(/[.]$/, '').trim();
-  } else {
-    title = title
-      .replace(/^(I\s+(have|got)\s+(an\s+)?(event|meeting|appointment|gathering)\s+)/i, '')
-      .replace(/\s+(on|this|next)?\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today).*$/i, '')
-      .replace(/\s+(at)\s+\d{1,2}(:\d{2})?\s*(am|pm)?.*$/i, '')
-      .trim();
-    if (title) {
-      title = title.split(/\s+/).map(w => w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : '').join(' ');
-    }
-    if (!title) title = 'Saved Event';
-  }
-  return { title, date, time, description: text };
+export function extractEventParams(text: string, llmExtracted?: any) {
+  const info = parseStructuredEventParams(text, llmExtracted);
+  return {
+    title: info.title,
+    date: info.date,
+    time: info.time,
+    location: info.location,
+    description: info.description,
+    isTitleValid: info.isTitleValid,
+    isDateExplicit: info.isDateExplicit,
+    isTimeExplicit: info.isTimeExplicit
+  };
 }
 
 export function generateConversationalResponse(userText: string, profileName?: string): string {
@@ -598,7 +602,18 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
   const lower = cleanText.toLowerCase().trim();
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // 0. Conversational Explanatory / General Knowledge / Identity Questions check (MUST NOT trigger actions)
+  // 0a. Authoritative Identity, Purpose, Role & Capability Check (MUST NOT trigger actions or DB mutations)
+  const idCheck = classifyIdentityOrCapability(cleanText);
+  if (idCheck.isMatch) {
+    return {
+      intent: 'NORMAL_CHAT',
+      intents: ['NORMAL_CHAT'],
+      actions: [{ intent: 'NORMAL_CHAT', action: 'NO_OP', payload: {} }],
+      explanation: `Authoritative identity/capability inquiry (${idCheck.category}${idCheck.featureId ? ':' + idCheck.featureId : ''}) — routing directly to XenaIdentity without tool execution.`
+    };
+  }
+
+  // 0. Conversational Explanatory / General Knowledge Questions check (MUST NOT trigger actions)
   const isGeneralKnowledgeOrExplanatory = (
     lower.includes('difference between') ||
     lower.includes('what is the difference') ||
@@ -781,24 +796,153 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
     };
   }
 
-  // 2. Planning check (Guardrail: never hijack explicit reminder requests unless user explicitly asks for a plan)
+  // 1.5 My Items / Contextual Read Queries (Reminders, Planner, Study Plans, Events, Exams, Cross-Category Availability)
+  const isContextualReadQuery = (
+    lower.includes("what's in my items") ||
+    lower.includes("what is in my items") ||
+    lower.includes("show my items") ||
+    lower.includes("what's in my organizer") ||
+    lower.includes("am i free") ||
+    lower.includes("conflict with my events") ||
+    lower.includes("do my study sessions conflict") ||
+    lower.includes("what are my study plans") ||
+    lower.includes("what is my study plan") ||
+    lower.includes("show my study plan") ||
+    lower.includes("show my study timetable") ||
+    lower.includes("what is my study timetable") ||
+    lower.includes("what subjects am i tracking") ||
+    lower.includes("which subjects am i tracking") ||
+    lower.includes("what courses am i tracking") ||
+    lower.includes("next exam") ||
+    lower.includes("upcoming exam") ||
+    lower.includes("when is my exam") ||
+    lower.includes("what exams do i have") ||
+    lower.includes("do i have any exam") ||
+    lower.includes("do i have an exam") ||
+    lower.includes("show my reminders") ||
+    lower.includes("what reminders do i have") ||
+    lower.includes("do i have any reminders") ||
+    lower.includes("do i have a reminder") ||
+    lower.includes("what tasks are in my planner") ||
+    lower.includes("what is in my planner") ||
+    lower.includes("summarize everything i have scheduled")
+  );
+
+  if (isContextualReadQuery) {
+    if (lower.includes('study') || lower.includes('subject') || lower.includes('course') || lower.includes('timetable')) {
+      return {
+        intent: 'STUDY_TRACKING',
+        intents: ['STUDY_TRACKING'],
+        actions: [{
+          intent: 'STUDY_TRACKING',
+          action: 'READ',
+          payload: { query: cleanText }
+        }],
+        extractedData: { query: cleanText },
+        explanation: `Reading study tracking and timetable for "${cleanText}".`
+      };
+    }
+    return {
+      intent: 'NORMAL_CHAT',
+      intents: ['NORMAL_CHAT'],
+      actions: [{ intent: 'NORMAL_CHAT', action: 'NO_OP', payload: {} }],
+      explanation: 'Contextual My Items inquiry — routing to PersonalContextEngine.'
+    };
+  }
+
+  // 2. Study Tracking & Study Timetable check (placed BEFORE daily planning so "study plan" / "study timetable" / "study hours a day" for courses never gets hijacked by daily planning)
+  const studyExtracted = extractStudyParams(cleanText);
+  const isExplicitStudyTracker = (
+    lower.includes('study tracker') ||
+    lower.includes('study tracking') ||
+    lower.includes('study timetable') ||
+    lower.includes('revision timetable') ||
+    lower.includes('revision schedule') ||
+    lower.includes('track my studies') ||
+    lower.includes('track my study') ||
+    lower.includes('add to my study') ||
+    (lower.includes('study plan') && !lower.includes('daily plan')) ||
+    (studyExtracted.subjects.length > 0 && (
+      lower.includes('exam') ||
+      lower.includes('difficulty') ||
+      lower.includes('hard') ||
+      lower.includes('medium') ||
+      lower.includes('easy') ||
+      lower.includes('timetable') ||
+      lower.includes('track') ||
+      lower.includes('courses') ||
+      lower.includes('subjects') ||
+      Boolean(studyExtracted.hoursPerDay && studyExtracted.examDate)
+    ))
+  );
+
+  if (isExplicitStudyTracker) {
+    const isDelete = /^(delete|remove|drop)\b/i.test(lower) && (lower.includes('study') || lower.includes('subject') || lower.includes('course'));
+    const isRead = /^(what|which|show|list|view|tell\s+me|how\s+many|when\s+is)\b/i.test(lower) && !lower.includes('create') && !lower.includes('generate') && !lower.includes('add');
+    const isUpdate = !isDelete && !isRead && (
+      lower.startsWith('change ') ||
+      lower.startsWith('update ') ||
+      lower.startsWith('modify ') ||
+      lower.startsWith('edit ') ||
+      lower.startsWith('reschedule ') ||
+      lower.includes('change my') ||
+      lower.includes('update my') ||
+      lower.includes('reschedule my') ||
+      lower.includes('change the exam date') ||
+      lower.includes('update the exam date')
+    );
+
+    const actionType = isDelete ? 'DELETE' : isRead ? 'READ' : isUpdate ? 'UPDATE' : 'CREATE';
+    const primaryCourse = studyExtracted.subjects[0]?.name || '';
+
+    return {
+      intent: 'STUDY_TRACKING',
+      intents: ['STUDY_TRACKING'],
+      actions: [{
+        intent: 'STUDY_TRACKING',
+        action: actionType,
+        payload: {
+          course: primaryCourse,
+          subjects: studyExtracted.subjects,
+          exam_date: studyExtracted.examDate || undefined,
+          ca_date: studyExtracted.caDate || undefined,
+          study_hours_per_day: studyExtracted.hoursPerDay || undefined,
+          preferred_study_time: studyExtracted.preferredTime || undefined,
+          available_days: studyExtracted.availableDays || undefined,
+          wants_timetable: studyExtracted.wantsTimetable,
+          raw_text: cleanText
+        }
+      }],
+      extractedData: {
+        course: primaryCourse,
+        subjects: studyExtracted.subjects,
+        date: studyExtracted.examDate || undefined,
+        hoursPerDay: studyExtracted.hoursPerDay,
+        prefTime: studyExtracted.preferredTime,
+        availableDays: studyExtracted.availableDays
+      },
+      explanation: `Routing Study Tracking (${actionType}) for ${studyExtracted.subjects.map(s => s.name).join(', ') || 'requested subjects'}.`
+    };
+  }
+
+  // 2.5 Daily Planning check (Guardrail: never hijack explicit reminder, event, or study tracker requests)
   const hasExplicitReminderPhrase = /\b(remind\s+me|don't\s+forget\s+to\s+remind|set\s+a\s+reminder|create\s+a\s+reminder|add\s+a\s+reminder|schedule\s+a\s+reminder|rappelle-moi)\b/i.test(lower);
-  const hasExplicitPlanPhrase = /\b(create\s+my\s+plan|create\s+a\s+plan|plan\s+my\s+day|plan\s+for\s+tomorrow|plan\s+for\s+today|organize\s+my\s+day|daily\s+plan|organize\s+my\s+schedule|schedule\s+my\s+day|make\s+a\s+schedule|make\s+a\s+plan|generate\s+a\s+plan|generate\s+my\s+plan|help\s+me\s+plan|help\s+me\s+to\s+plan|plan\s+my\s+activities|create\s+a\s+schedule|organize\s+my\s+revision)\b/i.test(lower);
+  const hasExplicitPlanPhrase = /\b(create\s+my\s+plan|create\s+a\s+plan|plan\s+my\s+day|plan\s+for\s+tomorrow|plan\s+for\s+today|organize\s+my\s+day|daily\s+plan|organize\s+my\s+schedule|schedule\s+my\s+day|make\s+a\s+schedule|make\s+a\s+plan|generate\s+a\s+plan|generate\s+my\s+plan|help\s+me\s+plan|help\s+me\s+to\s+plan|plan\s+my\s+activities|create\s+a\s+schedule)\b/i.test(lower);
+  const looksLikeSingleEventStatement = /\b(event|conference|summit|meeting|appointment|wedding|gala|workshop|seminar|something\s+important|to\s+my\s+events|in\s+my\s+events)\b/i.test(lower) && !hasExplicitPlanPhrase;
 
   const tempDate = resolveRelativeDate(null, cleanText);
-  const parsedConstraints = hasExplicitReminderPhrase && !hasExplicitPlanPhrase
+  const parsedConstraints = (hasExplicitReminderPhrase || looksLikeSingleEventStatement) && !hasExplicitPlanPhrase
     ? []
     : DailyScheduleEngine.parseTaskConstraints(cleanText, tempDate);
-  const isMultiTaskSchedule = parsedConstraints.length >= 2;
+  const constraintsWithTimeOrDuration = parsedConstraints.filter(c => c.hasExplicitDuration || c.hasExplicitStartTime);
+  const isMultiTaskSchedule = parsedConstraints.length >= 2 && constraintsWithTimeOrDuration.length >= 2;
 
   const isPlanningQuery = !hasExplicitReminderPhrase || hasExplicitPlanPhrase ? (
     isMultiTaskSchedule ||
     hasExplicitPlanPhrase ||
     lower.includes('schedule everything around') ||
     (lower.includes('schedule') && lower.includes('around')) ||
-    (lower.includes('plan') && (lower.includes('football') || lower.includes('dance') || lower.includes('study') || lower.includes('eat') || lower.includes('tasks') || lower.includes('activities') || lower.includes('day') || lower.includes('today') || lower.includes('tomorrow'))) ||
-    (lower.includes('need to study') && lower.includes('hours')) ||
-    (lower.includes('need to') && lower.includes('plan'))
+    (lower.includes('plan') && !lower.includes('study plan') && (lower.includes('football') || lower.includes('dance') || lower.includes('eat') || lower.includes('tasks') || lower.includes('activities') || lower.includes('day') || lower.includes('today') || lower.includes('tomorrow')))
   ) : false;
 
   if (isPlanningQuery) {
@@ -826,6 +970,10 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
   // 3. View / Query Upcoming Events check (placed before CREATE_EVENT and CREATE_REMINDER)
   const isEventQueryView = (
     lower.includes('what events') ||
+    lower.includes('which events') ||
+    lower.includes('any events') ||
+    lower.includes('events in ') ||
+    lower.includes('events on ') ||
     lower.includes('upcoming events') ||
     lower.includes('events coming up') ||
     lower.includes('events do i have') ||
@@ -836,6 +984,12 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
     lower.includes('events on my calendar') ||
     lower.includes('on my calendar') ||
     lower.includes('do i have any events') ||
+    lower.includes('do i have an event') ||
+    lower.includes('do i have any event') ||
+    lower.includes('do i have events') ||
+    lower.includes('is there an event') ||
+    lower.includes('are there any events') ||
+    lower.includes('have i got an event') ||
     lower.includes('tell me about my upcoming events') ||
     lower.includes('tell me about my events') ||
     lower.includes('remind me what events') ||
@@ -850,11 +1004,12 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
     lower.includes('check my schedule') ||
     lower.includes("what's on my schedule") ||
     lower.includes("what is on my schedule") ||
+    (lower.startsWith('when is ') && !lower.includes('exam')) ||
     (lower.includes('remind me') && (lower.includes('what event') || lower.includes('what meeting') || lower.includes('what schedule')))
   );
 
   if (isEventQueryView) {
-    const date = resolveRelativeDate(null, cleanText);
+    const dateInfo = extractExplicitDateFromText(cleanText);
     return {
       intent: 'VIEW_UPCOMING_EVENTS',
       intents: ['VIEW_UPCOMING_EVENTS'],
@@ -863,11 +1018,39 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
         action: 'READ',
         payload: {
           query: cleanText,
-          date
+          date: dateInfo.isExplicit ? dateInfo.date : undefined
         }
       }],
-      extractedData: { query: cleanText, date },
+      extractedData: { query: cleanText, date: dateInfo.isExplicit ? dateInfo.date : undefined },
       explanation: `Querying existing events for "${cleanText}".`
+    };
+  }
+
+  // 3.5 Event DELETE check
+  const isEventDeleteQuery = (
+    (lower.startsWith('delete ') || lower.startsWith('remove ') || lower.startsWith('cancel ')) &&
+    (lower.includes('event') || lower.includes('from my events') || lower.includes('meeting') || lower.includes('conference') || lower.includes('appointment'))
+  );
+
+  if (isEventDeleteQuery) {
+    const evInfo = parseStructuredEventParams(cleanText);
+    const targetTitle = evInfo.title
+      .replace(/^(?:delete|remove|cancel)\s+(?:the\s+|my\s+)?(?:event\s+)?(?:called\s+|named\s+)?/i, '')
+      .replace(/\s+from\s+my\s+events.*$/i, '')
+      .trim();
+    return {
+      intent: 'EVENT',
+      intents: ['EVENT'],
+      actions: [{
+        intent: 'EVENT',
+        action: 'DELETE',
+        payload: {
+          title: targetTitle,
+          date: evInfo.isDateExplicit ? evInfo.date : undefined
+        }
+      }],
+      extractedData: { title: targetTitle, date: evInfo.isDateExplicit ? evInfo.date : undefined },
+      explanation: `Deleting event "${targetTitle}".`
     };
   }
 
@@ -889,12 +1072,12 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
 
   if (isEventUpdateQuery) {
     const explicitTime = extractTimeFromText(cleanText);
-    const hasExplicitDate = /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2}\/\d{1,2}|\d{4}-\d{2}-\d{2})\b/i.test(cleanText);
-    const date = hasExplicitDate ? resolveRelativeDate(null, cleanText) : undefined;
+    const explicitDateInfo = extractExplicitDateFromText(cleanText);
+    const date = explicitDateInfo.isExplicit && explicitDateInfo.date ? explicitDateInfo.date : undefined;
 
     let location = undefined;
     const locMatch = cleanText.match(/\b(at|in|to)\s+([A-Z0-9][a-zA-Z0-9\s,]{2,30})/);
-    if (locMatch && !/saturday|sunday|monday|tuesday|wednesday|thursday|friday|today|tomorrow|events|my events/i.test(locMatch[2])) {
+    if (locMatch && !/saturday|sunday|monday|tuesday|wednesday|thursday|friday|today|tomorrow|january|february|march|april|may|june|july|august|september|october|november|december|events|my events/i.test(locMatch[2])) {
       location = locMatch[2].trim();
     }
 
@@ -922,27 +1105,30 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
     };
   }
 
-  // 4. Event check (CREATE)
-  const eventKeywords = ['event', 'bootcamp', 'conference', 'workshop', 'webinar', 'seminar', 'meeting', 'appointment', 'church service', 'summit', 'gala', 'wedding', 'party', 'concert', 'festival', 'match', 'game'];
-  const hasEventKeyword = eventKeywords.some(kw => lower.includes(kw));
+  // 4. Event check (CREATE) — Supports all natural-language event patterns
+  const eventKeywords = ['event', 'bootcamp', 'conference', 'workshop', 'webinar', 'seminar', 'meeting', 'appointment', 'church service', 'summit', 'gala', 'wedding', 'party', 'concert', 'festival', 'ceremony', 'symposium'];
+  const hasEventKeyword = eventKeywords.some(kw => new RegExp(`\\b${kw}s?\\b`, 'i').test(lower));
+  const isHypotheticalOrPastQuestion = /^(what|when|where|who|why|how|which|did|do|does|is|are|am|was|were|have|has|if|suppose)\b/i.test(lower);
 
-  const isEventQuery = (
+  const isEventCreateIntent = !isHypotheticalOrPastQuestion && (
     lower.includes('save it in my events') ||
     lower.includes('in my events') ||
     lower.includes('to my events') ||
     lower.includes('as an event') ||
     lower.includes('add event') ||
+    lower.includes('add an event') ||
     lower.includes('create event') ||
+    lower.includes('create an event') ||
     lower.includes('schedule event') ||
+    lower.includes('schedule an event') ||
     lower.includes('add meeting') ||
     lower.includes('schedule meeting') ||
-    lower.includes('church service') ||
-    lower.includes('tech conference') ||
-    lower.includes('doctor appointment') ||
-    lower.includes('conference on') ||
-    (lower.startsWith('add ') && (lower.includes('event') || lower.includes('meeting') || lower.includes('service') || lower.includes('conference') || lower.includes('workshop') || lower.includes('webinar') || lower.includes('bootcamp'))) ||
-    (lower.includes('remind me') && (lower.includes('in my events') || lower.includes('to my events') || lower.includes('save it in my events') || lower.includes('as an event'))) ||
+    (/\bi\s+(?:have|got)\s+(?:an?\s+)?(?:something\s+important|important\s+event)\b/i.test(lower)) ||
     (hasEventKeyword && (
+      /\bi\s+(?:have|got|am\s+attending|will\s+attend)\b/i.test(lower) ||
+      /\bthere\s+is\s+an?\b/i.test(lower) ||
+      lower.includes('called ') ||
+      lower.includes('named ') ||
       lower.includes('add ') ||
       lower.includes('schedule ') ||
       lower.includes('create ') ||
@@ -952,40 +1138,8 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
     ))
   );
 
-  if (isEventQuery) {
-    const hasExplicitDate = /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2}\/\d{1,2}|\d{4}-\d{2}-\d{2})\b/i.test(cleanText);
-    const date = hasExplicitDate ? resolveRelativeDate(null, cleanText) : 'Not specified';
-
-    const explicitTime = extractTimeFromText(cleanText);
-    const time = explicitTime ? explicitTime : 'Not specified';
-
-    let location = 'Not specified';
-    const locMatch = cleanText.match(/\b(at|in)\s+([A-Z0-9][a-zA-Z0-9\s,]{2,30})/i);
-    if (locMatch && !/\b(saturday|sunday|monday|tuesday|wednesday|thursday|friday|today|tomorrow|events|my events|am|pm)\b/i.test(locMatch[2]) && !/^\d+\s*(am|pm)?$/i.test(locMatch[2])) {
-      location = locMatch[2].trim();
-    }
-
-    let title = cleanText;
-    const isCalledMatch = cleanText.match(/(?:called|named)\s+(.+)/i);
-    if (isCalledMatch && isCalledMatch[1]) {
-      title = isCalledMatch[1].replace(/[.]$/, '').trim();
-    } else {
-      title = title
-        .replace(/^(I\s+(would\s+like|want)\s+(you\s+)?to\s+)?(please\s+)?(remind\s+me\s+of\s+the|remind\s+me\s+about\s+the|remind\s+me\s+of|remind\s+me\s+about|remind\s+me\s+to|remind\s+me|save\s+my|save\s+the|save\s+it\s+in|save\s+in|save\s+to|save|add\s+my|add\s+the|add|schedule\s+my|schedule\s+the|schedule|create\s+my|create\s+the|create|i\s+have\s+an)\s+/i, '')
-        .replace(/\s+(that\s+will\s+happen|which\s+is\s+happening|happening|taking\s+place).*$/i, '')
-        .replace(/\s+(and\s+)?(save\s+it\s+(inside|in)|add\s+it\s+to|save\s+to)\s+(my\s+)?events.*$/i, '')
-        .replace(/\s+(inside|in|to)\s+(my\s+)?events.*$/i, '')
-        .replace(/\s+as\s+an?\s+event.*$/i, '')
-        .replace(/\s+(on|this|next)?\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today).*$/i, '')
-        .replace(/\s+(on|at)\s+\d{1,2}(:\d{2})?\s*(am|pm)?.*$/i, '')
-        .trim();
-        
-      if (title) {
-        title = title.split(/\s+/).map(w => w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : '').join(' ');
-      }
-      if (!title) title = 'Scheduled Event';
-    }
-
+  if (isEventCreateIntent) {
+    const evParams = parseStructuredEventParams(cleanText);
     return {
       intent: 'EVENT',
       intents: ['EVENT'],
@@ -993,159 +1147,22 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
         intent: 'EVENT',
         action: 'CREATE',
         payload: {
-          title,
-          date,
-          time,
-          location,
-          description: cleanText
+          title: evParams.title,
+          date: evParams.date,
+          time: evParams.time,
+          location: evParams.location,
+          description: cleanText,
+          isTitleValid: evParams.isTitleValid,
+          isDateExplicit: evParams.isDateExplicit
         }
       }],
-      extractedData: { title, date, time, location },
-      explanation: `Scheduling event "${title}".`
-    };
-  }
-  
-  // 4. Study Tracking check
-  const isStudyQuery = (
-    lower.includes('study tracker') ||
-    lower.includes('study tracking') ||
-    lower.includes('study plan') ||
-    lower.includes('revision schedule') ||
-    lower.includes('prepare for my exam') ||
-    lower.includes('prepare for exam') ||
-    lower.includes('track my study') ||
-    (lower.includes('exam') && (
-      lower.includes('august') || lower.includes('september') || lower.includes('october') || 
-      lower.includes('november') || lower.includes('december') || lower.includes('january') || 
-      lower.includes('february') || lower.includes('march') || lower.includes('april') || 
-      lower.includes('may') || lower.includes('june') || lower.includes('july') ||
-      lower.includes('date') || lower.includes('change') || lower.includes('update') || 
-      lower.includes('reschedule') || lower.includes('add') || lower.includes('create') ||
-      lower.includes('csc301') || lower.includes('architecture') || lower.includes('algorithms') ||
-      lower.includes('math') || lower.includes('weeks') || lower.includes('days')
-    ))
-  );
-
-  if (isStudyQuery) {
-    const isUpdate = (
-      lower.startsWith('change ') ||
-      lower.startsWith('update ') ||
-      lower.startsWith('modify ') ||
-      lower.startsWith('edit ') ||
-      lower.startsWith('reschedule ') ||
-      lower.includes('change my') ||
-      lower.includes('update my') ||
-      lower.includes('reschedule my') ||
-      lower.includes('change the exam date') ||
-      lower.includes('update the exam date')
-    );
-
-    // Course Extraction
-    let course = '';
-    if (lower.includes('csc301')) course = 'CSC301';
-    else if (lower.includes('computer architecture')) course = 'Computer Architecture';
-    else if (lower.includes('algorithms')) course = 'Algorithms';
-    else if (lower.includes('mathematics') || lower.includes('math')) course = 'Mathematics';
-    else if (lower.includes('physics')) course = 'Physics';
-    else if (lower.includes('chemistry')) course = 'Chemistry';
-    else {
-      const courseMatch = cleanText.match(/(?:study\s+tracker\s+(?:for|on)?|study\s+plan\s+(?:for|on)?|exam\s+(?:for|on)?|tracker\s+for|my)\s+([A-Za-z0-9\s\-]+?)(?=\s+(?:exam|on|date|is|for|it's|difficult|easy|with|and|\d|$))/i);
-      if (courseMatch && courseMatch[1].trim()) {
-        course = courseMatch[1].trim();
-      }
-    }
-
-    // Exam Date Extraction
-    let examDate = '';
-    const dateMatch = cleanText.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})\b/i);
-    if (dateMatch) {
-      const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-      const mIdx = monthNames.indexOf(dateMatch[1].toLowerCase());
-      const dayNum = parseInt(dateMatch[2], 10);
-      const year = new Date().getFullYear();
-      const mStr = String(mIdx + 1).padStart(2, '0');
-      const dStr = String(dayNum).padStart(2, '0');
-      examDate = `${year}-${mStr}-${dStr}`;
-    } else {
-      examDate = resolveRelativeDate(null, cleanText);
-    }
-
-    // Check if missing required fields for creation
-    if (!isUpdate && (!course || !examDate || cleanText.trim().toLowerCase() === 'create a study tracker' || cleanText.trim().toLowerCase() === 'add a study tracker')) {
-      if (!course && !examDate) {
-        return {
-          intent: 'STUDY_TRACKING',
-          intents: ['STUDY_TRACKING'],
-          actions: [{
-            intent: 'STUDY_TRACKING',
-            action: 'NO_OP',
-            payload: { missing_fields: ['course', 'exam_date'] }
-          }],
-          extractedData: {},
-          explanation: 'Missing course subject and exam date for study tracker.'
-        };
-      }
-    }
-
-    // Difficulty
-    let difficulty: 'low' | 'medium' | 'high' = 'medium';
-    if (lower.includes('difficult') || lower.includes('hard') || lower.includes('high difficulty')) difficulty = 'high';
-    else if (lower.includes('easy') || lower.includes('low difficulty')) difficulty = 'low';
-
-    // Hours per day
-    let hoursPerDay = 3;
-    const hoursMatch = lower.match(/(\d{1,2})\s*(?:hours|hr|hrs|h)\s*(?:a\s*day|per\s*day|every\s*day)?/i);
-    if (hoursMatch) {
-      hoursPerDay = parseInt(hoursMatch[1], 10) || 3;
-    }
-
-    // Study Timings
-    let prefTime = '20:00 - 23:00';
-    const timeRangeMatch = lower.match(/(?:from\s+)?(\d{1,2}\s*(?:pm|am)?)\s+(?:to|till|-)\s+(\d{1,2}\s*(?:pm|am)?)/i);
-    if (timeRangeMatch) {
-      const parseHourStr = (str: string) => {
-        const isPm = str.toLowerCase().includes('pm');
-        let h = parseInt(str.replace(/[^0-9]/g, ''), 10);
-        if (isPm && h < 12) h += 12;
-        if (!isPm && str.toLowerCase().includes('am') && h === 12) h = 0;
-        return String(h).padStart(2, '0') + ':00';
-      };
-      prefTime = `${parseHourStr(timeRangeMatch[1])} - ${parseHourStr(timeRangeMatch[2])}`;
-    }
-
-    // Available Days
-    let availableDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    if (lower.includes('monday') || lower.includes('wednesday') || lower.includes('friday') || lower.includes('tuesday') || lower.includes('thursday') || lower.includes('saturday') || lower.includes('sunday')) {
-      const extracted: string[] = [];
-      if (lower.includes('monday') || lower.includes('mon')) extracted.push('Mon');
-      if (lower.includes('tuesday') || lower.includes('tue')) extracted.push('Tue');
-      if (lower.includes('wednesday') || lower.includes('wed')) extracted.push('Wed');
-      if (lower.includes('thursday') || lower.includes('thu')) extracted.push('Thu');
-      if (lower.includes('friday') || lower.includes('fri')) extracted.push('Fri');
-      if (lower.includes('saturday') || lower.includes('sat')) extracted.push('Sat');
-      if (lower.includes('sunday') || lower.includes('sun')) extracted.push('Sun');
-      if (extracted.length > 0) availableDays = extracted;
-    }
-
-    return {
-      intent: 'STUDY_TRACKING',
-      intents: ['STUDY_TRACKING'],
-      actions: [{
-        intent: 'STUDY_TRACKING',
-        action: isUpdate ? 'UPDATE' : 'CREATE',
-        payload: {
-          course: course || 'CSC301',
-          exam_date: examDate || resolveRelativeDate(null, cleanText),
-          difficulty,
-          study_hours_per_day: hoursPerDay,
-          preferred_study_time: prefTime,
-          available_days: availableDays
-        }
-      }],
-      extractedData: { course, date: examDate, difficulty, hoursPerDay, prefTime, availableDays },
-      explanation: isUpdate 
-        ? `Updating study tracker for ${course} to exam date ${examDate}.`
-        : `Activating study tracking for ${course} exam on ${examDate}.`
+      extractedData: {
+        title: evParams.title,
+        date: evParams.date,
+        time: evParams.time,
+        location: evParams.location
+      },
+      explanation: `Extracting structured event candidate (title="${evParams.title || 'missing'}", date="${evParams.date || 'missing'}").`
     };
   }
 
@@ -1263,6 +1280,34 @@ export async function routeUserIntent(text: string, recentMessages: any[] = []):
   const cached = intentCache.get(cacheKey);
   if (cached) return cached;
 
+  // 3.5 Fast Conversational & Non-Action Guard:
+  // If the utterance contains no imperative CRUD/tool keywords, skip the slow LLM JSON schema call and route directly to NORMAL_CHAT in <1ms!
+  const hasPotentialActionKeyword = /\b(remind|reminder|rappelle|schedule|event|meeting|conference|appointment|summit|gala|wedding|workshop|seminar|add|create|set|make|build|generate|delete|remove|cancel|clear|drop|update|change|modify|edit|move|reschedule|plan|organize|planner|track|tracker|tracking|timetable|exam|course|subject|remember|vault|volt|save|keep|store|profile|name\s+is|call\s+me)\b/i.test(cleanText);
+  if (!hasPotentialActionKeyword) {
+    const fastChatResult: IntentClassification = {
+      intent: 'NORMAL_CHAT',
+      intents: ['NORMAL_CHAT'],
+      actions: [{ intent: 'NORMAL_CHAT', action: 'NO_OP', payload: {} }],
+      explanation: 'Direct conversational query without action keywords.'
+    };
+    intentCache.set(cacheKey, fastChatResult, 60000);
+    return fastChatResult;
+  }
+
+  // Also if it is clearly a pure question ("what...", "when...", "where...", "who...", "how...", "do i...", "is there...", "am i...") without explicit creation commands ("can you create/set/add/remind/schedule/plan/generate")
+  const isPureQuestionWithoutCommand = /^(what|when|where|who|why|how|which|do\s+i|does\s+my|is\s+there|are\s+there|am\s+i|have\s+i|tell\s+me\s+(?:a|about|what|when|how)|explain|describe)\b/i.test(cleanText) &&
+    !/\b(create|set|add|schedule|generate|make|build|remind\s+me\s+to|remind\s+me\s+at|remind\s+me\s+on|remind\s+me\s+in|update|change|delete|remove)\b/i.test(cleanText);
+  if (isPureQuestionWithoutCommand) {
+    const fastQuestionResult: IntentClassification = {
+      intent: 'NORMAL_CHAT',
+      intents: ['NORMAL_CHAT'],
+      actions: [{ intent: 'NORMAL_CHAT', action: 'NO_OP', payload: {} }],
+      explanation: 'Pure question or inquiry — routing directly to conversational/context engine.'
+    };
+    intentCache.set(cacheKey, fastQuestionResult, 60000);
+    return fastQuestionResult;
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -1346,7 +1391,8 @@ CRITICAL INSTRUCTIONS:
 8. CONTEXTUAL COMMANDS: If the user says "Save the event I just told you" or "Save that", set intent="EVENT", action="CREATE". Do not invent the title; it will be resolved from the conversation context.
 9. IDENTITY, GOAL & CAPABILITY INQUIRIES: When user asks about Xena ("Who are you?", "What is your goal?", "What is your purpose?", "What can you do?", "Are you just a chatbot?", "Can you update events?"), intent MUST be "NORMAL_CHAT" with action "NO_OP". NEVER classify identity, goal, purpose, or capability questions as action tools.`,
         responseMimeType: "application/json",
-        maxOutputTokens: 1500,
+        maxOutputTokens: 800,
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -1433,6 +1479,30 @@ CRITICAL INSTRUCTIONS:
             act.payload.title = params.title;
             act.payload.date = params.date;
             act.payload.time = params.time;
+          }
+        });
+      }
+    } else if (classification.intent === 'EVENT' || (classification.intents && classification.intents.includes('EVENT'))) {
+      const evParams = parseStructuredEventParams(cleanText, classification.extractedData);
+      if (classification.extractedData) {
+        classification.extractedData.title = evParams.title;
+        classification.extractedData.date = evParams.date;
+        classification.extractedData.time = evParams.time;
+        classification.extractedData.location = evParams.location;
+      }
+      if (classification.actions) {
+        classification.actions.forEach((act: any) => {
+          if (act.intent === 'EVENT' && act.action === 'CREATE') {
+            const actEv = parseStructuredEventParams(cleanText, act.payload);
+            act.payload = {
+              ...act.payload,
+              title: actEv.title,
+              date: actEv.date,
+              time: actEv.time,
+              location: actEv.location,
+              isTitleValid: actEv.isTitleValid,
+              isDateExplicit: actEv.isDateExplicit
+            };
           }
         });
       }
@@ -1581,16 +1651,23 @@ function generateLocalFormattedResponse(
           output += `- **Notifications:** Voice & Push Enabled\n\n`;
         } else if (res.targetModule === 'Event') {
           const d = res.data || {};
-          output += `**Event Scheduled**\n\n`;
-          output += `- **Event**: ${d.title || 'Event'}\n`;
-          output += `- **When**: ${d.date || 'Today'} at ${d.time || '09:00'}\n`;
-          if (d.location && d.location !== 'Not specified') {
-            output += `- **Location**: ${d.location}\n`;
+          if (d.title && d.date) {
+            const readableDate = formatReadableDate(d.date);
+            const readableTime = d.time && d.time !== '12:00' && d.time !== 'Not specified' ? formatReadableTime(d.time) : null;
+            output += `## 📅 Event Scheduled\n\n`;
+            output += `- **Event Name:** ${d.title}\n`;
+            output += `- **Event Date:** ${readableDate} (${d.date})\n`;
+            if (readableTime) {
+              output += `- **Time:** ${readableTime}\n`;
+            }
+            if (d.location && d.location !== 'Not specified' && d.location.trim() !== '') {
+              output += `- **Location:** ${d.location}\n`;
+            }
+            output += `\n`;
+          } else {
+            output += `${res.summary}\n\n`;
           }
-          output += `\n`;
         } else if (res.targetModule === 'StudyTracking') {
-          const d = res.data || {};
-          output += `**Study Tracking Updated**\n\n`;
           output += `${res.summary}\n\n`;
         } else if (res.targetModule === 'MemoryVault') {
           output += `**Saved to Vault Memory**\n\n`;
@@ -1628,11 +1705,21 @@ export async function chatWithNexa(
   userText: string,
   actionResults?: any[]
 ): Promise<string> {
+  const history = dbService.getMessages(conversationId).slice(-6);
+  const profile = dbService.getProfile(userId);
+
+  // Authoritative Identity & Capability Check (independent of My Items availability)
+  if (!actionResults || actionResults.length === 0) {
+    const idCheck = classifyIdentityOrCapability(userText, history);
+    if (idCheck.isMatch) {
+      return generateAuthoritativeIdentityResponse(userText, profile?.full_name, { mode: 'chat', recentHistory: history });
+    }
+  }
+
   const reminders = dbService.getReminders(userId);
   const exams = dbService.getExams(userId);
   const events = dbService.getEvents(userId);
   const memories = dbService.getMemories(userId);
-  const history = dbService.getMessages(conversationId).slice(-6);
 
   // Assemble Unified Personal Context Payload (Profile + AI Memory + My Organizer)
   const contextPayload = PersonalContextEngine.assemblePersonalContext(userId, userText);
@@ -1705,6 +1792,19 @@ export async function chatWithXenaStream(
   onChunk: (chunk: string) => void,
   actionResults?: any[]
 ): Promise<string> {
+  const history = dbService.getMessages(conversationId).slice(-6);
+  const profile = dbService.getProfile(userId);
+
+  // Authoritative Identity & Capability Check (independent of My Items availability)
+  if (!actionResults || actionResults.length === 0) {
+    const idCheck = classifyIdentityOrCapability(userText, history);
+    if (idCheck.isMatch) {
+      const idText = generateAuthoritativeIdentityResponse(userText, profile?.full_name, { mode: 'chat', recentHistory: history });
+      onChunk(idText);
+      return idText;
+    }
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   const reminders = dbService.getReminders(userId);
   const exams = dbService.getExams(userId);
@@ -1713,13 +1813,13 @@ export async function chatWithXenaStream(
 
   // When actions were executed or are pending, stream the verified formatted card directly
   if (actionResults && actionResults.length > 0) {
-    const formatted = generateLocalFormattedResponse(userText, actionResults, reminders, exams, events, memories);
+    const formatted = generateLocalFormattedResponse(userText, actionResults, reminders, exams, events, memories, userId);
     onChunk(formatted);
     return formatted;
   }
 
   if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-    const text = generateLocalFormattedResponse(userText, actionResults, reminders, exams, events, memories);
+    const text = generateLocalFormattedResponse(userText, actionResults, reminders, exams, events, memories, userId);
     // Stream local text in small clean chunks for smooth UX
     const words = text.split(' ');
     let current = '';
@@ -1731,16 +1831,12 @@ export async function chatWithXenaStream(
     return text;
   }
 
-  const history = dbService.getMessages(conversationId).slice(-6);
   const ai = getGemini();
-
-  const activeReminders = reminders.filter(r => r.active !== false).slice(0, 5);
-  const activeExams = exams.slice(0, 5);
-  const activeEvents = events.slice(0, 5);
-  const activeMemories = memories.slice(0, 5);
+  const contextPayload = PersonalContextEngine.assemblePersonalContext(userId, userText);
 
   const contextParts: string[] = [
-    `Current Date: ${new Date().toISOString().split('T')[0]}`
+    `Current Date: ${new Date().toISOString().split('T')[0]}`,
+    contextPayload.formattedSystemContext
   ];
 
   if (actionResults && actionResults.length > 0) {
@@ -1748,43 +1844,18 @@ export async function chatWithXenaStream(
     contextParts.push(`[ACTION EXECUTION RESULTS FROM DATABASE]\n${actionLogs}`);
   }
 
-  if (activeReminders.length > 0) {
-    contextParts.push(`Active Reminders:\n${activeReminders.map(r => `- ${r.title} (${r.date} ${r.time})`).join('\n')}`);
-  }
-  if (activeExams.length > 0) {
-    contextParts.push(`Tracked Exams:\n${activeExams.map(e => `- ${e.course}: Date ${e.exam_date}, Readiness ${e.progress}%`).join('\n')}`);
-  }
-  if (activeEvents.length > 0) {
-    contextParts.push(`Upcoming Events:\n${activeEvents.map(ev => `- ${ev.title} (${ev.date} ${ev.time})`).join('\n')}`);
-  }
-  if (activeMemories.length > 0) {
-    contextParts.push(`Vault Memories:\n${activeMemories.map(m => `- ${m.text}`).join('\n')}`);
-  }
   if (history.length > 0) {
     contextParts.push(`Recent History:\n${history.map(h => `${h.sender === 'user' ? 'User' : 'Xena'}: ${h.text}`).join('\n')}`);
   }
 
-  const contextPrompt = `[USER CONTEXT & DATABASE STATE]\n${contextParts.join('\n\n')}\n\n[CURRENT USER MESSAGE]\n"${userText}"`;
+  const contextPrompt = `[UNIFIED PERSONAL CONTEXT & MY ITEMS STATE]\n${contextParts.join('\n\n')}\n\n[CURRENT USER MESSAGE]\n"${userText}"`;
 
   try {
     const stream = await generateContentStreamWithFallback(ai, {
       contents: contextPrompt,
       config: {
         maxOutputTokens: 600,
-        systemInstruction: `You are Xena AI, a modern AI assistant for students and mobile users.
-
-CORE RULES:
-1. FOCUS ON THE CURRENT USER MESSAGE: Address ONLY what the user is asking right now in [CURRENT USER MESSAGE].
-2. NO INTRODUCTORY FLUFF: Never start responses with "Sure!", "Of course!", "Certainly!". Begin directly with the answer or Markdown heading.
-3. VISUAL HIERARCHY & MARKDOWN:
-   - Use Markdown headings (## or ###) for sections.
-   - Use bold text (**key terms**) for emphasis.
-   - Use bullet points (- ) or numbered lists for steps.
-   - Use Markdown tables (| Col 1 | Col 2 |) when comparing options or summarizing structured data.
-4. ACCURATE ACTION CONFIRMATIONS:
-   - If database actions were executed, confirm what was saved/updated clearly (e.g. **Reminder Created**, **Saved to Vault Memory**, **Study Tracking Updated**).
-   - If an action failed, state the failure accurately — NEVER claim success on a failed action.
-5. SELF-IDENTIFICATION: Always state "I am Xena AI" when asked identity.`
+        systemInstruction: XENA_OFFICIAL_IDENTITY.systemPromptDefinition
       }
     });
 
@@ -1798,7 +1869,7 @@ CORE RULES:
     }
 
     if (!fullText.trim()) {
-      const fallback = generateLocalFormattedResponse(userText, actionResults, reminders, exams, events, memories);
+      const fallback = generateLocalFormattedResponse(userText, actionResults, reminders, exams, events, memories, userId);
       onChunk(fallback);
       return fallback;
     }
@@ -1806,7 +1877,7 @@ CORE RULES:
     return fullText;
   } catch (error) {
     console.error("Gemini Chat Stream failed, using fallback:", error);
-    const fallback = generateLocalFormattedResponse(userText, actionResults, reminders, exams, events, memories);
+    const fallback = generateLocalFormattedResponse(userText, actionResults, reminders, exams, events, memories, userId);
     onChunk(fallback);
     return fallback;
   }
@@ -1875,9 +1946,20 @@ export function generateLocalVoiceResponse(
   tasks: any[] = [],
   userId: string = "user-1"
 ): string {
-  // 1. Action Results Summaries
+  // 0. Authoritative Identity & Capability Check (Conversational Voice Mode: 1-2 short spoken sentences)
+  if (!actionResults || actionResults.length === 0) {
+    const idCheck = classifyIdentityOrCapability(userText);
+    if (idCheck.isMatch) {
+      const profile = dbService.getProfile(userId);
+      return formatTextForNaturalSpeech(
+        generateAuthoritativeIdentityResponse(userText, profile?.full_name, { mode: 'voice' })
+      );
+    }
+  }
+
+  // 1. Action Results Summaries (for mutating actions or pending drafts; READ actions fall through to PersonalContextEngine for natural spoken details)
   if (actionResults && actionResults.length > 0) {
-    const successful = actionResults.filter(a => a.success);
+    const successful = actionResults.filter(a => a.success && a.action !== 'READ');
     if (successful.length > 0) {
       const parts: string[] = [];
       for (const res of successful) {
@@ -1890,13 +1972,16 @@ export function generateLocalVoiceResponse(
           parts.push(`Got it! I've set a reminder to ${d.title || 'complete your task'} on ${readableDate} at ${readableTime}.`);
         } else if (res.targetModule === 'Event') {
           const d = res.data || {};
-          const readableDate = d.date && d.date !== 'Not specified' ? formatReadableDate(d.date) : 'your calendar';
-          const readableTime = d.time && d.time !== 'Not specified' ? ` at ${formatReadableTime(d.time).replace(/^0(\d:)/, '$1')}` : '';
-          const locPart = d.location && d.location !== 'Not specified' ? ` at ${d.location}` : '';
-          parts.push(`All set! I've scheduled "${d.title || 'your event'}" for ${readableDate}${readableTime}${locPart}.`);
+          if (d.title && d.date) {
+            const readableDate = formatReadableDate(d.date);
+            const readableTime = d.time && d.time !== '12:00' && d.time !== 'Not specified' ? ` at ${formatReadableTime(d.time).replace(/^0(\d:)/, '$1')}` : '';
+            const locPart = d.location && d.location !== 'Not specified' ? ` in ${d.location}` : '';
+            parts.push(`All set! I've added the event "${d.title}" for ${readableDate}${readableTime}${locPart}.`);
+          } else {
+            parts.push(formatTextForNaturalSpeech(res.summary));
+          }
         } else if (res.targetModule === 'StudyTracking') {
-          const d = res.data || {};
-          parts.push(`I've updated your study tracker for ${d.course || 'your course'}.`);
+          parts.push(formatTextForNaturalSpeech(res.summary));
         } else if (res.targetModule === 'MemoryVault') {
           parts.push(`Got it, I've saved "${res.data?.content || 'that note'}" in your Vault Memory.`);
         } else if (res.targetModule === 'Planning') {
@@ -2254,6 +2339,177 @@ interface CachedTtsAudio {
 const ttsAudioCache = new Map<string, CachedTtsAudio>();
 const MAX_TTS_CACHE_SIZE = 80;
 
+// ==================== PRE-WARMED GEMINI LIVE SESSION POOL ====================
+// Eliminates the ~750ms cold WebSocket + TLS handshake delay on every spoken turn
+interface WarmLiveSessionEntry {
+  session: any;
+  voiceName: string;
+  mode: 'tts' | 'chat';
+  createdAt: number;
+  inUse: boolean;
+  onMessageHandler: ((msg: any) => void) | null;
+  onErrorHandler: ((err: any) => void) | null;
+}
+
+const warmLivePool = new Map<string, WarmLiveSessionEntry>();
+const warmConnectingPromises = new Map<string, Promise<WarmLiveSessionEntry | null>>();
+const WARM_SESSION_TTL_MS = 180 * 1000; // 3 minutes
+
+function getPoolKey(mode: 'tts' | 'chat', voiceName: string): string {
+  return `${mode}:${voiceName}`;
+}
+
+async function createWarmLiveSessionEntry(mode: 'tts' | 'chat', voiceName: string): Promise<WarmLiveSessionEntry | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') return null;
+
+  const ai = getGemini();
+  const entry: WarmLiveSessionEntry = {
+    session: null,
+    voiceName,
+    mode,
+    createdAt: Date.now(),
+    inUse: false,
+    onMessageHandler: null,
+    onErrorHandler: null
+  };
+
+  const sysInstruction = mode === 'tts'
+    ? 'You are the neural voice synthesizer for Xena AI. Speak the exact text provided by the user aloud with warm, natural human intonation, realistic pacing, and friendly clarity. Do not add, omit, or alter any words.'
+    : `You are Xena, a warm, intelligent, concise personal student companion.
+Speak naturally with realistic human intonation and fluid conversational rhythm.
+Keep spoken answers concise (1 to 3 short sentences) unless the user explicitly asks for detail.
+Answer directly without introductory fluff ("Sure!", "Of course!").
+Never use markdown symbols, bullet points, or robotic labels.
+Use the provided [CONTEXT] accurately when answering questions about the student's schedule, exams, events, reminders, or profile, and never invent personal data.`;
+
+  try {
+    const config: any = {
+      responseModalities: [Modality.AUDIO],
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: { voiceName }
+        }
+      },
+      systemInstruction: sysInstruction
+    };
+    if (mode === 'chat') {
+      config.outputAudioTranscription = {};
+    }
+
+    const session = await ai.live.connect({
+      model: 'gemini-3.8-live',
+      config,
+      callbacks: {
+        onmessage: (msg: any) => {
+          if (entry.onMessageHandler) {
+            entry.onMessageHandler(msg);
+          }
+        },
+        onerror: (err: any) => {
+          const key = getPoolKey(mode, voiceName);
+          if (warmLivePool.get(key) === entry) {
+            warmLivePool.delete(key);
+          }
+          if (entry.onErrorHandler) {
+            entry.onErrorHandler(err);
+          }
+        },
+        onclose: () => {
+          const key = getPoolKey(mode, voiceName);
+          if (warmLivePool.get(key) === entry) {
+            warmLivePool.delete(key);
+          }
+        }
+      }
+    });
+
+    entry.session = session;
+    entry.createdAt = Date.now();
+    return entry;
+  } catch {
+    return null;
+  }
+}
+
+export function prewarmGeminiLiveSessions(voicePref?: string): void {
+  const voiceName = resolveGeminiVoiceName(voicePref);
+  for (const mode of ['tts', 'chat'] as const) {
+    const key = getPoolKey(mode, voiceName);
+    const existing = warmLivePool.get(key);
+    if (existing && !existing.inUse && Date.now() - existing.createdAt < WARM_SESSION_TTL_MS) {
+      continue;
+    }
+    if (warmConnectingPromises.has(key)) continue;
+
+    const p = createWarmLiveSessionEntry(mode, voiceName)
+      .then((entry) => {
+        warmConnectingPromises.delete(key);
+        if (entry) {
+          warmLivePool.set(key, entry);
+        }
+        return entry;
+      })
+      .catch(() => {
+        warmConnectingPromises.delete(key);
+        return null;
+      });
+    warmConnectingPromises.set(key, p);
+  }
+}
+
+async function acquireLiveSession(mode: 'tts' | 'chat', voiceName: string): Promise<WarmLiveSessionEntry | null> {
+  const key = getPoolKey(mode, voiceName);
+  const existing = warmLivePool.get(key);
+
+  if (existing && !existing.inUse && Date.now() - existing.createdAt < WARM_SESSION_TTL_MS && existing.session) {
+    warmLivePool.delete(key);
+    existing.inUse = true;
+    // Immediately pre-warm replacement in background for subsequent turns
+    setImmediate(() => prewarmGeminiLiveSessions(voiceName));
+    return existing;
+  }
+
+  const inflight = warmConnectingPromises.get(key);
+  if (inflight) {
+    warmConnectingPromises.delete(key);
+    const awaited = await inflight;
+    if (awaited && !awaited.inUse && awaited.session) {
+      warmLivePool.delete(key);
+      awaited.inUse = true;
+      setImmediate(() => prewarmGeminiLiveSessions(voiceName));
+      return awaited;
+    }
+  }
+
+  // Cold fallback connect + background prewarm for next turn
+  const fresh = await createWarmLiveSessionEntry(mode, voiceName);
+  if (fresh) {
+    fresh.inUse = true;
+    setImmediate(() => prewarmGeminiLiveSessions(voiceName));
+  }
+  return fresh;
+}
+
+function releaseOrCloseLiveSession(entry: WarmLiveSessionEntry | null, reusable: boolean): void {
+  if (!entry) return;
+  entry.onMessageHandler = null;
+  entry.onErrorHandler = null;
+  entry.inUse = false;
+
+  const key = getPoolKey(entry.mode, entry.voiceName);
+  if (reusable && entry.session && Date.now() - entry.createdAt < WARM_SESSION_TTL_MS && !warmLivePool.has(key)) {
+    warmLivePool.set(key, entry);
+  } else {
+    try { entry.session?.close(); } catch {}
+  }
+}
+
+// Pre-warm default Aoede sessions shortly after server module load
+setTimeout(() => {
+  try { prewarmGeminiLiveSessions('Aoede'); } catch {}
+}, 300);
+
 /**
  * Helper to wrap raw 16-bit 24kHz mono little-endian PCM bytes in a standard 44-byte RIFF WAV header
  */
@@ -2350,68 +2606,77 @@ export async function synthesizeSpeechWithGemini(
 export async function streamSpeechWithGemini(
   rawText: string,
   onPcmChunk: (base64Pcm: string) => void,
-  options?: { voiceName?: string; style?: string }
+  options?: { voiceName?: string; style?: string; signal?: AbortSignal }
 ): Promise<{ spokenText: string; voiceName: string; chunksSent: number }> {
   const spokenText = formatTextForNaturalSpeech(rawText);
   const voiceName = resolveGeminiVoiceName(options?.voiceName);
 
-  if (!spokenText) {
+  if (!spokenText || options?.signal?.aborted) {
     return { spokenText: '', voiceName, chunksSent: 0 };
   }
 
-  const ai = getGemini();
   let chunksSent = 0;
 
   try {
     await new Promise<void>(async (resolve, reject) => {
       let settled = false;
-      const timeoutId = setTimeout(() => {
+      let sessionEntry: WarmLiveSessionEntry | null = null;
+      let turnCompletedCleanly = false;
+
+      const finish = () => {
         if (!settled) {
           settled = true;
+          releaseOrCloseLiveSession(sessionEntry, turnCompletedCleanly && !options?.signal?.aborted);
           resolve();
         }
-      }, 9000);
+      };
+
+      const timeoutId = setTimeout(finish, 7500);
+
+      if (options?.signal) {
+        options.signal.addEventListener('abort', () => {
+          clearTimeout(timeoutId);
+          finish();
+        }, { once: true });
+      }
 
       try {
-        const session = await ai.live.connect({
-          model: 'gemini-3.8-live',
-          config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: { voiceName }
-              }
-            },
-            systemInstruction:
-              'You are the neural voice synthesizer for Xena AI. Speak the exact text provided by the user aloud with warm, natural human intonation, realistic pacing, and friendly clarity. Do not add, omit, or alter any words.'
-          },
-          callbacks: {
-            onmessage: (message: any) => {
-              const data = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+        sessionEntry = await acquireLiveSession('tts', voiceName);
+        if (!sessionEntry || !sessionEntry.session || options?.signal?.aborted) {
+          clearTimeout(timeoutId);
+          finish();
+          return;
+        }
+
+        sessionEntry.onMessageHandler = (message: any) => {
+          if (settled || options?.signal?.aborted) return;
+          const parts = message.serverContent?.modelTurn?.parts;
+          if (parts && Array.isArray(parts)) {
+            for (const part of parts) {
+              const data = part?.inlineData?.data;
               if (data) {
                 chunksSent++;
                 onPcmChunk(data);
               }
-              if (message.serverContent?.turnComplete) {
-                clearTimeout(timeoutId);
-                if (!settled) {
-                  settled = true;
-                  try { session.close(); } catch {}
-                  resolve();
-                }
-              }
-            },
-            onerror: (err: any) => {
-              clearTimeout(timeoutId);
-              if (!settled) {
-                settled = true;
-                reject(err);
-              }
             }
           }
-        });
+          if (message.serverContent?.turnComplete) {
+            turnCompletedCleanly = true;
+            clearTimeout(timeoutId);
+            finish();
+          }
+        };
 
-        session.sendClientContent({
+        sessionEntry.onErrorHandler = (err: any) => {
+          clearTimeout(timeoutId);
+          if (!settled) {
+            settled = true;
+            releaseOrCloseLiveSession(sessionEntry, false);
+            reject(err);
+          }
+        };
+
+        sessionEntry.session.sendClientContent({
           turns: [{ role: 'user', parts: [{ text: `Read this aloud verbatim: ${spokenText}` }] }],
           turnComplete: true
         });
@@ -2419,6 +2684,7 @@ export async function streamSpeechWithGemini(
         clearTimeout(timeoutId);
         if (!settled) {
           settled = true;
+          releaseOrCloseLiveSession(sessionEntry, false);
           reject(connectErr);
         }
       }
@@ -2432,7 +2698,7 @@ export async function streamSpeechWithGemini(
 
 /**
  * Real-Time Gemini Live (gemini-3.8-live) Conversational Audio + Transcript Turn Streamer
- * Connects to Gemini Live API for ultra-natural native human voice & intonation, grounded in Xena's database state.
+ * Uses pre-warmed Gemini Live sessions and fast local grounding for sub-second response startup.
  */
 export async function streamGeminiLiveTurn(
   userId: string,
@@ -2443,14 +2709,59 @@ export async function streamGeminiLiveTurn(
   callbacks: {
     onTranscriptDelta?: (delta: string) => void;
     onAudioChunk?: (base64Pcm: string) => void;
+    signal?: AbortSignal;
   }
 ): Promise<string> {
   const voiceName = resolveGeminiVoiceName(voicePref);
   const profile = dbService.getProfile(userId);
   const userName = profile?.full_name ? profile.full_name.split(' ')[0] : 'there';
 
-  // If deterministic actions were executed or a fast deterministic response applies,
-  // we can either let Gemini Live speak the grounded confirmation or stream it via Gemini 3.8 TTS
+  if (callbacks.signal?.aborted) {
+    return '';
+  }
+
+  // 1. Fast Path A: Authoritative Identity/Capability Inquiry FIRST, then Simple Greeting (<5ms text + immediate warm neural audio)
+  const recentHistory = dbService.getMessages(conversationId).slice(-4);
+  const identityCheck = classifyIdentityOrCapability(userText, recentHistory);
+  if ((!actionResults || actionResults.length === 0) && identityCheck.isMatch) {
+    const idReply = formatTextForNaturalSpeech(
+      generateAuthoritativeIdentityResponse(userText, profile?.full_name, { mode: 'voice', recentHistory })
+    );
+    if (callbacks.onTranscriptDelta && !callbacks.signal?.aborted) {
+      callbacks.onTranscriptDelta(idReply);
+    }
+    if (callbacks.onAudioChunk && !callbacks.signal?.aborted) {
+      await streamSpeechWithGemini(idReply, callbacks.onAudioChunk, { voiceName, signal: callbacks.signal });
+    }
+    return idReply;
+  }
+
+  if ((!actionResults || actionResults.length === 0) && isSimpleGreeting(userText)) {
+    const fastGreeting = generateConversationalResponse(userText, profile?.full_name);
+    if (callbacks.onTranscriptDelta && !callbacks.signal?.aborted) {
+      callbacks.onTranscriptDelta(fastGreeting);
+    }
+    if (callbacks.onAudioChunk && !callbacks.signal?.aborted) {
+      await streamSpeechWithGemini(fastGreeting, callbacks.onAudioChunk, { voiceName, signal: callbacks.signal });
+    }
+    return fastGreeting;
+  }
+
+  // 2. Fast Path B: Current Clock Time / Today's Date Direct Answer (<5ms text + immediate warm neural audio)
+  const lowerTrim = userText.toLowerCase().trim();
+  if (/^(what\s+time\s+is\s+it|what's\s+the\s+time|tell\s+me\s+the\s+time|current\s+time|what\s+is\s+the\s+time)\b/i.test(lowerTrim)) {
+    const nowTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const timeReply = `It is currently ${nowTime}.`;
+    if (callbacks.onTranscriptDelta && !callbacks.signal?.aborted) {
+      callbacks.onTranscriptDelta(timeReply);
+    }
+    if (callbacks.onAudioChunk && !callbacks.signal?.aborted) {
+      await streamSpeechWithGemini(timeReply, callbacks.onAudioChunk, { voiceName, signal: callbacks.signal });
+    }
+    return timeReply;
+  }
+
+  // 3. Fast Path C: Action Confirmations (Reminders, Events, Study Tracking, Planning, Vault)
   if (actionResults && actionResults.length > 0) {
     const reminders = dbService.getReminders(userId);
     const exams = dbService.getExams(userId);
@@ -2460,100 +2771,131 @@ export async function streamGeminiLiveTurn(
     const spokenConfirmation = generateLocalVoiceResponse(userText, actionResults, reminders, exams, events, memories, tasks, userId);
 
     if (spokenConfirmation) {
-      if (callbacks.onTranscriptDelta) {
+      if (callbacks.onTranscriptDelta && !callbacks.signal?.aborted) {
         callbacks.onTranscriptDelta(spokenConfirmation);
       }
-      if (callbacks.onAudioChunk) {
-        await streamSpeechWithGemini(spokenConfirmation, callbacks.onAudioChunk, { voiceName });
+      if (callbacks.onAudioChunk && !callbacks.signal?.aborted) {
+        await streamSpeechWithGemini(spokenConfirmation, callbacks.onAudioChunk, { voiceName, signal: callbacks.signal });
       }
       return spokenConfirmation;
     }
   }
 
-  const ai = getGemini();
+  // 4. Assemble Personal Context (My Items, Profile, Vault, Recent History)
   const contextPayload = PersonalContextEngine.assemblePersonalContext(userId, userText);
-  const history = dbService.getMessages(conversationId).slice(-6);
 
+  // Fast Path D: If this is a direct My Items / Profile / Relationship / Saved Fact lookup where PersonalContextEngine
+  // has a deterministic, grounded answer (e.g. "What is my next exam?", "Do I have an event tomorrow?", "What reminders do I have?"),
+  // emit the grounded transcript immediately and stream via warm neural TTS!
+  if (contextPayload.requestCategory !== 'GENERAL') {
+    const grounded = PersonalContextEngine.generateGroundedLocalResponse(userText, contextPayload);
+    if (grounded && !grounded.includes("I'm here to help you stay organized")) {
+      const cleanGrounded = formatTextForNaturalSpeech(grounded);
+      if (callbacks.onTranscriptDelta && !callbacks.signal?.aborted) {
+        callbacks.onTranscriptDelta(cleanGrounded);
+      }
+      if (callbacks.onAudioChunk && !callbacks.signal?.aborted) {
+        await streamSpeechWithGemini(cleanGrounded, callbacks.onAudioChunk, { voiceName, signal: callbacks.signal });
+      }
+      return cleanGrounded;
+    }
+  }
+
+  // 5. Pre-Warmed Native Gemini Live Conversational Turn (for open-ended conversation, jokes, explanations, advice)
+  const history = dbService.getMessages(conversationId).slice(-4);
   const historyContext = history.length > 0
-    ? `\nRecent Conversation:\n${history.map(h => `${h.sender === 'user' ? 'User' : 'Xena'}: ${h.text}`).join('\n')}`
+    ? `\n[Recent Conversation]\n${history.map(h => `${h.sender === 'user' ? 'User' : 'Xena'}: ${h.text}`).join('\n')}`
     : '';
 
-  const liveSystemInstruction = `You are Xena, a warm, intelligent, human-like personal student companion speaking directly to ${userName}.
-Speak naturally with realistic intonation, fluid sentence rhythm, and warm conversational transitions.
-Keep your spoken response concise (1 to 3 natural sentences) unless the user asks for a detailed explanation.
-Never use markdown symbols, bullet points, or robotic labels.
-Current Date: ${new Date().toISOString().split('T')[0]}.
-${contextPayload.formattedSystemContext}${historyContext}`;
+  const turnPromptWithContext = `[Student Name: ${userName} | Date: ${new Date().toISOString().split('T')[0]}]\n${contextPayload.formattedSystemContext}${historyContext}\n\n[User Spoken Utterance — Reply in 1 to 3 concise, natural spoken sentences with no markdown]:\n${userText}`;
+
+  let fullTranscript = '';
+  let audioChunksCount = 0;
 
   try {
-    let fullTranscript = '';
-    let audioChunksCount = 0;
-
     await new Promise<void>(async (resolve, reject) => {
       let settled = false;
+      let sessionEntry: WarmLiveSessionEntry | null = null;
+      let turnCompletedCleanly = false;
+
+      const finish = () => {
+        if (!settled) {
+          settled = true;
+          releaseOrCloseLiveSession(sessionEntry, turnCompletedCleanly && !callbacks.signal?.aborted);
+          resolve();
+        }
+      };
+
       const timeoutId = setTimeout(() => {
         if (!settled) {
           settled = true;
+          releaseOrCloseLiveSession(sessionEntry, false);
           reject(new Error('Gemini Live turn timeout'));
         }
-      }, 12000);
+      }, 8000);
+
+      if (callbacks.signal) {
+        callbacks.signal.addEventListener('abort', () => {
+          clearTimeout(timeoutId);
+          finish();
+        }, { once: true });
+      }
 
       try {
-        const session = await ai.live.connect({
-          model: 'gemini-3.8-live',
-          config: {
-            responseModalities: [Modality.AUDIO],
-            outputAudioTranscription: {},
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: { voiceName }
-              }
-            },
-            systemInstruction: liveSystemInstruction
-          },
-          callbacks: {
-            onmessage: (message: any) => {
-              const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-              if (audio && callbacks.onAudioChunk) {
+        sessionEntry = await acquireLiveSession('chat', voiceName);
+        if (!sessionEntry || !sessionEntry.session || callbacks.signal?.aborted) {
+          clearTimeout(timeoutId);
+          finish();
+          return;
+        }
+
+        sessionEntry.onMessageHandler = (message: any) => {
+          if (settled || callbacks.signal?.aborted) return;
+
+          const parts = message.serverContent?.modelTurn?.parts;
+          if (parts && Array.isArray(parts) && callbacks.onAudioChunk) {
+            for (const part of parts) {
+              const audio = part?.inlineData?.data;
+              if (audio) {
                 audioChunksCount++;
                 callbacks.onAudioChunk(audio);
               }
-
-              const transcriptDelta = message.serverContent?.outputTranscription?.text;
-              if (transcriptDelta) {
-                fullTranscript += transcriptDelta;
-                if (callbacks.onTranscriptDelta) {
-                  callbacks.onTranscriptDelta(transcriptDelta);
-                }
-              }
-
-              if (message.serverContent?.turnComplete) {
-                clearTimeout(timeoutId);
-                if (!settled) {
-                  settled = true;
-                  try { session.close(); } catch (e) {}
-                  resolve();
-                }
-              }
-            },
-            onerror: (err: any) => {
-              clearTimeout(timeoutId);
-              if (!settled) {
-                settled = true;
-                reject(err);
-              }
             }
           }
-        });
 
-        session.sendClientContent({
-          turns: [{ role: 'user', parts: [{ text: userText }] }],
+          const transcriptDelta = message.serverContent?.outputTranscription?.text;
+          if (transcriptDelta) {
+            fullTranscript += transcriptDelta;
+            if (callbacks.onTranscriptDelta) {
+              callbacks.onTranscriptDelta(transcriptDelta);
+            }
+          }
+
+          if (message.serverContent?.turnComplete) {
+            turnCompletedCleanly = true;
+            clearTimeout(timeoutId);
+            finish();
+          }
+        };
+
+        sessionEntry.onErrorHandler = (err: any) => {
+          clearTimeout(timeoutId);
+          if (!settled) {
+            settled = true;
+            releaseOrCloseLiveSession(sessionEntry, false);
+            reject(err);
+          }
+        };
+
+        sessionEntry.session.sendClientContent({
+          turns: [{ role: 'user', parts: [{ text: turnPromptWithContext }] }],
           turnComplete: true
         });
       } catch (connectErr) {
         clearTimeout(timeoutId);
         if (!settled) {
           settled = true;
+          releaseOrCloseLiveSession(sessionEntry, false);
           reject(connectErr);
         }
       }
@@ -2564,17 +2906,25 @@ ${contextPayload.formattedSystemContext}${historyContext}`;
       return cleanTranscript || 'I am here and listening. How else can I help?';
     }
   } catch (liveErr: any) {
+    if (callbacks.signal?.aborted) return '';
+    // CRITICAL DUPLICATE PREVENTION: If partial audio or transcript was already emitted on the stream,
+    // do NOT run the fallback generator a second time!
+    if (audioChunksCount > 0 || fullTranscript.trim().length > 0) {
+      return fullTranscript.trim();
+    }
     console.warn('[GEMINI_LIVE_FALLBACK] Falling back to chatWithXenaLive + Neural TTS stream:', liveErr?.message);
   }
 
-  // Fallback: generate text via chatWithXenaLive and stream audio via gemini-3.8-flash-lite-tts
+  if (callbacks.signal?.aborted) return '';
+
+  // Fallback only if zero audio/transcript was emitted above
   const fallbackReply = await chatWithXenaLive(userId, conversationId, userText, actionResults);
   const cleanReply = formatTextForNaturalSpeech(fallbackReply);
-  if (callbacks.onTranscriptDelta) {
+  if (callbacks.onTranscriptDelta && !callbacks.signal?.aborted) {
     callbacks.onTranscriptDelta(cleanReply);
   }
-  if (callbacks.onAudioChunk) {
-    await streamSpeechWithGemini(cleanReply, callbacks.onAudioChunk, { voiceName });
+  if (callbacks.onAudioChunk && !callbacks.signal?.aborted) {
+    await streamSpeechWithGemini(cleanReply, callbacks.onAudioChunk, { voiceName, signal: callbacks.signal });
   }
   return cleanReply;
 }
