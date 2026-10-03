@@ -1,5 +1,6 @@
 import { ProfileManager } from './ProfileManager.js';
 import { getApiUrl } from '../config/api.js';
+import { formatTextForNaturalSpeech, getBestHumanVoice, detectLanguage } from '../utils/voiceUtils.js';
 
 function logTelemetry(event: string, details?: any) {
   const now = Date.now();
@@ -12,6 +13,14 @@ export interface VoiceRecordingCallbacks {
   onResult?: (transcript: string, isFinal: boolean) => void;
   onError?: (errorMessage: string) => void;
   onEnd?: (finalTranscript: string, speechDetected: boolean) => void;
+  autoStopOnSilence?: boolean;
+  silenceTimeoutMs?: number;
+}
+
+export interface SpeakOptions {
+  voiceName?: string;
+  rate?: number;
+  style?: string;
 }
 
 export class SpeechService {
@@ -38,6 +47,34 @@ export class SpeechService {
   private static peakVolume: number = 0;
   private static callbacks: VoiceRecordingCallbacks | null = null;
   private static profileName: string | null = null;
+  private static lastSpeechActivityTime: number = 0;
+  private static hasSpokenInSession: boolean = false;
+
+  // Neural TTS & 24kHz PCM Stream Playback state
+  private static activeTtsAbortController: AbortController | null = null;
+  private static activeAudioElement: HTMLAudioElement | null = null;
+  private static pcmAudioContext: AudioContext | null = null;
+  private static nextPcmStartTime: number = 0;
+  private static activePcmNodes: Set<AudioBufferSourceNode> = new Set();
+  private static clientTtsCache: Map<string, string> = new Map();
+  private static preferredVoiceName: string = 'Aoede';
+
+  static setPreferredVoice(voiceName: string): void {
+    if (voiceName && voiceName.trim()) {
+      this.preferredVoiceName = voiceName.trim();
+      try {
+        localStorage.setItem('xena_preferred_voice', this.preferredVoiceName);
+      } catch (e) {}
+    }
+  }
+
+  static getPreferredVoice(): string {
+    try {
+      const saved = localStorage.getItem('xena_preferred_voice');
+      if (saved) return saved;
+    } catch (e) {}
+    return this.preferredVoiceName || 'Aoede';
+  }
 
   /**
    * Check if voice recording or speech recognition is supported in current browser
@@ -72,6 +109,8 @@ export class SpeechService {
     this.audioChunks = [];
     this.peakVolume = 0;
     this.isListening = true;
+    this.lastSpeechActivityTime = Date.now();
+    this.hasSpokenInSession = false;
 
     // Load active profile name for contextual proper-name recognition
     try {
@@ -162,6 +201,23 @@ export class SpeechService {
               this.peakVolume = level;
             }
 
+            // Voice Activity Detection (VAD) for hands-free silence auto-stop
+            if (level >= 18) {
+              this.lastSpeechActivityTime = Date.now();
+              if (level >= 24) {
+                this.hasSpokenInSession = true;
+              }
+            } else if (
+              this.callbacks?.autoStopOnSilence &&
+              this.hasSpokenInSession &&
+              Date.now() - this.sessionStartTime > 1200 &&
+              Date.now() - this.lastSpeechActivityTime > (this.callbacks.silenceTimeoutMs || 1500)
+            ) {
+              console.log('[VOICE_VAD] End-of-turn silence detected, auto-finalizing recording.');
+              this.stopRecording();
+              return;
+            }
+
             if (this.callbacks?.onAudioLevel) {
               this.callbacks.onAudioLevel(level, Array.from(dataArray));
             }
@@ -213,6 +269,11 @@ export class SpeechService {
             this.currentSessionFinal,
             this.currentSessionInterim
           ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+
+          if (currentDisplay.length > 0) {
+            this.hasSpokenInSession = true;
+            this.lastSpeechActivityTime = Date.now();
+          }
 
           if (this.callbacks?.onResult && currentSessionId === this.activeSessionId) {
             this.callbacks.onResult(currentDisplay, false);
@@ -640,13 +701,111 @@ export class SpeechService {
   }
 
   /**
-   * Text To Speech (Read Aloud)
+   * Initialize a 24kHz gapless PCM playback stream (for Gemini Live & Streaming Neural TTS)
+   */
+  static startPcmStream(): void {
+    this.stopSpeaking();
+    const AudioCtxClass = typeof window !== 'undefined' ? (window.AudioContext || (window as any).webkitAudioContext) : null;
+    if (!AudioCtxClass) return;
+
+    if (!this.pcmAudioContext || this.pcmAudioContext.state === 'closed') {
+      this.pcmAudioContext = new AudioCtxClass({ sampleRate: 24000 });
+    }
+    if (this.pcmAudioContext.state === 'suspended') {
+      this.pcmAudioContext.resume().catch(() => {});
+    }
+    this.nextPcmStartTime = this.pcmAudioContext.currentTime + 0.02;
+  }
+
+  /**
+   * Enqueue a raw 16-bit signed little-endian PCM chunk (24kHz mono) for gapless playback
+   */
+  static enqueuePcmChunk(base64Pcm: string, sampleRate: number = 24000, onFirstChunkStart?: () => void): void {
+    if (!base64Pcm || typeof window === 'undefined') return;
+    const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtxClass) return;
+
+    try {
+      if (!this.pcmAudioContext || this.pcmAudioContext.state === 'closed') {
+        this.pcmAudioContext = new AudioCtxClass({ sampleRate });
+        this.nextPcmStartTime = this.pcmAudioContext.currentTime + 0.02;
+      }
+      const ctx = this.pcmAudioContext;
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      const binary = atob(base64Pcm);
+      const byteLength = binary.length - (binary.length % 2);
+      if (byteLength <= 0) return;
+
+      const bytes = new Uint8Array(byteLength);
+      for (let i = 0; i < byteLength; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+
+      const int16 = new Int16Array(bytes.buffer);
+      const float32 = new Float32Array(int16.length);
+      for (let i = 0; i < int16.length; i++) {
+        float32[i] = int16[i] / 32768.0;
+      }
+
+      // Micro-fade first and last 16 samples to eliminate boundary clicks
+      const fadeSamples = Math.min(16, Math.floor(float32.length / 4));
+      for (let i = 0; i < fadeSamples; i++) {
+        const gain = i / fadeSamples;
+        float32[i] *= gain;
+        float32[float32.length - 1 - i] *= gain;
+      }
+
+      const audioBuffer = ctx.createBuffer(1, float32.length, sampleRate);
+      audioBuffer.getChannelData(0).set(float32);
+
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(ctx.destination);
+
+      const startAt = Math.max(ctx.currentTime + 0.01, this.nextPcmStartTime);
+      this.nextPcmStartTime = startAt + audioBuffer.duration;
+
+      if (this.activePcmNodes.size === 0 && onFirstChunkStart) {
+        onFirstChunkStart();
+      }
+
+      this.activePcmNodes.add(source);
+      source.onended = () => {
+        this.activePcmNodes.delete(source);
+      };
+      source.start(startAt);
+    } catch (err) {
+      console.warn('[PCM_STREAM_PLAYBACK_WARNING]', err);
+    }
+  }
+
+  /**
+   * Wait until all scheduled PCM chunks have finished playing, then invoke callback
+   */
+  static waitForPcmStreamEnd(onEnd?: () => void): void {
+    if (!this.pcmAudioContext || this.activePcmNodes.size === 0) {
+      if (onEnd) onEnd();
+      return;
+    }
+    const ctx = this.pcmAudioContext;
+    const remainingSec = Math.max(0, this.nextPcmStartTime - ctx.currentTime);
+    setTimeout(() => {
+      if (onEnd) onEnd();
+    }, Math.ceil(remainingSec * 1000) + 60);
+  }
+
+  /**
+   * Text To Speech (Gemini 3.8 Neural Voice with Browser Neural Fallback)
    */
   static speak(
     text: string,
-    callbacks?: (() => void) | { onStart?: () => void; onEnd?: () => void; onError?: (err: any) => void }
+    callbacks?: (() => void) | { onStart?: () => void; onEnd?: () => void; onError?: (err: any) => void },
+    options?: SpeakOptions
   ): void {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    if (typeof window === 'undefined') {
       if (typeof callbacks === 'function') callbacks();
       else if (callbacks?.onEnd) callbacks.onEnd();
       return;
@@ -656,63 +815,187 @@ export class SpeechService {
     const onEndCb = typeof callbacks === 'function' ? callbacks : callbacks?.onEnd;
     const onStartCb = typeof callbacks !== 'function' ? callbacks?.onStart : undefined;
 
-    try {
-      window.speechSynthesis.cancel(); // Stop ongoing speech
+    this.stopSpeaking();
 
-      const cleanText = text
-        .replace(/#+\s+/g, '')
-        .replace(/\*+/g, '')
-        .replace(/\|/g, ' ')
-        .replace(/-{3,}/g, '')
-        .replace(/\[.*?\]\(.*?\)/g, '')
-        .replace(/`{1,3}.*?`{1,3}/g, '')
-        .trim();
+    const cleanText = formatTextForNaturalSpeech(text);
+    if (!cleanText) {
+      if (onEndCb) onEndCb();
+      return;
+    }
 
-      if (!cleanText) {
-        if (onEndCb) onEndCb();
-        return;
+    const voiceName = options?.voiceName && options.voiceName !== 'default'
+      ? options.voiceName
+      : this.getPreferredVoice();
+    const playbackRate = options?.rate && options.rate > 0 ? options.rate : 1.0;
+
+    logTelemetry('tts_start', { textLength: cleanText.length, voiceName, engine: 'gemini-3.8-neural-tts' });
+
+    const playWavBase64 = (wavBase64: string, mimeType: string = 'audio/wav') => {
+      try {
+        const audio = new Audio(`data:${mimeType};base64,${wavBase64}`);
+        audio.playbackRate = playbackRate;
+        this.activeAudioElement = audio;
+
+        let started = false;
+        audio.onplay = () => {
+          if (!started) {
+            started = true;
+            const latencyMs = Date.now() - ttsStartTime;
+            logTelemetry('tts_first_audio', { latencyMs, engine: 'gemini-3.8-neural-tts' });
+            logTelemetry('playback_start', { latencyMs });
+            if (onStartCb) onStartCb();
+          }
+        };
+
+        audio.onended = () => {
+          if (this.activeAudioElement === audio) {
+            this.activeAudioElement = null;
+          }
+          logTelemetry('tts_end', { durationMs: Date.now() - ttsStartTime });
+          if (onEndCb) onEndCb();
+        };
+
+        audio.onerror = () => {
+          if (this.activeAudioElement === audio) {
+            this.activeAudioElement = null;
+          }
+          this.speakBrowserFallback(cleanText, playbackRate, voiceName, ttsStartTime, onStartCb, onEndCb);
+        };
+
+        audio.play().catch(() => {
+          this.speakBrowserFallback(cleanText, playbackRate, voiceName, ttsStartTime, onStartCb, onEndCb);
+        });
+      } catch (e) {
+        this.speakBrowserFallback(cleanText, playbackRate, voiceName, ttsStartTime, onStartCb, onEndCb);
       }
+    };
 
-      logTelemetry('tts_start', { textLength: cleanText.length });
+    const cacheKey = `${voiceName}|${cleanText}`;
+    const cachedWav = this.clientTtsCache.get(cacheKey);
+    if (cachedWav) {
+      playWavBase64(cachedWav, 'audio/wav');
+      return;
+    }
 
+    const abortController = new AbortController();
+    this.activeTtsAbortController = abortController;
+
+    fetch(getApiUrl('/api/tts/speak'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: cleanText,
+        voiceName,
+        style: options?.style
+      }),
+      signal: abortController.signal
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
+        const data = await res.json();
+        if (abortController.signal.aborted) return;
+        if (data?.audioBase64) {
+          if (this.clientTtsCache.size > 50) {
+            const firstKey = this.clientTtsCache.keys().next().value;
+            if (firstKey) this.clientTtsCache.delete(firstKey);
+          }
+          this.clientTtsCache.set(cacheKey, data.audioBase64);
+          playWavBase64(data.audioBase64, data.mimeType || 'audio/wav');
+        } else {
+          throw new Error('Empty audioBase64');
+        }
+      })
+      .catch((err: any) => {
+        if (err?.name === 'AbortError' || abortController.signal.aborted) {
+          return;
+        }
+        console.warn('[NEURAL_TTS_FALLBACK] Using enhanced browser voice:', err?.message);
+        this.speakBrowserFallback(cleanText, playbackRate, voiceName, ttsStartTime, onStartCb, onEndCb);
+      });
+  }
+
+  /**
+   * Enhanced Browser SpeechSynthesis Fallback (used only if offline or API unreachable)
+   */
+  private static speakBrowserFallback(
+    cleanText: string,
+    rate: number,
+    voiceName?: string,
+    ttsStartTime: number = Date.now(),
+    onStartCb?: () => void,
+    onEndCb?: () => void
+  ): void {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      if (onEndCb) onEndCb();
+      return;
+    }
+
+    try {
+      window.speechSynthesis.cancel();
+      const lang = detectLanguage(cleanText);
       const utterance = new SpeechSynthesisUtterance(cleanText);
-      utterance.rate = 1.0;
+      utterance.rate = rate === 1.0 ? 0.97 : rate;
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
+      utterance.lang = lang;
+
+      const bestVoice = getBestHumanVoice(lang, voiceName);
+      if (bestVoice) {
+        utterance.voice = bestVoice;
+      }
 
       let firstAudioFired = false;
-
       utterance.onstart = () => {
         if (!firstAudioFired) {
           firstAudioFired = true;
-          const ttsFirstAudioTime = Date.now();
-          logTelemetry('tts_first_audio', { latencyMs: ttsFirstAudioTime - ttsStartTime });
-          logTelemetry('playback_start', { latencyMs: ttsFirstAudioTime - ttsStartTime });
+          logTelemetry('tts_first_audio', { latencyMs: Date.now() - ttsStartTime, engine: 'browser-neural-fallback' });
         }
         if (onStartCb) onStartCb();
       };
 
       utterance.onend = () => {
-        logTelemetry('tts_end', { durationMs: Date.now() - ttsStartTime });
         if (onEndCb) onEndCb();
       };
 
-      utterance.onerror = (err) => {
-        console.warn('Text-To-Speech error:', err);
+      utterance.onerror = () => {
         if (onEndCb) onEndCb();
       };
 
       window.speechSynthesis.speak(utterance);
     } catch (e) {
-      console.error('Text-To-Speech error:', e);
       if (onEndCb) onEndCb();
     }
   }
 
   /**
-   * Stop Text To Speech
+   * Stop Text To Speech & Live Audio Stream immediately (Barge-In / Interrupt)
    */
   static stopSpeaking(): void {
+    if (this.activeTtsAbortController) {
+      try { this.activeTtsAbortController.abort(); } catch (e) {}
+      this.activeTtsAbortController = null;
+    }
+
+    if (this.activeAudioElement) {
+      try {
+        this.activeAudioElement.pause();
+        this.activeAudioElement.src = '';
+      } catch (e) {}
+      this.activeAudioElement = null;
+    }
+
+    if (this.activePcmNodes.size > 0) {
+      this.activePcmNodes.forEach((node) => {
+        try { node.stop(); } catch (e) {}
+        try { node.disconnect(); } catch (e) {}
+      });
+      this.activePcmNodes.clear();
+    }
+
+    if (this.pcmAudioContext && this.pcmAudioContext.state !== 'closed') {
+      this.nextPcmStartTime = this.pcmAudioContext.currentTime;
+    }
+
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();

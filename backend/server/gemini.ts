@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { dbService } from "./db.js";
 import { IntentClassification } from "../types/index.js";
 import { extractTimeFromText, normalizeTimeString, formatReadableDate, formatReadableTime } from "../utils/timeUtils.js";
@@ -182,7 +182,17 @@ export async function transcribeAudioWithGemini(
 
   try {
     const cleanMime = mimeType.split(';')[0] || 'audio/webm';
-    console.log(`[GEMINI_STT] Transcribing audio chunk. Mime: ${cleanMime}, Base64 length: ${audioBase64.length}`);
+    const cleanBase64 = (audioBase64 || '')
+      .replace(/^data:[^;]+;base64,/i, '')
+      .replace(/[\r\n\s]/g, '')
+      .trim();
+
+    if (!cleanBase64 || cleanBase64.length < 20) {
+      console.warn('[GEMINI_STT] Audio payload empty or too short. Skipping cloud STT.');
+      return '';
+    }
+
+    console.log(`[GEMINI_STT] Transcribing audio chunk. Mime: ${cleanMime}, Base64 length: ${cleanBase64.length}`);
 
     const contextStr = userContextTerms && userContextTerms.length > 0
       ? `Known User Entities, Course Codes & Reminders: ${userContextTerms.filter(Boolean).join(', ')}`
@@ -196,7 +206,7 @@ export async function transcribeAudioWithGemini(
             {
               inlineData: {
                 mimeType: cleanMime,
-                data: audioBase64
+                data: cleanBase64
               }
             },
             {
@@ -693,37 +703,25 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
     };
   }
 
-  // 2. Planning check
+  // 2. Planning check (Guardrail: never hijack explicit reminder requests unless user explicitly asks for a plan)
+  const hasExplicitReminderPhrase = /\b(remind\s+me|don't\s+forget\s+to\s+remind|set\s+a\s+reminder|create\s+a\s+reminder|add\s+a\s+reminder|schedule\s+a\s+reminder|rappelle-moi)\b/i.test(lower);
+  const hasExplicitPlanPhrase = /\b(create\s+my\s+plan|create\s+a\s+plan|plan\s+my\s+day|plan\s+for\s+tomorrow|plan\s+for\s+today|organize\s+my\s+day|daily\s+plan|organize\s+my\s+schedule|schedule\s+my\s+day|make\s+a\s+schedule|make\s+a\s+plan|generate\s+a\s+plan|generate\s+my\s+plan|help\s+me\s+plan|help\s+me\s+to\s+plan|plan\s+my\s+activities|create\s+a\s+schedule|organize\s+my\s+revision)\b/i.test(lower);
+
   const tempDate = resolveRelativeDate(null, cleanText);
-  const parsedConstraints = DailyScheduleEngine.parseTaskConstraints(cleanText, tempDate);
+  const parsedConstraints = hasExplicitReminderPhrase && !hasExplicitPlanPhrase
+    ? []
+    : DailyScheduleEngine.parseTaskConstraints(cleanText, tempDate);
   const isMultiTaskSchedule = parsedConstraints.length >= 2;
 
-  const isPlanningQuery = (
+  const isPlanningQuery = !hasExplicitReminderPhrase || hasExplicitPlanPhrase ? (
     isMultiTaskSchedule ||
-    lower.includes('create my plan') ||
-    lower.includes('create a plan') ||
-    lower.includes('plan my day') ||
-    lower.includes('plan for tomorrow') ||
-    lower.includes('plan for today') ||
-    lower.includes('organize my day') ||
-    lower.includes('daily plan') ||
-    lower.includes('organize my schedule') ||
-    lower.includes('schedule my day') ||
-    lower.includes('make a schedule') ||
-    lower.includes('make a plan') ||
-    lower.includes('generate a plan') ||
-    lower.includes('generate my plan') ||
-    lower.includes('help me plan') ||
-    lower.includes('help me to plan') ||
-    lower.includes('plan my activities') ||
-    lower.includes('create a schedule') ||
-    lower.includes('organize my revision') ||
+    hasExplicitPlanPhrase ||
     lower.includes('schedule everything around') ||
     (lower.includes('schedule') && lower.includes('around')) ||
     (lower.includes('plan') && (lower.includes('football') || lower.includes('dance') || lower.includes('study') || lower.includes('eat') || lower.includes('tasks') || lower.includes('activities') || lower.includes('day') || lower.includes('today') || lower.includes('tomorrow'))) ||
     (lower.includes('need to study') && lower.includes('hours')) ||
     (lower.includes('need to') && lower.includes('plan'))
-  );
+  ) : false;
 
   if (isPlanningQuery) {
     const date = resolveRelativeDate(null, cleanText);
@@ -1077,6 +1075,10 @@ export function parseRuleBasedIntent(cleanText: string): IntentClassification | 
   const isReminderQuery = (
     lower.includes('remind me') ||
     lower.includes('reminder') ||
+    lower.includes("don't forget to") ||
+    lower.includes('do not forget to') ||
+    lower.includes('rappelle-moi') ||
+    lower.includes('rappelle moi') ||
     lower.includes('i have to') ||
     lower.includes('i must') ||
     lower.includes('interview at') ||
@@ -1733,6 +1735,56 @@ CORE RULES:
 }
 
 /**
+ * Converts Markdown-formatted assistant output or structured cards into warm, natural, human-spoken prose.
+ */
+export function formatTextForNaturalSpeech(text: string): string {
+  if (!text || !text.trim()) return '';
+
+  let spoken = text.trim();
+
+  // 1. Convert structured "## Reminder Created" Markdown card into a natural human sentence
+  if (/##\s*Reminder\s+Created/i.test(spoken)) {
+    const taskMatch = spoken.match(/\*\*Task:\*\*\s*([^\n]+)/i);
+    const dateMatch = spoken.match(/\*\*Date:\*\*\s*([^\n]+)/i);
+    const timeMatch = spoken.match(/\*\*Time:\*\*\s*([^\n]+)/i);
+    const task = taskMatch ? taskMatch[1].trim() : 'your task';
+    const date = dateMatch ? dateMatch[1].trim() : 'today';
+    const time = timeMatch ? timeMatch[1].trim().replace(/^0(\d:)/, '$1') : '';
+    spoken = time
+      ? `Got it! I've set a reminder for ${task} on ${date} at ${time}.`
+      : `Got it! I've set a reminder for ${task} on ${date}.`;
+  }
+
+  // 2. Strip Markdown syntax cleanly while preserving natural sentence pauses
+  spoken = spoken
+    .replace(/^#+\s+(.+)$/gm, '$1.')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/^[•\-*]\s+/gm, '')
+    .replace(/^[✓✗]\s*/gm, '')
+    .replace(/\|/g, ', ')
+    .replace(/-{3,}/g, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/`{1,3}([^`]+)`{1,3}/g, '$1')
+    // Space out course codes (e.g., CSC305 -> C S C 305, CS-305 -> C S 305) for natural academic pronunciation
+    .replace(/\b([A-Z]{2,4})-?(\d{3})\b/g, (_, letters: string, digits: string) => `${letters.split('').join(' ')} ${digits}`)
+    // Naturalize time ranges (08:00 – 10:00 -> 8:00 to 10:00)
+    .replace(/\b0?(\d{1,2}:\d{2})\s*[–—-]\s*0?(\d{1,2}:\d{2})\b/g, '$1 to $2')
+    // Naturalize leading zero in 12-hour times (09:00 PM -> 9:00 PM)
+    .replace(/\b0(\d:\d{2}\s*(?:AM|PM|am|pm))\b/g, '$1')
+    // Naturalize shorthand durations (1h -> 1 hour, 2h -> 2 hours, 30m -> 30 minutes)
+    .replace(/\b1h\b/g, '1 hour')
+    .replace(/\b(\d+(?:\.\d+)?)h\b/g, '$1 hours')
+    .replace(/\b(\d+)m\b/g, '$1 minutes')
+    .replace(/\n+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\.\.+/g, '.')
+    .trim();
+
+  return spoken;
+}
+
+/**
  * Fast, Voice-Optimized Response Generator for Live Conversational Mode (1-3 sentences max)
  */
 export function generateLocalVoiceResponse(
@@ -1747,27 +1799,32 @@ export function generateLocalVoiceResponse(
 ): string {
   // 1. Action Results Summaries
   if (actionResults && actionResults.length > 0) {
-    const successful = actionResults.filter(a => a.success);
+    const successful = actionResults.filter(a => a.success || a.status === 'success');
     if (successful.length > 0) {
       const parts: string[] = [];
       for (const res of successful) {
-        if (res.data?.followUpText) {
-          parts.push(res.data.followUpText);
-        } else if (res.targetModule === 'Reminder') {
+        if (res.data?.pending && res.summary) {
+          parts.push(res.summary);
+        } else if (res.targetModule === 'Reminder' || res.intent === 'REMINDER') {
           const d = res.data || {};
-          parts.push(`I've set a reminder for "${d.title || 'your task'}" on ${d.date || 'today'} at ${d.time || '09:00'}.`);
+          const readableDate = formatReadableDate(d.date);
+          const readableTime = formatReadableTime(d.time).replace(/^0(\d:)/, '$1');
+          parts.push(`Got it! I've set a reminder to ${d.title || 'complete your task'} on ${readableDate} at ${readableTime}.`);
         } else if (res.targetModule === 'Event') {
           const d = res.data || {};
-          parts.push(`I've scheduled the event "${d.title || 'Event'}" for ${d.date || 'today'} at ${d.time || '09:00'}${d.location && d.location !== 'Not specified' ? ` at ${d.location}` : ''}.`);
+          const readableDate = d.date && d.date !== 'Not specified' ? formatReadableDate(d.date) : 'your calendar';
+          const readableTime = d.time && d.time !== 'Not specified' ? ` at ${formatReadableTime(d.time).replace(/^0(\d:)/, '$1')}` : '';
+          const locPart = d.location && d.location !== 'Not specified' ? ` at ${d.location}` : '';
+          parts.push(`All set! I've scheduled "${d.title || 'your event'}" for ${readableDate}${readableTime}${locPart}.`);
         } else if (res.targetModule === 'StudyTracking') {
           const d = res.data || {};
-          parts.push(`I've updated your study tracking for ${d.course || 'your course'}.`);
+          parts.push(`I've updated your study tracker for ${d.course || 'your course'}.`);
         } else if (res.targetModule === 'MemoryVault') {
-          parts.push(`I've saved "${res.data?.content || 'your note'}" to your Vault Memory.`);
+          parts.push(`Got it, I've saved "${res.data?.content || 'that note'}" in your Vault Memory.`);
         } else if (res.targetModule === 'Planning') {
-          parts.push(`I've organized your daily schedule.`);
+          parts.push(formatTextForNaturalSpeech(res.summary || `I've organized your daily schedule.`));
         } else {
-          parts.push(res.summary.replace(/^✓\s*/, ''));
+          parts.push(formatTextForNaturalSpeech(res.summary.replace(/^✓\s*/, '')));
         }
       }
       return parts.join(' ');
@@ -1778,14 +1835,7 @@ export function generateLocalVoiceResponse(
   const contextPayload = PersonalContextEngine.assemblePersonalContext(userId, userText);
   const groundedResponse = PersonalContextEngine.generateGroundedLocalResponse(userText, contextPayload);
 
-  // Clean Markdown formatting (headings, bold, tables) for concise spoken audio
-  return groundedResponse
-    .replace(/#+\s+/g, '')
-    .replace(/\*+/g, '')
-    .replace(/\|/g, ' ')
-    .replace(/-{3,}/g, '')
-    .replace(/\n\n+/g, ' ')
-    .trim();
+  return formatTextForNaturalSpeech(groundedResponse);
 }
 
 /**
@@ -2087,4 +2137,348 @@ Rules:
   }
   return defaultText;
 }
+
+// ==================== GEMINI 3.8 NEURAL TTS & GEMINI LIVE VOICE ENGINE ====================
+
+const VALID_GEMINI_VOICES = ['Aoede', 'Kore', 'Zephyr', 'Puck', 'Fenrir', 'Charon', 'Leda', 'Orus'] as const;
+
+export function resolveGeminiVoiceName(voicePref?: string): string {
+  if (!voicePref) return 'Aoede';
+  const clean = voicePref.trim();
+  const exact = VALID_GEMINI_VOICES.find(v => v.toLowerCase() === clean.toLowerCase());
+  if (exact) return exact;
+
+  const lower = clean.toLowerCase();
+  if (lower === 'male' || lower.includes('vektor') || lower.includes('daniel') || lower.includes('guy')) {
+    return 'Puck';
+  }
+  if (lower.includes('deep') || lower.includes('fenrir')) {
+    return 'Fenrir';
+  }
+  if (lower.includes('calm') || lower.includes('zephyr')) {
+    return 'Zephyr';
+  }
+  if (lower.includes('kore') || lower.includes('clear')) {
+    return 'Kore';
+  }
+  // Default warm, expressive female companion voice
+  return 'Aoede';
+}
+
+interface CachedTtsAudio {
+  audioBase64: string;
+  mimeType: string;
+  voiceName: string;
+  spokenText: string;
+  timestamp: number;
+}
+
+const ttsAudioCache = new Map<string, CachedTtsAudio>();
+const MAX_TTS_CACHE_SIZE = 80;
+
+/**
+ * Unary Gemini 3.8 Neural Text-to-Speech (returns complete 24kHz 16-bit WAV base64)
+ */
+export async function synthesizeSpeechWithGemini(
+  rawText: string,
+  options?: { voiceName?: string; style?: string }
+): Promise<{ audioBase64: string; mimeType: string; voiceName: string; spokenText: string; cached: boolean }> {
+  const spokenText = formatTextForNaturalSpeech(rawText);
+  const voiceName = resolveGeminiVoiceName(options?.voiceName);
+  const style = options?.style || 'Warm, natural, friendly, intelligent personal companion with realistic intonation and fluid conversational pacing';
+
+  if (!spokenText) {
+    throw new Error('Empty text for speech synthesis');
+  }
+
+  const cacheKey = `${voiceName}|${spokenText}`;
+  const cachedItem = ttsAudioCache.get(cacheKey);
+  if (cachedItem && Date.now() - cachedItem.timestamp < 30 * 60 * 1000) {
+    return {
+      audioBase64: cachedItem.audioBase64,
+      mimeType: cachedItem.mimeType,
+      voiceName: cachedItem.voiceName,
+      spokenText: cachedItem.spokenText,
+      cached: true
+    };
+  }
+
+  const ai = getGemini();
+  const ttsModels = ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts'];
+  let lastError: any = null;
+
+  for (const model of ttsModels) {
+    if (isModelQuarantined(model)) continue;
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: spokenText,
+                // @ts-ignore - speechMetadata is supported on Gemini 3.8 TTS models
+                speechMetadata: {
+                  style
+                }
+              }
+            ]
+          }
+        ],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName }
+            }
+          }
+        }
+      });
+
+      const inlineData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+      if (inlineData?.data) {
+        const result = {
+          audioBase64: inlineData.data,
+          mimeType: inlineData.mimeType || 'audio/wav',
+          voiceName,
+          spokenText,
+          cached: false
+        };
+
+        if (ttsAudioCache.size >= MAX_TTS_CACHE_SIZE) {
+          const oldestKey = ttsAudioCache.keys().next().value;
+          if (oldestKey) ttsAudioCache.delete(oldestKey);
+        }
+        ttsAudioCache.set(cacheKey, { ...result, timestamp: Date.now() });
+        return result;
+      }
+    } catch (err: any) {
+      lastError = err;
+      const status = err?.status || err?.code;
+      console.warn(`[GEMINI_TTS_FALLBACK] Model ${model} failed (${status || err?.message}). Trying next...`);
+      if (status === 429 || String(err?.message || '').includes('429')) {
+        quarantineModel(model, err?.message);
+      }
+    }
+  }
+
+  throw lastError || new Error('Gemini TTS synthesis failed');
+}
+
+/**
+ * Streaming Gemini 3.8 Neural TTS (yields raw 24kHz 16-bit little-endian PCM base64 chunks)
+ */
+export async function streamSpeechWithGemini(
+  rawText: string,
+  onPcmChunk: (base64Pcm: string) => void,
+  options?: { voiceName?: string; style?: string }
+): Promise<{ spokenText: string; voiceName: string; chunksSent: number }> {
+  const spokenText = formatTextForNaturalSpeech(rawText);
+  const voiceName = resolveGeminiVoiceName(options?.voiceName);
+  const style = options?.style || 'Warm, natural, friendly, intelligent personal companion with realistic intonation and fluid conversational pacing';
+
+  if (!spokenText) {
+    return { spokenText: '', voiceName, chunksSent: 0 };
+  }
+
+  const ai = getGemini();
+  const ttsModels = ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts'];
+  let chunksSent = 0;
+
+  for (const model of ttsModels) {
+    if (isModelQuarantined(model)) continue;
+    try {
+      const responseStream = await ai.models.generateContentStream({
+        model,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: spokenText,
+                // @ts-ignore
+                speechMetadata: { style }
+              }
+            ]
+          }
+        ],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName }
+            }
+          }
+        }
+      });
+
+      for await (const chunk of responseStream) {
+        const data = chunk.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (data) {
+          chunksSent++;
+          onPcmChunk(data);
+        }
+      }
+
+      if (chunksSent > 0) {
+        return { spokenText, voiceName, chunksSent };
+      }
+    } catch (err: any) {
+      console.warn(`[GEMINI_TTS_STREAM_FALLBACK] Model ${model} failed:`, err?.message);
+    }
+  }
+
+  return { spokenText, voiceName, chunksSent };
+}
+
+/**
+ * Real-Time Gemini Live (gemini-3.8-live) Conversational Audio + Transcript Turn Streamer
+ * Connects to Gemini Live API for ultra-natural native human voice & intonation, grounded in Xena's database state.
+ */
+export async function streamGeminiLiveTurn(
+  userId: string,
+  conversationId: string,
+  userText: string,
+  actionResults: any[] | undefined,
+  voicePref: string | undefined,
+  callbacks: {
+    onTranscriptDelta?: (delta: string) => void;
+    onAudioChunk?: (base64Pcm: string) => void;
+  }
+): Promise<string> {
+  const voiceName = resolveGeminiVoiceName(voicePref);
+  const profile = dbService.getProfile(userId);
+  const userName = profile?.full_name ? profile.full_name.split(' ')[0] : 'there';
+
+  // If deterministic actions were executed or a fast deterministic response applies,
+  // we can either let Gemini Live speak the grounded confirmation or stream it via Gemini 3.8 TTS
+  if (actionResults && actionResults.length > 0) {
+    const reminders = dbService.getReminders(userId);
+    const exams = dbService.getExams(userId);
+    const events = dbService.getEvents(userId);
+    const memories = dbService.getMemories(userId);
+    const tasks = dbService.getTasks(userId);
+    const spokenConfirmation = generateLocalVoiceResponse(userText, actionResults, reminders, exams, events, memories, tasks, userId);
+
+    if (spokenConfirmation) {
+      if (callbacks.onTranscriptDelta) {
+        callbacks.onTranscriptDelta(spokenConfirmation);
+      }
+      if (callbacks.onAudioChunk) {
+        await streamSpeechWithGemini(spokenConfirmation, callbacks.onAudioChunk, { voiceName });
+      }
+      return spokenConfirmation;
+    }
+  }
+
+  const ai = getGemini();
+  const contextPayload = PersonalContextEngine.assemblePersonalContext(userId, userText);
+  const history = dbService.getMessages(conversationId).slice(-6);
+
+  const historyContext = history.length > 0
+    ? `\nRecent Conversation:\n${history.map(h => `${h.sender === 'user' ? 'User' : 'Xena'}: ${h.text}`).join('\n')}`
+    : '';
+
+  const liveSystemInstruction = `You are Xena, a warm, intelligent, human-like personal student companion speaking directly to ${userName}.
+Speak naturally with realistic intonation, fluid sentence rhythm, and warm conversational transitions.
+Keep your spoken response concise (1 to 3 natural sentences) unless the user asks for a detailed explanation.
+Never use markdown symbols, bullet points, or robotic labels.
+Current Date: ${new Date().toISOString().split('T')[0]}.
+${contextPayload.formattedSystemContext}${historyContext}`;
+
+  try {
+    let fullTranscript = '';
+    let audioChunksCount = 0;
+
+    await new Promise<void>(async (resolve, reject) => {
+      let settled = false;
+      const timeoutId = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          reject(new Error('Gemini Live turn timeout'));
+        }
+      }, 12000);
+
+      try {
+        const session = await ai.live.connect({
+          model: 'gemini-3.8-live',
+          config: {
+            responseModalities: [Modality.AUDIO],
+            outputAudioTranscription: {},
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName }
+              }
+            },
+            systemInstruction: liveSystemInstruction
+          },
+          callbacks: {
+            onmessage: (message: any) => {
+              const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+              if (audio && callbacks.onAudioChunk) {
+                audioChunksCount++;
+                callbacks.onAudioChunk(audio);
+              }
+
+              const transcriptDelta = message.serverContent?.outputTranscription?.text;
+              if (transcriptDelta) {
+                fullTranscript += transcriptDelta;
+                if (callbacks.onTranscriptDelta) {
+                  callbacks.onTranscriptDelta(transcriptDelta);
+                }
+              }
+
+              if (message.serverContent?.turnComplete) {
+                clearTimeout(timeoutId);
+                if (!settled) {
+                  settled = true;
+                  try { session.close(); } catch (e) {}
+                  resolve();
+                }
+              }
+            },
+            onerror: (err: any) => {
+              clearTimeout(timeoutId);
+              if (!settled) {
+                settled = true;
+                reject(err);
+              }
+            }
+          }
+        });
+
+        session.sendClientContent({
+          turns: [{ role: 'user', parts: [{ text: userText }] }],
+          turnComplete: true
+        });
+      } catch (connectErr) {
+        clearTimeout(timeoutId);
+        if (!settled) {
+          settled = true;
+          reject(connectErr);
+        }
+      }
+    });
+
+    const cleanTranscript = fullTranscript.trim();
+    if (cleanTranscript || audioChunksCount > 0) {
+      return cleanTranscript || 'I am here and listening. How else can I help?';
+    }
+  } catch (liveErr: any) {
+    console.warn('[GEMINI_LIVE_FALLBACK] Falling back to chatWithXenaLive + Neural TTS stream:', liveErr?.message);
+  }
+
+  // Fallback: generate text via chatWithXenaLive and stream audio via gemini-3.8-flash-lite-tts
+  const fallbackReply = await chatWithXenaLive(userId, conversationId, userText, actionResults);
+  const cleanReply = formatTextForNaturalSpeech(fallbackReply);
+  if (callbacks.onTranscriptDelta) {
+    callbacks.onTranscriptDelta(cleanReply);
+  }
+  if (callbacks.onAudioChunk) {
+    await streamSpeechWithGemini(cleanReply, callbacks.onAudioChunk, { voiceName });
+  }
+  return cleanReply;
+}
+
 

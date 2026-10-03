@@ -71,7 +71,7 @@
       "user_id": "user-1",
       "title": "Main Chat Assistant",
       "created_at": "2026-10-03T03:11:00.285Z",
-      "updated_at": "2026-10-03T03:52:55.467Z"
+      "updated_at": "2026-10-03T04:31:45.047Z"
     },
     {
       "id": "conv-1790997744201-79c2qr",
@@ -107,6 +107,13 @@
       "title": "Main Chat Assistant",
       "created_at": "2026-10-03T03:38:06.982Z",
       "updated_at": "2026-10-03T03:38:06.982Z"
+    },
+    {
+      "id": "conv-1791001969666-pc1zo0",
+      "user_id": "user-1",
+      "title": "Main Chat Assistant",
+      "created_at": "2026-10-03T04:32:49.666Z",
+      "updated_at": "2026-10-03T19:05:30.169Z"
     }
   ],
   "messages": [
@@ -813,6 +820,150 @@
       "id": "msg-1790999575467-6lkbno",
       "conversation_id": "conv-1790997060285",
       "created_at": "2026-10-03T03:52:55.467Z"
+    },
+    {
+      "sender": "user",
+      "text": "Hello how are you doing I hope you're doing great.",
+      "type": "voice",
+      "id": "msg-1791001821593-lv47d8",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T04:30:21.593Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "I'm doing great, thanks for asking! How are you doing today?",
+      "type": "voice",
+      "id": "msg-1791001821598-vi6oqz",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T04:30:21.598Z"
+    },
+    {
+      "sender": "user",
+      "text": "I am doing great too can you tell me your goal in this app and how can you help me.",
+      "type": "voice",
+      "id": "msg-1791001839822-z41xt0",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T04:30:39.822Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "As **Xena AI**, here is how I can help you organize your student life:\n- **Intelligent Reminders**: Create time-sensitive alerts with exact dates, times, recurrence, and voice notifications.\n- **Calendar & Events**: Schedule exams, project deadlines, appointments, and club meetings.\n- **Study Planning**: Generate chronological daily timelines and dedicated focus blocks.\n- **Exam Tracking**: Monitor course readiness, syllabus completion, and study targets.\n- **Vault Memory**: Save and recall important personal facts, notes, and credentials.\n- **Personal Context**: Retrieve your profile, schedule, and memory facts seamlessly.\n\nHow can I help you organize your day or schedule today?",
+      "type": "voice",
+      "id": "msg-1791001839826-ibcei5",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T04:30:39.826Z"
+    },
+    {
+      "sender": "user",
+      "text": "Chucky Chucky thank you too can you remind me to study by 9:00 p.m. today.",
+      "type": "voice",
+      "id": "msg-1791001878956-jyq8dm",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T04:31:18.956Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "**Daily Plan — October 3, 2026**\n\n- Today\n\n*Note:* • **Chucky Chucky Thank You**: Could not find an available 1h block before the 09:00 deadline.",
+      "type": "voice",
+      "id": "msg-1791001879002-9zyffn",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T04:31:19.002Z"
+    },
+    {
+      "sender": "user",
+      "text": "Okay thank you very much and don't forget to remind me to study at 4:00 at 9:00 p.m. today.",
+      "type": "voice",
+      "id": "msg-1791001905032-6hapij",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T04:31:45.032Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "**Daily Plan — October 3, 2026**\n\n- Okay Thank You Very\n- Today",
+      "type": "voice",
+      "id": "msg-1791001905047-gtwlt4",
+      "conversation_id": "conv-1790997060285",
+      "created_at": "2026-10-03T04:31:45.047Z"
+    },
+    {
+      "sender": "user",
+      "text": "Hope you're doing great please I want you to remind me to study at 5:35 a.m. today to study 405.",
+      "type": "text",
+      "id": "msg-1791002007904-vw3s75",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T04:33:27.904Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "**Daily Plan — October 3, 2026**\n\n- Hope You're Doing Great\n- To Study 405",
+      "type": "text",
+      "id": "msg-1791002009293-w849w3",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T04:33:29.293Z"
+    },
+    {
+      "sender": "user",
+      "text": "hi please what is your goal in this app",
+      "type": "text",
+      "id": "msg-1791054166480-n2hzq7",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:02:46.480Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "As your **Xena AI** companion, my primary goal is to help you organize your academic life by managing your schedule, planning focus study sessions, tracking deadlines, setting voice reminders, and keeping your daily responsibilities under control.",
+      "type": "text",
+      "id": "msg-1791054166485-5g0v1m",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:02:46.485Z"
+    },
+    {
+      "sender": "user",
+      "text": "what can you do concretey?",
+      "type": "text",
+      "id": "msg-1791054187513-oykp42",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:03:07.513Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "As **Xena AI**, here is how I can help you organize your student life:\n- **Intelligent Reminders**: Create time-sensitive alerts with exact dates, times, recurrence, and voice notifications.\n- **Calendar & Events**: Schedule exams, project deadlines, appointments, and club meetings.\n- **Study Planning**: Generate chronological daily timelines and dedicated focus blocks.\n- **Exam Tracking**: Monitor course readiness, syllabus completion, and study targets.\n- **Vault Memory**: Save and recall important personal facts, notes, and credentials.\n- **Personal Context**: Retrieve your profile, schedule, and memory facts seamlessly.\n\nHow can I help you organize your day or schedule today?",
+      "type": "text",
+      "id": "msg-1791054187517-dnrfm5",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:03:07.517Z"
+    },
+    {
+      "sender": "user",
+      "text": "So please can you remind me to study chemistry at 4:00 p.m. today.",
+      "type": "text",
+      "id": "msg-1791054242341-3m3cx2",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:04:02.341Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "## Reminder Created\n\n- **Task:** Study chemistry\n- **Date:** October 3, 2026\n- **Time:** 04:00 PM\n- **Notifications:** Voice & Push Enabled",
+      "type": "text",
+      "id": "msg-1791054246502-9obdlg",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:04:06.502Z"
+    },
+    {
+      "sender": "user",
+      "text": "Please I want you to help me to plan my day I need to study for 2 hours and I need to play football by 6:00 p.m. also I need to pray by 8:00 p.m. so please generate me plan for that.",
+      "type": "voice",
+      "id": "msg-1791054330135-chmz9p",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:05:30.135Z"
+    },
+    {
+      "sender": "assistant",
+      "text": "Generated structured daily schedule for 2026-10-03 with 2 time blocks.",
+      "type": "voice",
+      "id": "msg-1791054330169-uxvs4o",
+      "conversation_id": "conv-1791001969666-pc1zo0",
+      "created_at": "2026-10-03T19:05:30.169Z"
     }
   ],
   "reminders": [
@@ -891,7 +1042,7 @@
       "voice_notification": true,
       "active": true,
       "category": "General",
-      "status": "scheduled",
+      "status": "triggered",
       "id": "rem-1790992093312",
       "user_id": "test-audit-user-1790992093310",
       "created_at": "2026-10-03T01:48:13.312Z"
@@ -906,7 +1057,7 @@
       "voice_notification": true,
       "active": true,
       "category": "General",
-      "status": "scheduled",
+      "status": "triggered",
       "id": "rem-1790992093398",
       "user_id": "test-audit-user-1790992093310",
       "created_at": "2026-10-03T01:48:13.398Z"
@@ -921,7 +1072,7 @@
       "voice_notification": true,
       "active": true,
       "category": "General",
-      "status": "scheduled",
+      "status": "triggered",
       "id": "rem-1790992122687",
       "user_id": "test-audit-user-1790992122684",
       "created_at": "2026-10-03T01:48:42.687Z"
@@ -936,7 +1087,7 @@
       "voice_notification": true,
       "active": true,
       "category": "General",
-      "status": "scheduled",
+      "status": "triggered",
       "id": "rem-1790992122717",
       "user_id": "test-audit-user-1790992122684",
       "created_at": "2026-10-03T01:48:42.717Z"
@@ -951,7 +1102,7 @@
       "voice_notification": true,
       "active": true,
       "category": "General",
-      "status": "scheduled",
+      "status": "triggered",
       "id": "rem-1790992903906",
       "user_id": "user-1",
       "created_at": "2026-10-03T02:01:43.906Z"
@@ -981,7 +1132,7 @@
       "voice_notification": true,
       "active": true,
       "category": "General",
-      "status": "scheduled",
+      "status": "triggered",
       "id": "rem-1790993141211",
       "user_id": "user-1",
       "created_at": "2026-10-03T02:05:41.211Z"
@@ -996,7 +1147,7 @@
       "voice_notification": true,
       "active": true,
       "category": "General",
-      "status": "scheduled",
+      "status": "triggered",
       "id": "rem-1790993401235",
       "user_id": "user-1",
       "created_at": "2026-10-03T02:10:01.235Z"
@@ -1011,7 +1162,7 @@
       "voice_notification": true,
       "active": true,
       "category": "General",
-      "status": "scheduled",
+      "status": "triggered",
       "id": "rem-1790993550718",
       "user_id": "user-1",
       "created_at": "2026-10-03T02:12:30.718Z"
@@ -1088,6 +1239,78 @@
       "id": "rem-1791000832531-pb4gpx",
       "user_id": "user-1",
       "created_at": "2026-10-03T04:13:52.531Z"
+    },
+    {
+      "title": "Submit Software Engineering Lab",
+      "date": "2026-10-04",
+      "time": "14:00",
+      "repeat": "none",
+      "priority": "high",
+      "voice_notification": true,
+      "active": true,
+      "id": "rem-1791002627058-sphsn2",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T04:43:47.058Z"
+    },
+    {
+      "title": "Study chemistry",
+      "description": "",
+      "date": "2026-10-03",
+      "time": "16:00",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "triggered",
+      "id": "rem-1791054242366-g83iln",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T19:04:02.366Z"
+    },
+    {
+      "title": "Read my history note",
+      "description": "",
+      "date": "2026-10-03",
+      "time": "21:00",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "scheduled",
+      "id": "rem-1791054890981-memnaz",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T19:14:50.981Z"
+    },
+    {
+      "title": "Read my history note",
+      "description": "",
+      "date": "2026-10-03",
+      "time": "21:00",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "scheduled",
+      "id": "rem-1791054942439-ktl2m3",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T19:15:42.439Z"
+    },
+    {
+      "title": "Call my academic advisor",
+      "description": "",
+      "date": "2026-10-03",
+      "time": "17:00",
+      "repeat": "none",
+      "priority": "medium",
+      "voice_notification": true,
+      "active": true,
+      "category": "General",
+      "status": "triggered",
+      "id": "rem-1791054960549-nmkhyu",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T19:16:00.549Z"
     }
   ],
   "tasks": [
@@ -1304,6 +1527,126 @@
       "id": "plan-1790999575459-zbwke9",
       "user_id": "user-1",
       "created_at": "2026-10-03T03:52:55.459Z"
+    },
+    {
+      "date": "2026-10-03",
+      "timeline": [
+        {
+          "id": "block-1-1791001878993-myu1",
+          "time": "09:00 – 10:00",
+          "title": "Today",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "09:00",
+          "endTime": "10:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        }
+      ],
+      "suggestions": "Daily plan structured around your actual tasks for 2026-10-03. High-priority focus blocks assigned chronologically.",
+      "id": "plan-1791001878994-yeixrd",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T04:31:18.994Z"
+    },
+    {
+      "date": "2026-10-03",
+      "timeline": [
+        {
+          "id": "block-1-1791001905038-2kx2",
+          "time": "04:00 – 05:00",
+          "title": "Okay Thank You Very",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "04:00",
+          "endTime": "05:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-2-1791001905039-3bow",
+          "time": "05:00 – 06:00",
+          "title": "Today",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "05:00",
+          "endTime": "06:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        }
+      ],
+      "suggestions": "Daily plan structured around your actual tasks for 2026-10-03. High-priority focus blocks assigned chronologically.",
+      "id": "plan-1791001905039-uypj67",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T04:31:45.039Z"
+    },
+    {
+      "date": "2026-10-03",
+      "timeline": [
+        {
+          "id": "block-1-1791002007934-aqrg",
+          "time": "05:35 – 06:35",
+          "title": "Hope You're Doing Great",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "05:35",
+          "endTime": "06:35",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-2-1791002007934-ub1p",
+          "time": "06:45 – 07:45",
+          "title": "To Study 405",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "06:45",
+          "endTime": "07:45",
+          "priority": "medium",
+          "reminder_enabled": true
+        }
+      ],
+      "suggestions": "Daily plan structured around your actual tasks for 2026-10-03. High-priority focus blocks assigned chronologically.",
+      "id": "plan-1791002007935-3bp69z",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T04:33:27.935Z"
+    },
+    {
+      "date": "2026-10-03",
+      "timeline": [
+        {
+          "id": "block-1-1791054330156-dc05",
+          "time": "09:00 – 10:00",
+          "title": "Play Football By Also",
+          "duration": "1h",
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "startTime": "09:00",
+          "endTime": "10:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        },
+        {
+          "id": "block-2-1791054330156-4yvt",
+          "time": "10:00 – 12:00",
+          "title": "Study",
+          "duration": "2h",
+          "durationHours": 2,
+          "durationMinutes": 120,
+          "startTime": "10:00",
+          "endTime": "12:00",
+          "priority": "medium",
+          "reminder_enabled": true
+        }
+      ],
+      "suggestions": "Daily plan structured around your actual tasks for 2026-10-03. High-priority focus blocks assigned chronologically.",
+      "id": "plan-1791054330158-bdrt7m",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T19:05:30.158Z"
     }
   ],
   "exams": [
@@ -1606,6 +1949,41 @@
       "id": "mem-1790999576730-t4t0b9",
       "user_id": "user-1",
       "created_at": "2026-10-03T03:52:56.730Z"
+    },
+    {
+      "text": "I want to study by 9:00 p.m. today.",
+      "category": "Schedule",
+      "id": "mem-1791001880342-325sxc",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T04:31:20.342Z"
+    },
+    {
+      "text": "I need a study reminder at 4:00 p.m. and 9:00 p.m. today.",
+      "category": "Schedule",
+      "id": "mem-1791001906148-ox3a2t",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T04:31:46.148Z"
+    },
+    {
+      "text": "I study at 5:35 a.m.",
+      "category": "Schedule",
+      "id": "mem-1791002009287-x89yic",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T04:33:29.287Z"
+    },
+    {
+      "text": "I study chemistry at 4:00 p.m. today.",
+      "category": "Schedule",
+      "id": "mem-1791054246495-ytyuhw",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T19:04:06.495Z"
+    },
+    {
+      "text": "I play football at 6:00 p.m. and pray at 8:00 p.m.",
+      "category": "Schedule",
+      "id": "mem-1791054334743-x615yt",
+      "user_id": "user-1",
+      "created_at": "2026-10-03T19:05:34.743Z"
     }
   ],
   "memory_vault": [
@@ -2005,6 +2383,237 @@
       "status": "completed",
       "metadata": {},
       "created_at": "2026-10-03T03:58:45.565Z"
+    },
+    {
+      "id": "act-1791001878995-tl3b6g",
+      "user_id": "user-1",
+      "type": "PLANNING",
+      "title": "Plan Initialized for 2026-10-03",
+      "description": "Generated 1 schedule time blocks",
+      "source_id": "plan-1791001878994-yeixrd",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T04:31:18.995Z"
+    },
+    {
+      "id": "act-1791001905041-3jv8h0",
+      "user_id": "user-1",
+      "type": "PLANNING",
+      "title": "Plan Initialized for 2026-10-03",
+      "description": "Generated 2 schedule time blocks",
+      "source_id": "plan-1791001905039-uypj67",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T04:31:45.041Z"
+    },
+    {
+      "id": "act-1791002007936-lf9s9b",
+      "user_id": "user-1",
+      "type": "PLANNING",
+      "title": "Plan Initialized for 2026-10-03",
+      "description": "Generated 2 schedule time blocks",
+      "source_id": "plan-1791002007935-3bp69z",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T04:33:27.936Z"
+    },
+    {
+      "id": "act-1791042699420-sicrv7",
+      "user_id": "test-audit-user-1790992093310",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Dance\"",
+      "source_id": "rem-1790992093312",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T15:51:39.420Z"
+    },
+    {
+      "id": "act-1791042699423-7mzkxi",
+      "user_id": "test-audit-user-1790992093310",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Dance\"",
+      "source_id": "rem-1790992093398",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T15:51:39.423Z"
+    },
+    {
+      "id": "act-1791042699426-mqabzi",
+      "user_id": "test-audit-user-1790992122684",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Dance\"",
+      "source_id": "rem-1790992122687",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T15:51:39.426Z"
+    },
+    {
+      "id": "act-1791042699429-0cbwc9",
+      "user_id": "test-audit-user-1790992122684",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Dance\"",
+      "source_id": "rem-1790992122717",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T15:51:39.429Z"
+    },
+    {
+      "id": "act-1791042699433-bnw5cv",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Dance\"",
+      "source_id": "rem-1790992903906",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T15:51:39.433Z"
+    },
+    {
+      "id": "act-1791042699436-rni7vi",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Dance\"",
+      "source_id": "rem-1790993141211",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T15:51:39.436Z"
+    },
+    {
+      "id": "act-1791054118241-n9t7up",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"STUDY CSC401\"",
+      "source_id": "rem-1790993550718",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:01:58.241Z"
+    },
+    {
+      "id": "act-1791054118242-lrfzhx",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered: \"STUDY CSC401\"",
+      "description": "It is time for your scheduled reminder \"STUDY CSC401\".",
+      "source_id": "rem-1790993550718",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:01:58.242Z"
+    },
+    {
+      "id": "act-1791054134222-1sf9fk",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Call my mom\"",
+      "source_id": "rem-1790993401235",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:02:14.222Z"
+    },
+    {
+      "id": "act-1791054242389-nufojv",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Study chemistry\"",
+      "description": "Scheduled for 2026-10-03 at 16:00",
+      "source_id": "rem-1791054242366-g83iln",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:04:02.389Z"
+    },
+    {
+      "id": "act-1791054244701-xuo1le",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Study chemistry\"",
+      "source_id": "rem-1791054242366-g83iln",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:04:04.701Z"
+    },
+    {
+      "id": "act-1791054279869-stpxkc",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Study chemistry\"",
+      "source_id": "rem-1791054242366-g83iln",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:04:39.869Z"
+    },
+    {
+      "id": "act-1791054292521-k1unr8",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Study chemistry\"",
+      "source_id": "rem-1791054242366-g83iln",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:04:52.521Z"
+    },
+    {
+      "id": "act-1791054330159-4x3j4s",
+      "user_id": "user-1",
+      "type": "PLANNING",
+      "title": "Plan Initialized for 2026-10-03",
+      "description": "Generated 2 schedule time blocks",
+      "source_id": "plan-1791054330158-bdrt7m",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:05:30.159Z"
+    },
+    {
+      "id": "act-1791054891001-m8hyeh",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Read my history note\"",
+      "description": "Scheduled for 2026-10-03 at 21:00",
+      "source_id": "rem-1791054890981-memnaz",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:14:51.001Z"
+    },
+    {
+      "id": "act-1791054942460-h3cxt0",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Read my history note\"",
+      "description": "Scheduled for 2026-10-03 at 21:00",
+      "source_id": "rem-1791054942439-ktl2m3",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:15:42.460Z"
+    },
+    {
+      "id": "act-1791054960567-b5y0m0",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Created: \"Call my academic advisor\"",
+      "description": "Scheduled for 2026-10-03 at 17:00",
+      "source_id": "rem-1791054960549-nmkhyu",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:16:00.567Z"
+    },
+    {
+      "id": "act-1791054961877-cww4mp",
+      "user_id": "user-1",
+      "type": "REMINDER",
+      "title": "Reminder Triggered",
+      "description": "NEXA broadcasted alert: \"Call my academic advisor\"",
+      "source_id": "rem-1791054960549-nmkhyu",
+      "status": "completed",
+      "metadata": {},
+      "created_at": "2026-10-03T19:16:01.877Z"
     }
   ],
   "smart_actions": [],

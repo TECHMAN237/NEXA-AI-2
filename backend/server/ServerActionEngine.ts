@@ -506,10 +506,11 @@ Details:        ${details || 'N/A'}
     if (!params.title || params.title.trim().length === 0) {
       missingFields.push('title');
     }
-    if (!params.isTimeExplicit && !payload?.time) {
+    const isPayloadTimeAmbiguous = payload?.time && String(payload.time).startsWith('AMBIGUOUS');
+    if (!params.isTimeExplicit && (!payload?.time || isPayloadTimeAmbiguous)) {
       missingFields.push('time');
     }
-    if (!params.isDateExplicit && !payload?.date && !params.isTimeExplicit && !payload?.time) {
+    if (!params.isDateExplicit && !payload?.date && !params.isTimeExplicit && (!payload?.time || isPayloadTimeAmbiguous)) {
       missingFields.push('date');
     }
 
@@ -537,11 +538,14 @@ Details:        ${details || 'N/A'}
       } else if (missingFields.includes('title')) {
         followUpQuestion = 'What would you like me to remind you about?';
       } else if (missingFields.includes('time')) {
-        if (params.time && params.time.startsWith('AMBIGUOUS:')) {
+        if (params.time && params.time.startsWith('AMBIGUOUS_CONFLICT:')) {
+          const conflictTimes = params.time.replace('AMBIGUOUS_CONFLICT:', '').trim();
+          followUpQuestion = `I noticed two different times mentioned (${conflictTimes}) — which time should I set your reminder to "${params.title}" for?`;
+        } else if (params.time && params.time.startsWith('AMBIGUOUS:')) {
           const ambHour = params.time.split(':')[1];
-          followUpQuestion = `Did you mean ${ambHour}:00 AM or ${ambHour}:00 PM?`;
+          followUpQuestion = `Did you mean ${ambHour}:00 AM or ${ambHour}:00 PM for your reminder to "${params.title}"?`;
         } else {
-          followUpQuestion = 'What time should I set the reminder for?';
+          followUpQuestion = `What time should I set the reminder to "${params.title}" for?`;
         }
       } else {
         followUpQuestion = 'What date should I set for this reminder?';

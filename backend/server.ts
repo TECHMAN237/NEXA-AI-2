@@ -4,7 +4,7 @@ import fs from "fs";
 import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import { dbService } from "./server/db.js";
-import { routeUserIntent, checkAndMemorize, chatWithNexa, chatWithXenaStream, chatWithXenaLive, generateAILinePlanning, reformulateReminder, transcribeAudioWithGemini, isConversationalText, isSimpleGreeting, generateConversationalResponse } from "./server/gemini.js";
+import { routeUserIntent, checkAndMemorize, chatWithNexa, chatWithXenaStream, chatWithXenaLive, generateAILinePlanning, reformulateReminder, transcribeAudioWithGemini, isConversationalText, isSimpleGreeting, generateConversationalResponse, synthesizeSpeechWithGemini, streamSpeechWithGemini, streamGeminiLiveTurn, formatTextForNaturalSpeech } from "./server/gemini.js";
 import { ServerActionEngine } from "./server/ServerActionEngine.js";
 import { normalizeUserInput } from "./server/contextualNormalizer.js";
 import { normalizeTimeString, extractTimeFromText } from "./utils/timeUtils.js";
@@ -89,6 +89,57 @@ async function startServer() {
     } catch (err: any) {
       console.error("STT endpoint error:", err);
       res.status(500).json({ error: err.message || "STT failed" });
+    }
+  });
+
+  // ==================== GEMINI 3.8 NEURAL TTS & VOICE API ====================
+  app.post("/api/tts/speak", async (req, res) => {
+    const { text, voiceName, style } = req.body || {};
+    if (!text || typeof text !== "string" || !text.trim()) {
+      return res.status(400).json({ error: "Text is required for TTS" });
+    }
+
+    try {
+      const profile = currentUserId ? dbService.getProfile(currentUserId) : null;
+      const preferredVoice = voiceName || (profile as any)?.voice_gender || "Aoede";
+      const result = await synthesizeSpeechWithGemini(text, { voiceName: preferredVoice, style });
+      res.json(result);
+    } catch (err: any) {
+      console.warn("[TTS_SPEAK_FALLBACK]", err?.message);
+      res.status(503).json({
+        error: err?.message || "Neural TTS unavailable",
+        spokenText: formatTextForNaturalSpeech(text)
+      });
+    }
+  });
+
+  app.post("/api/tts/stream", async (req, res) => {
+    const { text, voiceName, style } = req.body || {};
+    if (!text || typeof text !== "string" || !text.trim()) {
+      return res.status(400).json({ error: "Text is required for streaming TTS" });
+    }
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    if (res.flushHeaders) res.flushHeaders();
+
+    try {
+      const profile = currentUserId ? dbService.getProfile(currentUserId) : null;
+      const preferredVoice = voiceName || (profile as any)?.voice_gender || "Aoede";
+      const result = await streamSpeechWithGemini(
+        text,
+        (pcmBase64) => {
+          res.write(`data: ${JSON.stringify({ type: "audio", pcmBase64, sampleRate: 24000 })}\n\n`);
+        },
+        { voiceName: preferredVoice, style }
+      );
+      res.write(`data: ${JSON.stringify({ type: "done", ...result })}\n\n`);
+      res.end();
+    } catch (err: any) {
+      res.write(`data: ${JSON.stringify({ type: "error", error: err?.message || "TTS stream failed" })}\n\n`);
+      res.end();
     }
   });
 
@@ -852,11 +903,139 @@ async function startServer() {
       intent: intentClassification,
       actionResults,
       replyText: assistantReply.trim(),
+      spokenReplyText: formatTextForNaturalSpeech(assistantReply.trim()),
       timings: {
         totalMs: totalDurationMs,
         aiMs: aiEndTime - aiStartTime
       }
     });
+  });
+
+  // ==================== GEMINI LIVE REAL-TIME AUDIO + ACTION STREAM ENDPOINT ====================
+  app.post("/api/chat/live/stream", async (req, res) => {
+    if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
+    const { text, voiceName } = req.body || {};
+
+    if (!text || typeof text !== "string" || !text.trim()) {
+      return res.status(400).json({ error: "Message text is required" });
+    }
+
+    const normalized = normalizeUserInput(text);
+    const cleanedText = normalized.finalTranscript;
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    if (res.flushHeaders) res.flushHeaders();
+    res.write(": ping\n\n");
+
+    const conversation = dbService.getOrCreateConversation(currentUserId);
+    const userMsg = dbService.createMessage(conversation.id, {
+      sender: "user",
+      text: cleanedText,
+      type: "voice"
+    });
+
+    try {
+      // 1. Check Pending Action Draft resolution first
+      const pendingResult = await ServerActionEngine.resolvePendingDraft(currentUserId, cleanedText);
+      if (pendingResult) {
+        let spokenReply = formatTextForNaturalSpeech(pendingResult.summary);
+        if (pendingResult.data?.title && pendingResult.data?.date && pendingResult.data?.time && !pendingResult.data?.pending) {
+          const todayStr = new Date().toISOString().split("T")[0];
+          const dateWord = pendingResult.data.date === todayStr ? "today" : `on ${pendingResult.data.date}`;
+          spokenReply = `All set! I'll remind you ${dateWord} at ${pendingResult.data.time} to ${pendingResult.data.title}.`;
+        }
+
+        const assistantMsg = dbService.createMessage(conversation.id, {
+          sender: "assistant",
+          text: pendingResult.summary,
+          type: "voice"
+        });
+
+        res.write(`data: ${JSON.stringify({ type: "transcript", delta: spokenReply, fullText: pendingResult.summary, actionResults: [pendingResult] })}\n\n`);
+        await streamSpeechWithGemini(
+          spokenReply,
+          (pcmBase64) => {
+            res.write(`data: ${JSON.stringify({ type: "audio", pcmBase64, sampleRate: 24000 })}\n\n`);
+          },
+          { voiceName }
+        );
+        res.write(`data: ${JSON.stringify({ type: "done", replyText: pendingResult.summary, spokenReplyText: spokenReply, assistantMessage: assistantMsg, actionResults: [pendingResult] })}\n\n`);
+        res.end();
+        return;
+      }
+
+      // 2. Execute Intent Routing & Database Actions
+      const reminders = dbService.getReminders(currentUserId);
+      const lastReminder = reminders.length > 0 ? reminders[reminders.length - 1] : null;
+      const followUp = parseFollowUpUpdate(cleanedText, lastReminder);
+
+      let actionsToRun: any[] = [];
+      if (followUp && followUp.isFollowUp && lastReminder) {
+        actionsToRun = [{
+          intent: "REMINDER",
+          action: "UPDATE",
+          payload: { ...followUp.updates, id: lastReminder.id }
+        }];
+      } else if (!isSimpleGreeting(cleanedText) && !classifyIdentityOrCapability(cleanedText).isMatch) {
+        const intentClassification = await routeUserIntent(cleanedText);
+        if (intentClassification.actions && intentClassification.actions.length > 0) {
+          actionsToRun = intentClassification.actions;
+        } else if (intentClassification.intent && intentClassification.intent !== "NORMAL_CHAT") {
+          actionsToRun = [{
+            intent: intentClassification.intent,
+            action: "CREATE",
+            payload: intentClassification.extractedData || {}
+          }];
+        }
+      }
+
+      const actionResults = actionsToRun.length > 0
+        ? await ServerActionEngine.executeActions(currentUserId, actionsToRun, cleanedText)
+        : [];
+
+      if (actionResults.length > 0) {
+        res.write(`data: ${JSON.stringify({ type: "actions", actionResults })}\n\n`);
+      }
+
+      // Background memory check
+      checkAndMemorize(currentUserId, cleanedText).catch(() => {});
+
+      // 3. Stream Gemini Live Native Audio + Synchronized Transcript
+      let accumulatedTranscript = "";
+      const finalReply = await streamGeminiLiveTurn(
+        currentUserId,
+        conversation.id,
+        cleanedText,
+        actionResults,
+        voiceName,
+        {
+          onTranscriptDelta: (delta) => {
+            accumulatedTranscript += delta;
+            res.write(`data: ${JSON.stringify({ type: "transcript", delta })}\n\n`);
+          },
+          onAudioChunk: (pcmBase64) => {
+            res.write(`data: ${JSON.stringify({ type: "audio", pcmBase64, sampleRate: 24000 })}\n\n`);
+          }
+        }
+      );
+
+      const savedText = (finalReply || accumulatedTranscript || "I'm here and listening.").trim();
+      const assistantMsg = dbService.createMessage(conversation.id, {
+        sender: "assistant",
+        text: savedText,
+        type: "voice"
+      });
+
+      res.write(`data: ${JSON.stringify({ type: "done", replyText: savedText, spokenReplyText: formatTextForNaturalSpeech(savedText), assistantMessage: assistantMsg, actionResults })}\n\n`);
+      res.end();
+    } catch (err: any) {
+      console.error("[LIVE_STREAM_ERROR]", err);
+      res.write(`data: ${JSON.stringify({ type: "error", error: err?.message || "Live stream error" })}\n\n`);
+      res.end();
+    }
   });
 
   // Streaming SSE endpoint for real-time token streaming

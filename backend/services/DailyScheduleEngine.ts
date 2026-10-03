@@ -91,6 +91,8 @@ export class DailyScheduleEngine {
     const lower = text.trim().toLowerCase();
     if (!lower || lower.length < 2) return true;
     if (/^(help me|plan my day|generate my plan|generate my plan for that|create my plan|make a schedule|organize these tasks|schedule them|for that|plan it|make a plan)$/i.test(lower)) return true;
+    if (/^(today|tomorrow|tonight|morning|afternoon|evening|night|monday|tuesday|wednesday|thursday|friday|saturday|sunday|demain|aujourd'hui|ce soir)$/i.test(lower)) return true;
+    if (/^(ok|okay|thanks|thank you|thank you very much|thank you too|okay thank you|okay thank you very much|chucky chucky thank you|chucky chucky thank you too|merci|merci beaucoup)$/i.test(lower)) return true;
     if (/^can\s+you\s+(create|generate|make)\s+(a|my)?\s*(plan|schedule)/i.test(lower)) return true;
     if (/^i\s+want\s+you\s+to\s+help\s+me/i.test(lower)) return true;
     if (/^i\s+am\s+writing\s+my\s+exams/i.test(lower) || lower.includes("how can i proceed to succeed")) return true;
@@ -112,6 +114,11 @@ export class DailyScheduleEngine {
     if (this.isMetaInstruction(rawChunk)) return '';
 
     let clean = rawChunk
+      // Normalize a.m. / p.m. first
+      .replace(/\b([ap])\.m\./gi, '$1m')
+      // Remove conversational wrappers / gratitude prefixes
+      .replace(/^(?:(?:chucky\s+chucky|okay|ok|well|so|hey|hi|hello|dear\s+xena|xena)\s+)*(?:thank\s+you(?:\s+very\s+much|\s+too|\s+so\s+much)?|thanks(?:\s+a\s+lot)?|merci(?:\s+beaucoup)?)\s*(?:and\s+)?/gi, '')
+      .replace(/^(?:okay|ok|well|so|please|can\s+you|could\s+you|would\s+you|don't\s+forget\s+to|do\s+not\s+forget\s+to|remind\s+me\s+to|remind\s+me)\s+/gi, '')
       // Remove time ranges: "from 8 AM to 11 AM", "from 8 to 10", "from 8h to 11h"
       .replace(/\b(?:from|de)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:to|à|au|-)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b/gi, '')
       // Remove durations: "for two hours", "for 1 hour", "for 90 minutes", "for 45 mins", "pendant 2 heures"
@@ -124,20 +131,21 @@ export class DailyScheduleEngine {
       .replace(/\b\d{1,2}:\d{2}\s*(?:minutes?|mins?|m)?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?\b/gi, '')
       .replace(/\b\d{1,2}\s*(?:am|pm|a\.?m\.?|p\.?m\.?)\b/gi, '')
       // Remove deadlines: "before 5 PM", "by 6 PM", "avant 17h"
-      .replace(/\b(?:before|by|avant)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b/gi, '')
+      .replace(/\b(?:before|by|avant)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?\b/gi, '')
+      .replace(/\b(?:before|by|avant)\s*$/gi, '')
       // Remove conversational flexibility remarks
       .replace(/\b(?:but\s+i\s+can\s+choose\s+the\s+time|whenever\s+i\s+want|i\s+can\s+start\s+whenever|when\s+i\s+want|mais\s+je\s+peux\s+choisir\s+l'heure|quand\s+je\s+veux)\b/gi, '')
       // Remove priority indicators from title
       .replace(/\b(?:my\s+most\s+important\s+task\s+is\s+to|most\s+important\s+task|high\s+priority|mon\s+activité\s+prioritaire\s+est\s+de)\b/gi, '')
       // Remove command prefixes
       .replace(/^(?:i\s+need\s+to|i\s+have\s+to|i\s+want\s+to|need\s+to|have\s+to|i\s+must|must|schedule\s+my|schedule|put\s+my|add\s+my|i\s+also\s+have\s+to|also\s+have\s+to|also\s+need\s+to|also\s+want\s+to|je\s+dois|je\s+veux|planifie|ajoute)\s+/gi, '')
-      .replace(/^(?:tomorrow|today|for\s+tomorrow|for\s+today|demain|aujourd'hui)\s+/gi, '')
+      .replace(/\b(?:tomorrow|today|tonight|for\s+tomorrow|for\s+today|demain|aujourd'hui)\b/gi, '')
       // Clean unwanted punctuation (preserving accented characters)
       .replace(/[^a-zA-Z0-9\s\-'àâäéèêëîïôöùûüçÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
-    if (!clean) return '';
+    if (!clean || this.isMetaInstruction(clean)) return '';
 
     // If cleaned string is still longer than 8 words, truncate or extract main course/action
     const words = clean.split(' ');
@@ -166,7 +174,19 @@ export class DailyScheduleEngine {
   public static parseTaskConstraints(rawText: string, dateStr: string): ExtractedTaskConstraint[] {
     if (!rawText || typeof rawText !== 'string') return [];
 
+    // Guardrail: Do NOT parse pure reminder requests as daily plan constraints unless user explicitly asked for a plan
+    const lowerRaw = rawText.toLowerCase();
+    const isExplicitReminderOnly = (
+      /\b(remind\s+me|don't\s+forget\s+to\s+remind|set\s+a\s+reminder|create\s+a\s+reminder|add\s+a\s+reminder|rappelle-moi)\b/i.test(lowerRaw) &&
+      !/\b(plan\s+my\s+day|create\s+a\s+plan|create\s+my\s+plan|daily\s+plan|make\s+a\s+schedule|generate\s+a\s+plan|generate\s+my\s+plan|organize\s+my\s+day)\b/i.test(lowerRaw)
+    );
+    if (isExplicitReminderOnly) {
+      return [];
+    }
+
     let cleaned = rawText
+      // Normalize a.m. / p.m. so periods inside "p.m." or "a.m." NEVER split sentences
+      .replace(/\b([ap])\.m\./gi, '$1m')
       .replace(/aide-moi\s+à\s+planifier\s+ma\s+journée\.?/gi, '')
       .replace(/aide-moi\s+à\s+planifier\.?/gi, '')
       .replace(/planifie\s+ma\s+journée\.?/gi, '')

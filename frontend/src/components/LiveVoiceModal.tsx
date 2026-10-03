@@ -4,6 +4,7 @@ import {
   Mic, MicOff, Volume2, VolumeX, X, Sparkles, AlertCircle, Loader2, RefreshCw, Radio
 } from 'lucide-react';
 import { SpeechService } from '../services/SpeechService.js';
+import { GEMINI_VOICE_PROFILES } from '../utils/voiceUtils.js';
 import MarkdownRenderer from './MarkdownRenderer.js';
 import { getApiUrl } from '../config/api.js';
 
@@ -33,6 +34,12 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [audioSpectrum, setAudioSpectrum] = useState<number[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedVoice, setSelectedVoice] = useState<string>(() => SpeechService.getPreferredVoice());
+
+  const handleVoiceChange = (voiceId: string) => {
+    setSelectedVoice(voiceId);
+    SpeechService.setPreferredVoice(voiceId);
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isOpenRef = useRef(isOpen);
@@ -110,6 +117,8 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
     setErrorMessage(null);
 
     SpeechService.startRecording({
+      autoStopOnSilence: true,
+      silenceTimeoutMs: 1500,
       onStart: () => {
         if (!isOpenRef.current) return;
         setModeState('listening');
@@ -183,79 +192,114 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
     setMessages(prev => [...prev, userMsg]);
 
     try {
-      const res = await fetch(getApiUrl('/api/chat/live'), {
+      const xenaMsgId = `x-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const res = await fetch(getApiUrl('/api/chat/live/stream'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: userText, type: 'voice' }),
+        body: JSON.stringify({ text: userText, type: 'voice', voiceName: selectedVoice }),
         signal: abortController.signal
       });
-
-      const aiEnd = Date.now();
-      const aiFirstResponse = aiEnd;
 
       if (!isOpenRef.current) {
         isProcessingRef.current = false;
         return;
       }
 
-      if (res.ok) {
-        const data = await res.json();
-        const replyText = data.replyText || data.assistantMessage?.text || "Done. Is there anything else you need?";
+      if (res.ok && res.body) {
+        SpeechService.startPcmStream();
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let streamedTranscript = '';
+        let finalReplyText = '';
+        let receivedAudioChunks = 0;
+        let firstAudioLogged = false;
 
-        // Refresh app state (reminders, events, tasks, etc.)
-        if (onRefreshData) onRefreshData();
+        setMessages(prev => [
+          ...prev,
+          {
+            id: xenaMsgId,
+            sender: 'xena',
+            text: '...',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }
+        ]);
 
-        // Append Xena message
-        const xenaMsg: LiveMessage = {
-          id: `x-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          sender: 'xena',
-          text: replyText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        setMessages(prev => [...prev, xenaMsg]);
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!isOpenRef.current || abortController.signal.aborted) break;
 
-        // Speak response by Voice & when finished, automatically listen again!
-        setModeState('speaking');
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            const jsonStr = trimmed.slice(5).trim();
+            if (!jsonStr) continue;
+
+            try {
+              const evt = JSON.parse(jsonStr);
+              if (evt.type === 'actions' && onRefreshData) {
+                onRefreshData();
+              } else if (evt.type === 'transcript' && evt.delta) {
+                streamedTranscript += evt.delta;
+                const displayText = evt.fullText || streamedTranscript;
+                setMessages(prev =>
+                  prev.map(m => (m.id === xenaMsgId ? { ...m, text: displayText } : m))
+                );
+              } else if (evt.type === 'audio' && evt.pcmBase64) {
+                receivedAudioChunks++;
+                setModeState('speaking');
+                SpeechService.enqueuePcmChunk(evt.pcmBase64, evt.sampleRate || 24000, () => {
+                  if (!firstAudioLogged) {
+                    firstAudioLogged = true;
+                    const playbackStart = Date.now();
+                    console.log(`[GEMINI_LIVE_LATENCY] Total End-of-Speech -> Native Audio Playing: ${((playbackStart - sttEnd) / 1000).toFixed(2)}s`);
+                  }
+                });
+              } else if (evt.type === 'done') {
+                finalReplyText = evt.replyText || streamedTranscript || "Done. Is there anything else you need?";
+                if (onRefreshData) onRefreshData();
+                setMessages(prev =>
+                  prev.map(m => (m.id === xenaMsgId ? { ...m, text: finalReplyText } : m))
+                );
+              }
+            } catch (parseErr) {}
+          }
+        }
+
         isProcessingRef.current = false;
 
-        const ttsStart = Date.now();
-
-        SpeechService.speak(replyText, {
-          onStart: () => {
-            const ttsFirstAudio = Date.now();
-            const playbackStart = ttsFirstAudio;
-
-            const aiFirstSec = ((aiFirstResponse - aiStart) / 1000).toFixed(2);
-            const ttsFirstSec = ((ttsFirstAudio - ttsStart) / 1000).toFixed(2);
-            const totalLatencySec = ((playbackStart - sttEnd) / 1000).toFixed(2);
-
-            console.log(`[VOICE_LATENCY_METRICS]
-STT_END: ${new Date(sttEnd).toISOString()}
-AI_START: ${new Date(aiStart).toISOString()}
-AI_FIRST_RESPONSE: ${new Date(aiFirstResponse).toISOString()}
-AI_END: ${new Date(aiEnd).toISOString()}
-TTS_START: ${new Date(ttsStart).toISOString()}
-TTS_FIRST_AUDIO: ${new Date(ttsFirstAudio).toISOString()}
-PLAYBACK_START: ${new Date(playbackStart).toISOString()}
-
-Summary Metrics:
-- AI Generation Latency: ${aiFirstSec}s
-- TTS First Audio Latency: ${ttsFirstSec}s
-- TOTAL Response Latency (End of speech -> Audio playing): ${totalLatencySec}s`);
-          },
-          onEnd: () => {
+        if (receivedAudioChunks > 0) {
+          SpeechService.waitForPcmStreamEnd(() => {
             if (isOpenRef.current) {
               setTimeout(() => {
-                if (isOpenRef.current) {
-                  startListeningPass();
-                }
+                if (isOpenRef.current) startListeningPass();
               }, 200);
             }
-          }
-        });
-
+          });
+        } else {
+          const textToSpeak = finalReplyText || streamedTranscript || "Done. Is there anything else you need?";
+          setModeState('speaking');
+          SpeechService.speak(
+            textToSpeak,
+            {
+              onEnd: () => {
+                if (isOpenRef.current) {
+                  setTimeout(() => {
+                    if (isOpenRef.current) startListeningPass();
+                  }, 200);
+                }
+              }
+            },
+            { voiceName: selectedVoice }
+          );
+        }
       } else {
-        throw new Error("API response not ok");
+        throw new Error("Live stream API response not ok");
       }
     } catch (e: any) {
       if (e.name === 'AbortError') {
@@ -331,12 +375,28 @@ Summary Metrics:
                   LIVE
                 </span>
               </div>
-              <p className="text-[9.5px] text-gray-400 font-mono">Continuous Hands-Free Conversation</p>
+              <p className="text-[9.5px] text-gray-400 font-mono">Gemini Live 24kHz Neural Audio • {selectedVoice} Voice</p>
             </div>
           </div>
 
-          {/* STATE INDICATOR BADGE */}
-          <div className="flex items-center space-x-3">
+          {/* VOICE PERSONA PILLS + STATE INDICATOR BADGE */}
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <div className="hidden md:flex items-center space-x-1 bg-[#101520] border border-nexa-border rounded-xl p-1">
+              {GEMINI_VOICE_PROFILES.slice(0, 4).map((vp) => (
+                <button
+                  key={vp.id}
+                  onClick={() => handleVoiceChange(vp.id)}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold transition cursor-pointer ${
+                    selectedVoice === vp.id
+                      ? 'bg-nexa-blue text-white shadow'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                  title={vp.description}
+                >
+                  {vp.name}
+                </button>
+              ))}
+            </div>
             <div className={`px-3 py-1 rounded-full border text-[10px] font-bold font-mono tracking-wider uppercase flex items-center space-x-1.5 shadow-lg ${
               modeState === 'listening' ? 'bg-red-500/10 border-red-500/50 text-red-400 animate-pulse' :
               modeState === 'thinking' ? 'bg-nexa-purple/20 border-nexa-purple text-nexa-glow' :

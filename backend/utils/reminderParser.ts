@@ -100,7 +100,9 @@ export function cleanReminderTitle(rawTitle: string, fullQuery: string): string 
 
   // 1. Remove correction preambles and greetings
   let cleanedText = source
-    .replace(/^(no|no\s+no|actually|i\s+meant|instead|correction|that's\s+wrong|change\s+that)\b[,]?.?\s*/i, '')
+    .replace(/^(?:(?:chucky\s+chucky|okay|ok|well|so|hey|hi|hello|dear\s+xena|xena)\s+)*(?:thank\s+you(?:\s+very\s+much|\s+too|\s+so\s+much)?|thanks(?:\s+a\s+lot)?|merci(?:\s+beaucoup)?)\s*(?:and\s+)?/i, '')
+    .replace(/^(no|no\s+no|actually|i\s+meant|instead|correction|that's\s+wrong|change\s+that|okay|ok|well|so)\b[,]?.?\s*/i, '')
+    .replace(/^(?:and\s+)?(?:don't\s+forget\s+to|do\s+not\s+forget\s+to)\s+/i, '')
     .replace(/^(i\s+want\s+you\s+to|i\s+want|i\s+need\s+you\s+to|i\s+would\s+like\s+you\s+to|could\s+you\s+please|can\s+you\s+please)\s+/i, '')
     .trim();
 
@@ -133,7 +135,7 @@ export function cleanReminderTitle(rawTitle: string, fullQuery: string): string 
     /\b(?:can|could|would)\s+(?:you\s+)?(?:please\s+)?remind\s+me\s+(?:to|for|about|that)\s+(.+)/i,
     /\b(?:can|could|would)\s+(?:you\s+)?(?:please\s+)?(?:create|set|add|make|schedule)\s+(?:me\s+)?(?:a\s+)?reminder\s+(?:to|for|about)\s+(.+)/i,
     /\b(?:make\s+sure\s+(?:that\s+)?(?:i\s+)?(?:remember\s+to|don't\s+forget\s+to))\s+(.+)/i,
-    /\b(?:i\s+don't\s+want\s+to\s+forget\s+to|don't\s+let\s+me\s+forget\s+to|help\s+me\s+remember\s+to|so\s+i\s+don't\s+forget\s+to)\s+(.+)/i,
+    /\b(?:i\s+don't\s+want\s+to\s+forget\s+to|don't\s+let\s+me\s+forget\s+to|don't\s+forget\s+to\s+remind\s+me\s+to|don't\s+forget\s+to|help\s+me\s+remember\s+to|so\s+i\s+don't\s+forget\s+to)\s+(.+)/i,
     /\bremind\s+me\s+that\s+i\s+(?:have\s+to|need\s+to|must)\s+(.+)/i,
     /\bremind\s+me\s+that\s+i\s+have\s+a\s+(.+)/i,
     /\bremind\s+me\s+that\s+(.+)/i,
@@ -206,18 +208,19 @@ export function cleanReminderTitle(rawTitle: string, fullQuery: string): string 
     extractedAction = extractedAction.replace(pattern, '');
   }
 
-  // 5. Strip time & relative offset expressions from title
+  // 5. Strip time & relative offset expressions from title (including "by 9:00 p.m.", "before 5 pm", "at 4:00 at 9:00 p.m.")
   const timePatterns = [
     /\b(?:in|for)\s+\d+\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)\b(\s*from\s+now)?/gi,
     /\b\d+\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)\s*from\s+now\b/gi,
-    /\bat\s+\d{1,2}(?::\d{2})?\s*(?:minutes?|mins?|m)?\s*(a\.?m\.?|p\.?m\.?)(?!\w)/gi,
+    /\b(?:at|by|before|around|until|till)\s+\d{1,2}(?::\d{2})?\s*(?:minutes?|mins?|m)?\s*(a\.?m\.?|p\.?m\.?)(?!\w)/gi,
     /\b\d{1,2}(?::\d{2})?\s*(?:minutes?|mins?|m)?\s*(a\.?m\.?|p\.?m\.?)(?!\w)/gi,
-    /\bat\s+\d{1,2}(?::\d{2})?\b/gi,
+    /\b(?:at|by|before|around|until|till)\s+\d{1,2}(?::\d{2})?\b/gi,
     /\b\d{1,2}\s+in the (morning|evening|afternoon)\b/gi,
     /\bin the (morning|evening|afternoon)\b/gi,
-    /\bat noon\b/gi,
-    /\bat midnight\b/gi,
-    /\bat\s+\d{1,2}\b/gi,
+    /\b(?:at|by|before)\s+noon\b/gi,
+    /\b(?:at|by|before)\s+midnight\b/gi,
+    /\b(?:at|by|before|around)\s+\d{1,2}\b/gi,
+    /\b(?:by|before|at|around)\s*$/gi,
   ];
 
   for (const pattern of timePatterns) {
@@ -289,15 +292,35 @@ export function extractReminderParams(
     /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\b/i.test(lowerText)
   );
 
+  // Check for multiple conflicting "at/by <time>" expressions in a single reminder query (e.g., "at 4:00 at 9:00 p.m. today")
+  const multiTimeMatches = Array.from(
+    lowerText.matchAll(/\b(?:at|by|before|for)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?)/gi)
+  ).map(m => m[1].trim());
+  const uniqueExplicitTimes = Array.from(new Set(multiTimeMatches));
+  const hasExplicitSelfCorrection = /\b(i\s+mean|i\s+meant|actually|sorry|instead|no\s+wait)\b/i.test(lowerText);
+  const isTimeRange = /\bfrom\s+\d{1,2}/i.test(lowerText);
+
+  const payloadTimeStr = payload?.time ? String(payload.time) : '';
+
   if (relOffset) {
     date = relOffset.date;
     parsedTime = relOffset.time;
     isTimeExplicit = true;
     isDateExplicit = true;
+  } else if (payloadTimeStr.startsWith('AMBIGUOUS')) {
+    isTimeExplicit = false;
+    parsedTime = payloadTimeStr;
+  } else if (uniqueExplicitTimes.length >= 2 && !hasExplicitSelfCorrection && !isTimeRange && !payloadTimeStr) {
+    // Conflicting multiple times in the same reminder utterance (e.g. "at 4:00 at 9:00 p.m.")
+    isTimeExplicit = false;
+    parsedTime = `AMBIGUOUS_CONFLICT:${uniqueExplicitTimes.join(' or ')}`;
   } else {
     const rawTimeMatch = normalizeTimeString(payload?.time) || extractTimeFromText(queryText);
     if (rawTimeMatch && !rawTimeMatch.startsWith('AMBIGUOUS')) {
       isTimeExplicit = true;
+      parsedTime = rawTimeMatch;
+    } else if (rawTimeMatch && rawTimeMatch.startsWith('AMBIGUOUS')) {
+      isTimeExplicit = false;
       parsedTime = rawTimeMatch;
     } else if (lowerText.includes('at noon') || lowerText.includes('noon')) {
       isTimeExplicit = true;
